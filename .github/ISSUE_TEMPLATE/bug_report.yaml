@@ -1,0 +1,34 @@
+name: Bug Report
+description: Create a report to help us improve
+type: "Bug"
+title: '...provide a title...'
+projects: ["AlaskaAirlines/19"]
+body:
+  - type: textarea
+    id: details
+    attributes:
+      label: Steps to reproduce
+      description: List out the steps to reproduce the behavior and include screenshots
+      placeholder: |
+        1. Go to '...'
+        2. Run '....'
+        3. Observe '....'
+
+        Result:
+        '... What happened that you didn't expect? ...'
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Please add a clear and concise description of what you expected to
+        happen.
+  - type: input
+    id: version
+    attributes:
+      label: Which version of auro-ai are you using?
+      description: Provide the plugin/marketplace version or commit SHA where you saw the issue.
+  - type: textarea
+    id: exit-criteria
+    attributes:
+      label: Exit criteria (To be determined by the Auro team)
+      description: Define exit criteria for completing this bug report.

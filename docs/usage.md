@@ -181,15 +181,26 @@ New skills added to the existing `auro` plugin arrive **as part of the plugin** 
 not install them one by one. In the consuming repo:
 
 ```shell
-claude plugin marketplace update auro-ai   # refresh the catalog so it sees the new version
-claude plugin update auro@auro-ai          # pull the latest plugin version to disk
+claude plugin marketplace update auro-ai                # refresh the catalog so it sees the new version
+claude plugin update auro@auro-ai --scope project       # pull the latest plugin version to disk
 ```
 
-Then **restart the Claude Code session** (or `/reload-plugins` where available) to load
-the new skills — plugins are read at startup. A newly added skill appears as
-`/auro:<skill-name>`; confirm what the plugin now provides with:
+> **Match the scope you installed at.** `claude plugin update` defaults to `--scope user`.
+> If you installed the plugin at **project** scope (the recommended, shared setup — see
+> [Option A](#option-a--install-for-a-whole-repoteam-recommended) / `--scope project` in
+> [Option B](#option-b--install-manually-via-the-cli)), you **must** pass `--scope project`
+> or the update fails with `Plugin "auro" is not installed at scope user`. Check your scope
+> with `claude plugin list` (it prints `Scope: project`) and use the matching flag.
+
+Then **fully restart the Claude Code session** to load the new skills — plugins are read at
+startup, and the update itself prints `restart required to apply`. Do **not** rely on
+`/reload-plugins` for a *newly added* skill: it refreshes already-loaded skills into context
+but does **not** rebuild the slash-command index, so `/auro:<new-skill>` won't be invocable
+until a real restart (in the **VS Code extension**, reload the window / reopen the panel).
+Confirm the new version and its skills with:
 
 ```shell
+claude plugin list                         # verify the active Version bumped (e.g. 1.1.0)
 claude plugin details auro@auro-ai         # lists every skill in the current version
 ```
 
@@ -243,7 +254,9 @@ claude plugin marketplace remove  auro-ai  # remove the marketplace (uninstalls 
 | Symptom | Fix |
 | ------- | --- |
 | `/plugin isn't available in this environment` | Use the `claude plugin …` CLI (Option B). The VS Code extension doesn't expose the interactive panel. |
-| Skills don't appear after install | Run `/reload-plugins`, or restart the Claude Code session — plugins load at startup. |
+| A **new** skill doesn't appear after `claude plugin update` | Fully **restart** the session — `/reload-plugins` does *not* rebuild the slash-command index, so a newly added `/auro:<skill>` won't register until restart. In the VS Code extension, reload the window / reopen the panel. |
+| `Failed to update plugin … not installed at scope user` | `claude plugin update` defaults to `--scope user`. Re-run with the scope you installed at, e.g. `claude plugin update auro@auro-ai --scope project`. Check with `claude plugin list`. |
+| Existing skills don't appear after install | Run `/reload-plugins`, or restart the Claude Code session — plugins load at startup. |
 | `Marketplace "auro-ai" not found` | `claude plugin marketplace add AlaskaAirlines/auro-ai`, then retry the install. |
 | Plugin shows **disabled** despite `enabledPlugins` | `claude plugin enable auro@auro-ai`. |
 | Private-repo clone fails | Ensure you have git access to `AlaskaAirlines/auro-ai` (HTTPS or SSH). |

@@ -1,9 +1,13 @@
 # Changelog
 
 All notable changes to the `auro` plugin are documented here. This project
-follows [Semantic Versioning](https://semver.org/). Bump the version in both
+follows [Semantic Versioning](https://semver.org/). Releases are automated by
+[semantic-release](https://github.com/semantic-release/semantic-release): on push
+to `main` it derives the next version from [Conventional Commits](https://www.conventionalcommits.org/),
+updates this file, bumps the version in both
 `plugins/auro/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-with each release, and tag the release (`git tag vX.Y.Z`).
+(via `scripts/bump-version.mjs`), commits that back to `main`, and tags/publishes
+the GitHub Release. Do not edit versions by hand — just write Conventional Commits.
 
 ## [1.2.1] — unreleased
 

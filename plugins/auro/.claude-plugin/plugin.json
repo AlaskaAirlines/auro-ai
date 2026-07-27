@@ -1,0 +1,11 @@
+{
+  "name": "auro",
+  "description": "Commit and code-review skills for the Auro design system / auro-formkit.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Alaska Airlines — Auro Design System"
+  },
+  "homepage": "https://github.com/AlaskaAirlines/auro-ai",
+  "repository": "https://github.com/AlaskaAirlines/auro-ai",
+  "license": "Apache-2.0"
+}

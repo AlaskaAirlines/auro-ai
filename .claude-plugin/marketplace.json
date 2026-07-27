@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "auro-ai",
+  "owner": {
+    "name": "Alaska Airlines — Auro Design System"
+  },
+  "description": "Claude Code plugins for the Auro design system and auro-formkit workflows.",
+  "plugins": [
+    {
+      "name": "auro",
+      "source": "./plugins/auro",
+      "description": "Commit and code-review skills for auro-formkit: guided Conventional Commits workflow and multi-model PR/local review.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Alaska Airlines — Auro Design System"
+      }
+    }
+  ]
+}

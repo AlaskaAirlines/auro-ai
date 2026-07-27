@@ -1,0 +1,11 @@
+{
+  "extraKnownMarketplaces": {
+    "auro-ai": {
+      "source": {
+        "source": "github",
+        "repo": "AlaskaAirlines/auro-ai"
+      }
+    }
+  },
+  "enabledPlugins": { "auro@auro-ai": true }
+}

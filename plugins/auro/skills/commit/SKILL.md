@@ -1,16 +1,32 @@
 ---
 name: commit
-description: Guided commit workflow for auro-formkit — takes an ADO ticket or PR number as its argument, checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit.
+description: Guided commit workflow for auro-formkit — takes an ADO ticket or PR number as its argument (or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit.
 disable-model-invocation: true
-argument-hint: "<ADO ticket # | PR # | prev>"
+argument-hint: "<ADO ticket # | PR # | prev | amend>"
 allowed-tools: Bash(git status *), Bash(git symbolic-ref *), Bash(git rev-parse *), Bash(git rev-list *), Bash(git branch *), Bash(git fetch *), Bash(git pull *), Bash(git diff *), Bash(git log *), Bash(git commit *), Bash(git config *), Read, Glob, Grep, AskUserQuestion
 ---
 
 ## Task — start now
 
-You are executing the **commit** skill. The invocation is the request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step, and do not reorder them. Some steps require a user prompt — ask it, wait for the reply, and branch on the answer before continuing. This skill's only mutating side effects are a `git pull` (Step 2, only if the user asks for it), a repo-local `git config` write recording the reference (Step 6), and the final `git commit` (Step 6, only after the user confirms). Never push.
+You are executing the **commit** skill. The invocation is the request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step, and do not reorder them. Some steps require a user prompt — ask it, wait for the reply, and branch on the answer before continuing. This skill's only mutating side effects are a `git pull` (Step 2, only if the user asks for it), a repo-local `git config` write recording the reference (Step 6), and the final `git commit` — either a new commit or, in **amend mode**, a `git commit --amend` that rewrites the previous commit (Step 6, only after the user confirms). Never push.
 
-**The invocation takes one argument** — the ADO ticket or PR number to associate with the commit — available as `$ARGUMENTS` (the text after `/commit`, trimmed; empty if none). It is resolved in **Step 3**. Work through the steps below in order.
+**The invocation takes one argument** — available as `$ARGUMENTS` (the text after `/commit`, trimmed; empty if none):
+- an **ADO ticket or PR number** (or `prev`) to associate with a **new** commit — the normal flow, resolved in **Step 3**; or
+- **`amend`** — fold the current staged changes into the **previous** commit and rewrite its message. This selects **amend mode**, determined in **Step 0**.
+
+Work through the steps below in order.
+
+---
+
+## Step 0 — Determine mode (normal vs amend)
+
+Inspect `$ARGUMENTS` (trimmed, case-insensitive):
+
+- If it is exactly **`amend`** (optionally followed by an explicit reference — e.g. `amend 1602084` — which overrides the reference resolved in Step 3), this is **amend mode**. Set `AMEND_MODE = true`. In amend mode the workflow folds the current staged changes into the **previous** commit (`git commit --amend`) and rewrites its message to describe the combined result, following the exact same subject/body rules as a normal commit.
+  - Before continuing, confirm there is a commit to amend: run `git rev-parse --verify HEAD` (and note whether a parent exists with `git rev-parse --verify HEAD~1`). If `HEAD` does not resolve (no commits yet), stop and tell the user: "No commit to amend — the branch has no commits yet. Stage your changes and run `/commit <reference>` to create the first commit." Then end the workflow.
+- Otherwise `AMEND_MODE = false` — the **normal** new-commit flow.
+
+Carry `AMEND_MODE` through the remaining steps. Steps 1 and 2 run identically in both modes (with one extra amend caution noted in Step 2); Steps 3–6 have explicit **amend-mode** branches.
 
 ---
 
@@ -55,9 +71,22 @@ Options (exactly these three):
 2. **Continue without syncing** — proceed to Step 3 without pulling.
 3. **Exit** — end the workflow immediately with a short note. Do not run any further steps.
 
+**Amend-mode caution.** If `AMEND_MODE` is true, the commit you are about to rewrite may already have been pushed. Using the **ahead** count from `git rev-list --left-right --count @{u}...HEAD` (the second number, local commits not on the remote): if there is an upstream **and ahead == 0**, the previous commit already exists on `<upstream>` — amending it rewrites published history and will require a force-push to update the remote (this skill never pushes). **Warn and confirm** with `AskUserQuestion`:
+
+> ⚠️ The commit you're about to amend appears to already be on `<upstream>`. Amending rewrites it and will require a force-push to update the remote. Continue?
+
+Options: **Continue with amend** — proceed to Step 3; **Exit** — end the workflow immediately. If there is no upstream, or ahead > 0 (the previous commit is local-only), say nothing about this and proceed normally.
+
 ---
 
 ## Step 3 — Ticket / PR reference (from the argument)
+
+**Amend mode.** If `AMEND_MODE` is true, do **not** prompt. The reference is inherited from the commit being amended so the rewritten subject keeps the same trailing reference:
+- If the invocation supplied an explicit reference after `amend` (e.g. `amend 1602084`), classify that number by the length rules in step 2 below and use it (it overrides the inherited one).
+- Otherwise read the previous commit's message (`git log -1 --pretty=%B`) and extract the trailing reference from its subject — the last `AB#<digits>` (ADO ticket) or `#<digits>` (PR) token. Reuse it verbatim (and remember whether it is an ADO ticket or PR, from the `AB#` vs `#` form).
+- If the previous subject has no such token, fall back to `git config --local --get commit.skillLastRef`. If that is also unset, prompt once with: "The previous commit has no ticket/PR reference. Enter the ADO ticket number (7 digits) or PR number (fewer than 7 digits) to add, or reply `none` to amend without one:" — classify the reply per step 2, or omit the reference on `none`.
+
+Then continue to Step 4. The rest of this step (the `prev` and explicit-number rules below) applies to the **normal** flow only.
 
 The reference comes from **`$ARGUMENTS`** — do **not** prompt for it in the normal case. Resolve it as follows.
 
@@ -86,7 +115,7 @@ Remember the resolved reference (its final form and whether it is an ADO ticket 
 
 ## Step 4 — Assess staged changes and build the subject
 
-Look **only at staged changes** (what will actually be committed):
+**Normal mode.** Look **only at staged changes** (what will actually be committed):
 
 ```
 git diff --cached --stat
@@ -95,7 +124,18 @@ git diff --cached
 
 If there are **no staged changes**, stop and tell the user: "Nothing staged — run `git add` for the files you want to commit, then re-run `/commit`." Do not create an empty commit.
 
-From the staged diff, construct the commit **subject** as a single line, **≤ 100 characters total**, in this shape:
+**Amend mode.** The amended commit's final content is the **combination** of the previous commit's changes and the newly staged changes. Assess that combined set — compare the index against the previous commit's **parent** so the diff reflects everything the amended commit will contain:
+
+```
+git diff --cached --stat HEAD~1
+git diff --cached HEAD~1
+```
+
+- If the previous commit is the **root** commit (no `HEAD~1`, per Step 0), compare against the empty tree instead: use `git diff --cached --stat 4b825dc642cb6eb9a060e54bf8d69288fbee4904` and `git diff --cached 4b825dc642cb6eb9a060e54bf8d69288fbee4904` (that hash is git's canonical empty-tree object).
+- Also read the previous commit's existing message (`git log -1 --pretty=%B`) — use it to understand the original intent so the rewritten message describes the *original changes together with the new ones* (Step 5 handles preserving its trailers).
+- If there are **no new staged changes** in amend mode, this is a message-only amend. That is allowed — note "ℹ️ No new staged changes — amending will only update the previous commit's message." and continue (do not hard-stop as the normal flow does).
+
+From the assessed diff, construct the commit **subject** as a single line, **≤ 100 characters total**, in this shape:
 
 ```
 <type>(<scope>): <imperative summary> <reference>
@@ -133,6 +173,11 @@ When the staged changes span multiple categories, resolve by **priority: `feat` 
 ## Step 5 — Build the body
 
 Write a commit **body**: a concise executive summary of what changed across the staged files — short, but detailed enough that a reader understands *what* changed and *why* without reading the diff. Prefer one short paragraph or a few bullet points.
+
+**Amend mode.** Base the body on the previous commit's message (read in Steps 3–4) and revise it so the executive summary describes the **combined** result — the original changes together with the newly staged ones — as a single coherent commit, not a changelog of "then I also…". Do **not** simply append; rewrite so it reads as one commit. Preserve the original message's **trailers** and merge them with any new ones:
+- Keep every existing `Co-authored-by:` trailer from the original commit; add any new co-author (from the prompt below) without duplicating one already present.
+- Keep the existing AI accreditation (`Co-authored-by AI:`) and, if AI contributed to the *new* staged changes, ensure the model(s) used are represented (add the current model if it is not already listed). Do not drop models that contributed to the original commit.
+- Re-evaluate the breaking-change and post-mortem rules below against the **combined** change set, not just the new staged diff.
 
 **Breaking changes.** Inspect the staged diff for any breaking change to a component's public API: a removed or renamed attribute/property/method, a changed event name or payload, an altered default behavior, or a changed slot contract. If one is present, make the **first paragraph** of the body a breaking-change notice in exactly this form:
 
@@ -183,16 +228,22 @@ Present the full proposed message for review, formatted as:
 <body>
 ```
 
-Show the subject's character count (and flag it if it somehow exceeds 100). Then ask with a plain-text prompt (not `AskUserQuestion`, so the user can reply either with approval or with free-form change instructions):
+Show the subject's character count (and flag it if it somehow exceeds 100). **In amend mode**, make clear this will **rewrite the previous commit** — show which commit is being replaced with `git log -1 --oneline` before the prompt. Then ask with a plain-text prompt (not `AskUserQuestion`, so the user can reply either with approval or with free-form change instructions):
 
 > Is this commit message correct? Reply **yes** to commit it, **no** to exit without committing, or tell me what to change.
+
+(In amend mode, phrase it as "Reply **yes** to amend the previous commit, …".)
 
 Interpret the reply:
 - **Approval** (`yes`, `y`, `looks good`, `commit`, or any clear affirmative) → run the commit, passing subject and body as separate `-m` arguments so the blank line between them is preserved:
   ```
   git commit -m "<subject>" -m "<body>"
   ```
-  (If the body contains characters that would be unsafe on the command line, write it via a temp file and `git commit -F <file>` instead.) After a successful commit, **record the reference so `prev` works next time** — store its final form (e.g. `AB#1602084` or `#123`) with:
+  **In amend mode**, add `--amend` so the previous commit is rewritten instead of creating a new one:
+  ```
+  git commit --amend -m "<subject>" -m "<body>"
+  ```
+  (If the body contains characters that would be unsafe on the command line, write it via a temp file and `git commit -F <file>` — add `--amend` in amend mode — instead.) After a successful commit, **record the reference so `prev` works next time** — store its final form (e.g. `AB#1602084` or `#123`) with:
   ```
   git config --local commit.skillLastRef "<resolved reference>"
   ```

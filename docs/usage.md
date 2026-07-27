@@ -14,7 +14,7 @@ for skills. Use the marketplace flow below instead.
 
 | Skill | Invocation | What it does |
 | ----- | ---------- | ------------ |
-| `commit` | `/auro:commit <ADO # \| PR # \| prev>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation |
+| `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
@@ -103,11 +103,20 @@ Then try it:
 /auro:commit 1602084     # 7-digit value → ADO ticket, subject ends with AB#1602084
 /auro:commit 123         # fewer than 7 digits → PR, subject ends with #123
 /auro:commit prev        # reuse the reference from the last /auro:commit in this repo
+/auro:commit amend       # fold staged changes into the previous commit, rewriting its message
 ```
 
 Walks you through: a protected-branch (`dev`/`main`/`master`) warning, a sync check,
 generating a Conventional Commits subject + body from your **staged** changes, and a
 confirm-or-edit loop before it commits. A ticket/PR reference is required.
+
+**Amend mode (`amend`).** Instead of creating a new commit, this rewrites the **previous**
+commit (`git commit --amend`) so the staged changes are folded into it and the message is
+regenerated to describe the *combined* result — following the same subject/body rules. It
+reuses the reference from the previous commit (pass `amend 1602084` to override), preserves
+the original commit's co-author and AI-accreditation trailers, and allows a message-only
+amend when nothing new is staged. If the commit being amended is already on the remote,
+you're warned first — rewriting it needs a force-push (the skill never pushes).
 
 ### `/auro:code-review`
 

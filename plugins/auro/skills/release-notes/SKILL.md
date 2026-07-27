@@ -74,19 +74,23 @@ You need every commit that has landed **since the base release was cut**, up to 
 2. **Matching version tag** — if step 1 finds nothing, try `git rev-parse --verify v<base semver>` (e.g. `v6.0.2`). If it resolves, use `v<base semver>..HEAD`.
 3. **Prompt once** — if neither resolves, ask the user with `AskUserQuestion` for a base ref (tag/branch/commit) to compare against, then use `<ref>..HEAD`.
 
-List the commits in the range for classification:
+List the commits in the range for classification — **subjects only** (do not pull bodies yet; they're only needed in Step 4, and only for the commits that make it into the notes):
 ```
-git log --format=%H%x00%s%x00%b%x1e <range>
+git log --format=%H%x1f%s <range>
 ```
-(NUL-separates hash/subject/body; record-separator `\x1e` between commits.) If the range is **empty** (no commits), stop and report: "No commits since the base release (`<base semver>`) — nothing to release."
+(`\x1f` separates hash from subject; one commit per line.) Then, in a single targeted call, get the hashes of any commits whose **body** carries a breaking-change footer — so you don't load every body just to find the rare breaking one:
+```
+git log -E --grep='^BREAKING[ -]CHANGE:' --format=%H <range>
+```
+Call this the **breaking-change set**. If the classification range is **empty** (no commits), stop and report: "No commits since the base release (`<base semver>`) — nothing to release."
 
 ---
 
 ## Step 3 — Classify commits and compute the new version
 
-Classify **each** commit in the range by Conventional Commits, reading both subject and body:
+Classify **each** commit in the range by Conventional Commits, using the subjects from Step 2 and the breaking-change set:
 
-- **major** — the subject type has a `!` (e.g. `feat!:`, `fix!:`) **or** the body contains a line beginning `BREAKING CHANGE:` (also accept `BREAKING-CHANGE:`).
+- **major** — the subject type has a `!` (e.g. `feat!:`, `fix!:`) **or** the commit hash is in the **breaking-change set** from Step 2 (the `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer grep).
 - **minor** — subject type is `feat` (and not major).
 - **patch** — subject type is `fix` or `perf` (and not major/minor).
 - **none** — any other type (`docs`, `chore`, `ci`, `test`, `refactor`, `style`, `build`) or an unparseable subject.
@@ -95,7 +99,7 @@ Take the **highest-precedence** bump across all commits: **major > minor > patch
 
 **No-op exit.** If the highest bump is **none** (every commit is docs/chore/ci/etc.), **stop and report why** — do not create a release notes document. Message shape:
 
-> No release-worthy changes since `<base semver>`. The <N> commit(s) in range are all non-release types (docs/chore/ci/test/refactor/style/build), so no no release notes are needed. If you expected a release, check that your `feat`/`fix`/`perf` commits are on this branch.
+> No release-worthy changes since `<base semver>`. The <N> commit(s) in range are all non-release types (docs/chore/ci/test/refactor/style/build), so no release notes are needed. If you expected a release, check that your `feat`/`fix`/`perf` commits are on this branch.
 
 Briefly list the commit subjects you assessed so the user can verify.
 
@@ -130,12 +134,16 @@ Write the new file to `docs/releases/<new padded>.md` (e.g. `docs/releases/06.01
 ```
 
 **Deriving the details for each item:**
-- **Component grouping** — infer the component from the files each commit touched: `git show --stat --format= <hash>` and map `components/<name>/...` → `AURO-<NAME>` (uppercased). If a commit spans several components, place it under the primary one; if there's no clear component, group it under a general heading or the relevant top-level section.
+- **Component grouping** — infer the component from the files each commit touched. Get the file lists for the **whole range in one call**, not a `git show` per commit:
+  ```
+  git log --format='%x1e%H %s' --name-only <range>
+  ```
+  (`\x1e` marks each commit boundary; the header line is `<hash> <subject>`, followed by that commit's file paths.) Map `components/<name>/...` → `AURO-<NAME>` (uppercased). If a commit spans several components, place it under the primary one; if there's no clear component, group it under a general heading or the relevant top-level section.
 - **Reference link** — extract the trailing reference from the commit subject and link it:
   - `AB#<7 digits>` (ADO work item) → `[AB#<n>](https://itsals.visualstudio.com/5e9f12eb-f830-406f-bee9-be25938f7aaa/_workitems/edit/<n>)`
   - `#<n>` (GitHub PR) → `[#<n>](https://github.com/AlaskaAirlines/auro-formkit/pull/<n>)`
   - If a commit has no reference, omit the link (just the bold summary + detail).
-- **Detail paragraph** — synthesize from the commit subject and body; when the body is thin, inspect the diff (`git show <hash>`) enough to describe the change accurately. Do not invent behavior you can't see in the commit.
+- **Detail paragraph** — pull bodies for **only the release-worthy commits** (the `feat`/`fix`/`perf` ones that will appear in the notes), not the whole range — batch them in one call: `git show -s --format='%x1e%H%n%b' <hash> <hash> …`. Synthesize the detail from the subject and body. When the body is thin, you already have the commit's file list from the component-grouping call above; only when subject + body + file list still don't explain the change, pull the patch **scoped to the relevant path** (`git show <hash> -- <path>`). Do not pull full, unscoped diffs, and do not invent behavior you can't see in the commit.
 - **Post-mortems** — if the range added files under `docs/post-mortem/`, link them from the Documentation section (match the existing notes' style).
 
 Keep the writing at the altitude of the recent notes: precise, consumer-facing, no filler.

@@ -5,6 +5,15 @@ follows [Semantic Versioning](https://semver.org/). Bump the version in both
 `plugins/auro/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 with each release, and tag the release (`git tag vX.Y.Z`).
 
+## [1.2.1] — unreleased
+
+### Changed
+- `release-notes` skill — token-efficiency pass on how it reads git history: classify from
+  commit **subjects only** (plus a targeted `BREAKING CHANGE` footer grep) instead of loading
+  every commit body, gather per-commit file lists in a single `git log --name-only` call rather
+  than a `git show` per commit, and pull bodies/diffs only for the release-worthy commits — with
+  diff inspection bounded to path-scoped patches. No behavior or output change.
+
 ## [1.2.0] — unreleased
 
 ### Added

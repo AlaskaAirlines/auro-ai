@@ -1,7 +1,7 @@
 # Using the `auro` plugin in another repository
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
-— which provides the `commit` and `code-review` skills — in any repository.
+— which provides the `commit`, `code-review`, and `release-notes` skills — in any repository.
 
 The plugin is distributed through the **`auro-ai` marketplace**, hosted in this repo
 (`AlaskaAirlines/auro-ai`). Claude Code plugins are **not** npm packages: installing
@@ -16,9 +16,11 @@ for skills. Use the marketplace flow below instead.
 | ----- | ---------- | ------------ |
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
+| `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. Never commits, pushes, tags, or performs the release itself |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
-> commands are `/auro:commit` and `/auro:code-review` — not bare `/commit` / `/code-review`.
+> commands are `/auro:commit`, `/auro:code-review`, and `/auro:release-notes` — not the
+> bare forms.
 
 ---
 
@@ -124,6 +126,33 @@ you're warned first — rewriting it needs a force-push (the skill never pushes)
 /auro:code-review 1572    # review GitHub PR #1572 and post inline + summary comments
 /auro:code-review local   # review the current branch against a chosen base, output in chat
 ```
+
+### `/auro:release-notes`
+
+```shell
+/auro:release-notes            # detect the range since the last documented release automatically
+/auro:release-notes v6.0.2     # override: use an explicit base ref (tag/branch/commit) as the range start
+```
+
+Authors the **next** release-notes document for `auro-formkit` — it does **not** perform
+the release (that's owned by the GitHub Actions semantic-release workflow). It:
+
+1. **Checks prerequisites** — the repo must have `docs/releases/`,
+   `docs/releases/Release_Guide_TEMPLATE.md`, and `docs/templates/RELEASE_NOTES.md`. If any
+   are missing it stops and tells you what to copy from a repo that has them.
+2. **Determines the base version** from the highest-numbered `docs/releases/NN.NN.NN.md`
+   file (not `package.json`, which is `0.0.0` under semantic-release).
+3. **Classifies the commits** in range by Conventional Commits and computes the next
+   version — `BREAKING CHANGE`/`!` → major, `feat` → minor, `fix`/`perf` → patch. If every
+   commit is a non-release type (docs/chore/ci/…), it **exits early** and explains why.
+4. **Generates** `docs/releases/<new version>.md` from the template and **wires it in** as
+   the sole expanded accordion in `docs/templates/RELEASE_NOTES.md`.
+5. **Stages** both files with `git add` — then hands back to you. Run `/auro:commit` to
+   finalize.
+
+> **Scope guardrail:** this skill only writes the two release-notes files and stages them.
+> It never commits, pushes, opens a PR, creates or moves tags, edits `package.json`, or
+> triggers any release workflow.
 
 ---
 

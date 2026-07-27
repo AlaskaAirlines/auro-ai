@@ -1,7 +1,7 @@
 # Using the `auro` plugin in another repository
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
-— which provides the `commit`, `code-review`, and `release-notes` skills — in any repository.
+— which provides the `commit`, `code-review`, `release-notes`, and `pr` skills — in any repository.
 
 The plugin is distributed through the **`auro-ai` marketplace**, hosted in this repo
 (`AlaskaAirlines/auro-ai`). Claude Code plugins are **not** npm packages: installing
@@ -17,10 +17,11 @@ for skills. Use the marketplace flow below instead.
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. Never commits, pushes, tags, or performs the release itself |
+| `pr` | `/auro:pr [base branch]` | Opens a **draft** GitHub PR for the current branch into the repo default branch, **assigned to you** (`@me`), seeded from the repo's `.github` PR template, with the `## Executive Summary` of any post-mortem files added on the branch prepended to the description — then returns a link to the new PR. Never pushes |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
-> commands are `/auro:commit`, `/auro:code-review`, and `/auro:release-notes` — not the
-> bare forms.
+> commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, and `/auro:pr`
+> — not the bare forms.
 
 ---
 
@@ -153,6 +154,34 @@ the release (that's owned by the GitHub Actions semantic-release workflow). It:
 > **Scope guardrail:** this skill only writes the two release-notes files and stages them.
 > It never commits, pushes, opens a PR, creates or moves tags, edits `package.json`, or
 > triggers any release workflow.
+
+### `/auro:pr`
+
+```shell
+/auro:pr            # PR the current branch into the repo default branch
+/auro:pr release/6  # override: target an explicit base branch instead of the default
+```
+
+Opens a **draft** pull request for the current branch and hands you a link to it. It:
+
+1. **Checks preconditions** — `gh` must be authenticated, and you must be on a feature branch.
+2. **Handles an existing PR first** — if an open PR already exists for the branch, it doesn't
+   create a second one; instead it asks whether to **refresh that PR's Executive Summary**. Say
+   yes and it re-syncs the post-mortem summaries into the existing PR's description
+   (idempotently, leaving the assignee and everything else untouched); say no and it exits
+   without touching anything. Checking this up front avoids doing any other work on a re-run.
+3. **Resolves the base and verifies the push** — targets the repo's default branch (or the
+   `[base branch]` argument), and requires the branch to be **pushed** to `origin` (stops with
+   push instructions otherwise, since it never pushes).
+4. **Builds the description** — seeds it from the repo's `.github` PR template and prepends the
+   `## Executive Summary` of any post-mortem files **added on this branch** (one block each).
+5. **Confirms first** — auto-generates a Conventional-Commits-style title and shows the full PR
+   for a confirm-or-edit loop before anything is created.
+6. **Creates the draft PR** assigned to you (`@me`) and returns the URL.
+
+> **Scope guardrail:** this skill's only side effect is opening one draft PR. It **never
+> pushes** — if the branch isn't pushed yet it stops and tells you to `git push` first — and
+> it never commits, marks the PR ready-for-review, merges, or edits files.
 
 ---
 

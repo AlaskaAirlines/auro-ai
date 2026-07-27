@@ -10,6 +10,8 @@ repository, with versioning and change history tracked in git.
 | ------ | ------ | ---------- |
 | `auro` | `commit` — guided Conventional Commits workflow (branch/sync guards, ADO/PR reference, post-mortem linking, AI + human co-author accreditation) | `/auro:commit <ADO # \| PR # \| prev>` |
 | `auro` | `code-review` — multi-model PR / local branch review | `/auro:code-review <PR #>` · `/auro:code-review local` |
+| `auro` | `release-notes` — derive the next version from Conventional Commits and author the release-notes doc | `/auro:release-notes [base ref]` |
+| `auro` | `pr` — open a draft PR (current branch → default), assigned to you, seeded from the `.github` template + post-mortem summaries | `/auro:pr [base branch]` |
 
 > Plugin skills are **namespaced** by the plugin name, so `/commit` becomes
 > `/auro:commit`. Namespacing prevents collisions with other plugins.
@@ -26,7 +28,9 @@ auro-ai/
         │   └── plugin.json       # plugin manifest (name, version)
         └── skills/
             ├── commit/SKILL.md
-            └── code-review/SKILL.md
+            ├── code-review/SKILL.md
+            ├── release-notes/SKILL.md
+            └── pr/SKILL.md
 ```
 
 ## Install (individual / manual)

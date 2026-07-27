@@ -5,6 +5,23 @@ follows [Semantic Versioning](https://semver.org/). Bump the version in both
 `plugins/auro/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 with each release, and tag the release (`git tag vX.Y.Z`).
 
+## [1.2.0] — unreleased
+
+### Added
+- `pr` skill — open a **draft** GitHub pull request for the current branch into the
+  repo default branch: assigns it to you (`@me`), seeds the body from the repo's
+  `.github` PR template, prepends the `## Executive Summary` of any post-mortem files
+  added on the branch, and returns a link to the new PR. If a PR already exists for the
+  branch, offers to idempotently refresh that PR's Executive Summary instead of creating
+  a duplicate. Never pushes.
+
+## [1.1.0] — unreleased
+
+### Added
+- `release-notes` skill — derive the next semantic version from the Conventional
+  Commits since the last documented release, generate a release-notes document from
+  the repo template, wire it into the accordion index, and stage the files.
+
 ## [1.0.0] — unreleased
 
 ### Added

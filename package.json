@@ -2,14 +2,11 @@
   "name": "auro-ai",
   "version": "1.2.1",
   "private": true,
-  "description": "Tooling for the auro-ai Claude Code plugin marketplace. Not a published package.",
+  "description": "Tooling for the auro-ai Claude Code plugin marketplace.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/AlaskaAirlines/auro-ai.git"
-  },
-  "scripts": {
-    "release": "semantic-release"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

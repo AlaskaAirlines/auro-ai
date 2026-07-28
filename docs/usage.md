@@ -1,7 +1,7 @@
 # Using the `auro` plugin in another repository
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
-— which provides the `commit`, `code-review`, `release-notes`, and `pr` skills — in any repository.
+— which provides the `commit`, `code-review`, `release-notes`, `pr`, and `ado` skills — in any repository.
 
 The plugin is distributed through the **`auro-ai` marketplace**, hosted in this repo
 (`AlaskaAirlines/auro-ai`). Claude Code plugins are **not** npm packages: installing
@@ -18,10 +18,11 @@ for skills. Use the marketplace flow below instead.
 | `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a **draft** GitHub PR for the current branch into the repo default branch, **assigned to you** (`@me`), seeded from the repo's `.github` PR template, with the `## Executive Summary` of any post-mortem files added on the branch prepended to the description — then returns a link to the new PR. Never pushes |
+| `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
-> commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, and `/auro:pr`
-> — not the bare forms.
+> commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
+> and `/auro:ado` — not the bare forms.
 
 ---
 
@@ -87,7 +88,7 @@ claude plugin enable auro@auro-ai
 
 ```shell
 claude plugin list                    # should show: auro@auro-ai — enabled
-claude plugin details auro@auro-ai    # shows the 2 skills + token cost
+claude plugin details auro@auro-ai    # lists the plugin's skills + token cost
 ```
 
 Then try it:
@@ -204,6 +205,110 @@ Opens a **draft** pull request for the current branch and hands you a link to it
 > pushes** — if the branch isn't pushed yet it stops and tells you to `git push` first — and
 > it never commits, marks the PR ready-for-review, merges, or edits files.
 
+### `/auro:ado`
+
+Drafts, refines, and **submits** Azure DevOps work items for the Auro design system. Unlike
+the other skills, `ado` talks to a remote service, so it needs a one-time credential setup —
+see [Prerequisite — Azure DevOps PAT](#prerequisite--azure-devops-personal-access-token-pat)
+below **before** first use.
+
+```shell
+/auro:ado new        # draft a brand-new work item from a description
+/auro:ado 1223707    # look up an existing ticket and refine it
+/auro:ado            # asks whether you're creating a new item or editing one
+```
+
+**Create mode (`new`).** You describe the change; the skill infers the affected Auro
+component (you confirm or correct it), reads that component's GitHub repo for context,
+classifies the item as a **Bug** or **User Story**, and drafts the full ticket — Title,
+Description, Acceptance Criteria, and, for bugs, Repro Steps, Actual/Expected Results,
+System Info, and the ADO classification picklists (see below). Just before showing you the
+draft it asks whether the ticket is being opened **on behalf of** another team or user, and
+records your answer (a name, or `no`) at the end of the description. It derives the Area
+path, loops with you until you approve, and then — **only after an explicit confirm** —
+creates the work item in Azure DevOps and returns a link.
+
+**Edit mode (`<ADO #>`).** The skill fetches the existing ticket, shows you the current
+content, confirms it's the right one, then refines every field to the same standards. It
+also **reads all comments on the ticket** and factors them in as additional context —
+weighed against the actual code and the ticket's intent, never assumed correct — and
+surfaces any substantive suggestion it didn't adopt so you can decide. For the picklist and
+System Info fields (and the on-behalf-of note) it tells you the current value and asks
+whether to keep it before offering to change it. After you approve, and **only after an
+explicit confirm**, it updates the ticket and returns a link.
+
+**Bug specifics.** For bugs the skill collects five classification picklists whose choices
+come **only from ADO's live allowed values** — Impacted Guest Experience, Highest
+Environment Impacted, Defect How Found, Defect Root Cause, and Issue Type (it suggests an
+Issue Type from the drafted content; you confirm or change it). The *System Info and Misc
+Information* field captures three answers: which version of the component reproduced the
+issue, which version of AuroDesignTokens, and whether it reproduces on
+`https://auro.alaskaair.com/` (each answerable as a value or `unknown`). Existing answers in
+a ticket are reused.
+
+**How bug content is stored.** Bugs consolidate their narrative into the bug-form fields
+rather than the generic Description/Acceptance Criteria fields. On submit, a bug's **Repro
+Steps** field leads with the description and is followed by the reproduction steps, and its
+**System Info and Misc Information** field has the acceptance criteria appended to the end.
+The bug's own **Description** and **Acceptance Criteria** fields are left empty (and cleared
+on edit if an older ticket had used them). User stories are unaffected — they keep their
+Description and Acceptance Criteria in those fields as normal. You still draft and edit each
+block separately during the review loop; the consolidation happens only when the ticket is
+written.
+
+**Refinement tag.** Every work item the skill writes — whether newly created or edited — is
+tagged **`Refinement`** in Azure DevOps (added alongside any existing tags, never
+duplicated), so skill-authored tickets are easy to find.
+
+> **Scope guardrail:** the skill is read-only until your final confirmation. Its only
+> mutation is the single create/update it makes after you say yes. It never touches git,
+> never edits repo files, and never prints, echoes, or writes your PAT to disk.
+
+#### Prerequisite — Azure DevOps Personal Access Token (PAT)
+
+The `ado` skill authenticates to Azure DevOps with a **Personal Access Token** read from the
+`ADO_PAT` environment variable. (It does **not** use `az login` — Azure CLI tokens are
+unreliable against the `itsals` org under Conditional Access, which is why the skill uses a
+PAT instead.) This is a one-time setup.
+
+**1. Create the PAT.** Go to
+[itsals ▸ User settings ▸ Personal access tokens](https://itsals.visualstudio.com/_usersSettings/tokens):
+
+- **New Token** → Organization: `itsals`
+- **Scopes:** **Work Items → Read & Write** (that scope is sufficient; no others are needed)
+- Set an expiration, click **Create**, and copy the token — you won't be able to see it again.
+
+**2. Export it in `~/.zshenv` — not `~/.zshrc`.** This is the part that trips people up.
+Claude Code runs skill commands in a **non-interactive** shell, which sources **`~/.zshenv`**
+and **not** `~/.zshrc` (the latter is loaded for interactive shells only). If you put the
+token in `~/.zshrc` it will work in your own terminal but the skill will report *"No Azure
+DevOps token found."*
+
+Add this to `~/.zshenv` (create the file if it doesn't exist):
+
+```sh
+# Azure DevOps PAT for the /auro:ado skill (Work Items Read & Write scope on the itsals org)
+# Create/rotate at: https://itsals.visualstudio.com/_usersSettings/tokens
+export ADO_PAT="<your-token>"
+```
+
+Claude Code's tool shell reads `~/.zshenv` fresh on each call, so no restart is needed —
+just re-run the skill. (Open a new interactive terminal, or `source ~/.zshenv`, if you also
+want it in your own shell.)
+
+**3. Verify it works:**
+
+```sh
+curl -sS -u ":$ADO_PAT" "https://itsals.visualstudio.com/_apis/connectionData?api-version=7.0-preview" | head -c 200
+```
+
+You should see JSON with your identity — **not** an HTML sign-in page. If you get the sign-in
+HTML, the PAT is missing, expired, or lacks the Work Items scope.
+
+> **Security:** the PAT is a live secret. Keep it only in `~/.zshenv` (which isn't in any
+> repo), never commit it, and rotate it if it leaks. PATs expire — when yours does, Azure
+> DevOps returns its sign-in page and the skill will tell you to refresh `ADO_PAT`.
+
 ---
 
 ## Getting new or updated skills
@@ -310,6 +415,8 @@ claude plugin marketplace remove  auro-ai  # remove the marketplace (uninstalls 
 | `Marketplace "auro-ai" not found` | `claude plugin marketplace add AlaskaAirlines/auro-ai`, then retry the install. |
 | Plugin shows **disabled** despite `enabledPlugins` | `claude plugin enable auro@auro-ai`. |
 | Private-repo clone fails | Ensure you have git access to `AlaskaAirlines/auro-ai` (HTTPS or SSH). |
+| `/auro:ado` says **"No Azure DevOps token found"** / `ADO_PAT` missing | The token isn't visible to Claude Code's non-interactive shell. Put `export ADO_PAT=…` in **`~/.zshenv`** (not `~/.zshrc`), then re-run the skill. See [the PAT prerequisite](#prerequisite--azure-devops-personal-access-token-pat). |
+| `/auro:ado` returns a **sign-in HTML page** / auth failure | The PAT is missing, expired, or lacks scope. Recreate it at [itsals tokens](https://itsals.visualstudio.com/_usersSettings/tokens) with **Work Items → Read & Write** and update `ADO_PAT` in `~/.zshenv`. This is **not** a missing-ticket error. |
 
 ---
 

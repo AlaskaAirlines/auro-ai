@@ -1,6 +1,6 @@
 ---
 name: release-notes
-description: Generate the next release-notes document for auro-formkit. Determines the next semantic version from the Conventional Commits since the last documented release (BREAKING CHANGE → major, feat → minor, fix/perf → patch), exits with an explanation if nothing release-worthy has landed, generates a rich release-notes file from the repo's Release_Guide_TEMPLATE.md, wires it into docs/templates/RELEASE_NOTES.md as the sole expanded accordion, and stages the changed files (never commits). Exits early with instructions if the repo lacks the required release-notes folders/templates.
+description: Generate or update the next release-notes document for auro-formkit. Determines the next semantic version from the Conventional Commits since the last released version (BREAKING CHANGE → major, feat → minor, fix/perf → patch), exits with an explanation if nothing release-worthy has landed. If a release-notes file for the current in-progress release already exists on this branch it refreshes that file in place; otherwise it generates a rich new file from the repo's Release_Guide_TEMPLATE.md. Either way it wires the release into docs/templates/RELEASE_NOTES.md as the sole expanded accordion and stages the changed files (never commits). Exits early with instructions if the repo lacks the required release-notes folders/templates.
 disable-model-invocation: true
 argument-hint: "[base ref]"
 allowed-tools: Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git log *), Bash(git tag -l *), Bash(git diff *), Bash(git show *), Bash(git status *), Bash(git add *), Read, Glob, Grep, Write, Edit, AskUserQuestion
@@ -46,15 +46,26 @@ Do not run any further steps, and do not create these files yourself — the tem
 
 ---
 
-## Step 1 — Determine the current (base) version
+## Step 1 — Determine the last released version, and whether this branch already has a notes file
 
-`package.json` in `auro-formkit` is `0.0.0` (managed by semantic-release), so it is **not** the source of truth. The **release-notes filenames are.** Find the current version from the highest-numbered release file:
+`package.json` in `auro-formkit` is `0.0.0` (managed by semantic-release), so it is **not** the source of truth. The **release-notes filenames are.** This step produces two things: the **base (last released) version**, and the **mode** — *update* if this branch already has an in-progress release-notes file, otherwise *create*.
 
-- List `docs/releases/*.md` with `Glob`, **excluding** `Release_Guide_TEMPLATE.md`.
-- Filenames are zero-padded, two digits per segment: `NN.NN.NN.md` (e.g. `06.00.02.md`). Parse each into a `major.minor.patch` triple and pick the highest by numeric semver order (not string order).
-- Record both the padded filename form (`06.00.02`) and the human semver (`6.0.2`). Call this the **base version**.
+**1a — List the release files on disk.** `Glob` `docs/releases/*.md`, **excluding** `Release_Guide_TEMPLATE.md`. Filenames are zero-padded, two digits per segment: `NN.NN.NN.md` (e.g. `06.00.02.md`). Parse each into a numeric `major.minor.patch` triple (compare numerically, not as strings).
 
-If there are no release files at all (only the template), treat the base version as `0.0.0` and note that this will be the first release; continue.
+**1b — Identify any in-progress file(s) for this branch.** A release file is *in-progress* if it exists in the working tree but has **not yet been released** — i.e. it was created on the current branch or isn't committed. Take the **union** of:
+- **Uncommitted additions** — `git status --porcelain -- docs/releases/`: lines starting with `??` (untracked) or `A` (staged add).
+- **Added on this branch vs. the default branch** — resolve the default branch with `git rev-parse --abbrev-ref origin/HEAD` (fall back to `origin/main`, then `main`), then `git diff --name-status <default>...HEAD -- docs/releases/`: files with status `A`.
+
+Ignore `Release_Guide_TEMPLATE.md`. Call the result the **in-progress set** (normally zero or one file).
+
+**1c — Base (last released) version.** From the disk files **excluding the in-progress set**, pick the highest by numeric semver order. Record its padded form (`06.00.02`) and human semver (`6.0.2`) — this is the **base version**. If nothing remains (all files are in-progress, or there are none), treat the base as `0.0.0` and note this will be the first release; continue.
+
+> Excluding the in-progress set is what prevents a file the skill created earlier on this branch from being mistaken for the base and triggering a **second** version bump / duplicate file.
+
+**1d — Choose the mode.**
+- **In-progress set empty → create mode** (a brand-new file, the default flow).
+- **Exactly one in-progress file → update mode.** That file is the **target**; the skill will refresh it in place rather than create a new one. Record its path and its version (parsed from the filename).
+- **More than one in-progress file → ambiguous.** Ask the user with `AskUserQuestion` which file to update (or to start a fresh create), and proceed on their choice.
 
 ---
 
@@ -110,13 +121,19 @@ Briefly list the commit subjects you assessed so the user can verify.
 
 Record the new semver (e.g. `6.1.0`) and its zero-padded filename form (`06.01.00`).
 
+**Update mode — reconcile against the existing file.** In update mode you already know the in-progress file's version (Step 1d). Use **that existing file's version and filename** as the target for Steps 4–6 — do not create a second file or rename it here. Normally the freshly computed version equals it. If they **differ** (e.g. a `feat` landed since the file was first written, escalating a patch to a minor), still refresh the existing file, but record the mismatch and surface it in the Step 7 report so the user can decide whether to regenerate fresh at the new number (by deleting the stale file and re-running, or passing an explicit base ref). In **create mode**, the target is the newly computed version/filename.
+
 ---
 
 ## Step 4 — Generate the release-notes file
 
-**Read** `docs/releases/Release_Guide_TEMPLATE.md` — it defines the required structure and carries HTML comments telling you which sections to include or omit. Also **Read** the most recent existing release file (the base version's) as a concrete style reference for tone, grouping, and detail level.
+**Read** `docs/releases/Release_Guide_TEMPLATE.md` — it defines the required structure and carries HTML comments telling you which sections to include or omit. Also **Read** the most recent existing release file (the base version's) as a concrete style reference for tone, grouping, and detail level. **In update mode, also Read the target in-progress file** (Step 1d) before rewriting it, so you preserve any manual edits and keep tone consistent while refreshing it over the full range.
 
-Write the new file to `docs/releases/<new padded>.md` (e.g. `docs/releases/06.01.00.md`). Follow the template, honoring its include/omit rules:
+Determine the **target path**:
+- **Create mode:** `docs/releases/<new padded>.md` (e.g. `docs/releases/06.01.00.md`).
+- **Update mode:** the existing in-progress file's path (Step 1d) — **overwrite it in place** with the regenerated notes covering the full unreleased range.
+
+Write the file to the target path, following the template and honoring its include/omit rules:
 
 - **Intro + release-type line** — always. State the previous version and that this is a `<major|minor|patch>` release, with a one-clause focus and breaking-change status.
 - **Summary** — always. An executive-summary paragraph plus consumer-facing bullets (what now works / what changed), not a raw commit log. Close with the migration-impact line.
@@ -154,31 +171,33 @@ Keep the writing at the altitude of the recent notes: precise, consumer-facing, 
 
 **Read** `docs/templates/RELEASE_NOTES.md`. It is a list of `<auro-accordion>` blocks, each with a `<span slot="trigger">FormKit v<version></span>` and an `AURO-GENERATED-CONTENT` include that pulls in the matching release file. Exactly the newest release is expanded (`<auro-accordion expanded>`); the rest are collapsed.
 
-Make two edits:
+**Update mode — refresh, don't duplicate.** First check whether a block already references the target file (`docs/releases/<target padded>.md`) or its version in the trigger. If one **already exists** (a previous run wired it), do **not** insert another — just ensure it is the **sole** `expanded` block (collapse any other expanded one) and that its `src` and trigger are correct, then skip edit 1 below. If no block exists yet for the target version, insert it exactly as in create mode.
 
-1. **Insert** a new block for the new version as the **first** accordion (immediately after the intro paragraph / changelog link, before the current first accordion), expanded:
+Make the following edits (in create mode, and in update mode only when the target block is missing):
+
+1. **Insert** a new block for the target version as the **first** accordion (immediately after the intro paragraph / changelog link, before the current first accordion), expanded:
    ```
    <auro-accordion expanded>
-   <span slot="trigger">FormKit v<new semver></span>
+   <span slot="trigger">FormKit v<target semver></span>
 
-   <!-- AURO-GENERATED-CONTENT:START (FILE:src=./docs/releases/<new padded>.md) -->
+   <!-- AURO-GENERATED-CONTENT:START (FILE:src=./docs/releases/<target padded>.md) -->
    <!-- AURO-GENERATED-CONTENT:END -->
 
    </auro-accordion>
    ```
    Use the human semver in the trigger (e.g. `FormKit v6.1.0`) and the zero-padded filename in the include `src` (e.g. `./docs/releases/06.01.00.md`) — match the exact spacing/format of the existing blocks.
 
-2. **Collapse the previously-expanded accordion** — change its `<auro-accordion expanded>` to `<auro-accordion>` so that **only** the new release is expanded.
+2. **Collapse the previously-expanded accordion** — change its `<auro-accordion expanded>` to `<auro-accordion>` so that **only** the target release is expanded.
 
-Verify afterward that exactly one `<auro-accordion expanded>` remains in the file (the new one). Do not touch the trailing `CHANGELOG.md` include or any other content.
+Verify afterward that exactly one `<auro-accordion expanded>` remains in the file (the target release) and that the target version appears in exactly **one** accordion block (no duplicates). Do not touch the trailing `CHANGELOG.md` include or any other content.
 
 ---
 
 ## Step 6 — Stage the changed files
 
-Stage exactly the new/changed files (do **not** commit, do **not** push):
+Stage exactly the new/changed files (do **not** commit, do **not** push). Use the **target padded** filename — the newly computed one in create mode, or the existing in-progress file in update mode:
 ```
-git add docs/releases/<new padded>.md docs/templates/RELEASE_NOTES.md
+git add docs/releases/<target padded>.md docs/templates/RELEASE_NOTES.md
 ```
 Then run `git status` to confirm both are staged and nothing unexpected was picked up.
 
@@ -187,8 +206,10 @@ Then run `git status` to confirm both are staged and nothing unexpected was pick
 ## Step 7 — Report
 
 Tell the user concisely:
-- **Base version** and **new version**, with the **bump type** and the reason — the specific commit(s) that triggered it (e.g. "minor: `feat(select): add multiselect AB#123`").
+- Whether this was a **create** (new file) or an **update** (refreshed the existing in-progress file for this branch).
+- **Base (last released) version** and **target version**, with the **bump type** and the reason — the specific commit(s) that triggered it (e.g. "minor: `feat(select): add multiselect AB#123`").
+- In update mode, **if the recomputed version differed** from the existing file's version, say so plainly and note the options (delete the stale file and re-run, or pass an explicit base ref) so the number can be corrected.
 - A one-line summary of what each section of the generated file covers.
-- The path of the file created (`docs/releases/<new padded>.md`) and that it plus `docs/templates/RELEASE_NOTES.md` are **staged and ready to commit** (suggest `/commit` to finalize).
+- The path of the file written (`docs/releases/<target padded>.md`) and that it plus `docs/templates/RELEASE_NOTES.md` are **staged and ready to commit** (suggest `/commit` to finalize).
 
 Do not commit or push — hand control back to the user.

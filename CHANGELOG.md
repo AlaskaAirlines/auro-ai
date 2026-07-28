@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.2.2...v1.3.0) (2026-07-28)
+
+
+### Features
+
+* add new ado skill ([ce1ad47](https://github.com/AlaskaAirlines/auro-ai/commit/ce1ad47a80e5edde626ed93223fb29853b760404))
+
 ## [1.2.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.2.1...v1.2.2) (2026-07-28)
 
 

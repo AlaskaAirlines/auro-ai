@@ -16,7 +16,7 @@ for skills. Use the marketplace flow below instead.
 | ----- | ---------- | ------------ |
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
-| `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. Never commits, pushes, tags, or performs the release itself |
+| `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a **draft** GitHub PR for the current branch into the repo default branch, **assigned to you** (`@me`), seeded from the repo's `.github` PR template, with the `## Executive Summary` of any post-mortem files added on the branch prepended to the description — then returns a link to the new PR. Never pushes |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
@@ -141,19 +141,40 @@ the release (that's owned by the GitHub Actions semantic-release workflow). It:
 1. **Checks prerequisites** — the repo must have `docs/releases/`,
    `docs/releases/Release_Guide_TEMPLATE.md`, and `docs/templates/RELEASE_NOTES.md`. If any
    are missing it stops and tells you what to copy from a repo that has them.
-2. **Determines the base version** from the highest-numbered `docs/releases/NN.NN.NN.md`
-   file (not `package.json`, which is `0.0.0` under semantic-release).
+2. **Determines the base version and the mode** — it reads the highest-numbered
+   `docs/releases/NN.NN.NN.md` file for the last *released* version (not `package.json`,
+   which is `0.0.0` under semantic-release), and checks whether this branch already has an
+   **in-progress** notes file (one added on the branch or not yet committed). That in-progress
+   file — if any — is excluded from the base calculation so it's never mistaken for a prior
+   release. The result is one of two modes:
+   - **Create mode** (no in-progress file) — it will generate a brand-new notes file.
+   - **Update mode** (an in-progress file already exists on the branch) — it will **refresh
+     that existing file in place** rather than create a second one. If more than one
+     in-progress file is found it asks you which to update.
 3. **Classifies the commits** in range by Conventional Commits and computes the next
    version — `BREAKING CHANGE`/`!` → major, `feat` → minor, `fix`/`perf` → patch. If every
-   commit is a non-release type (docs/chore/ci/…), it **exits early** and explains why.
-4. **Generates** `docs/releases/<new version>.md` from the template and **wires it in** as
-   the sole expanded accordion in `docs/templates/RELEASE_NOTES.md`.
+   commit is a non-release type (docs/chore/ci/…), it **exits early** and explains why. In
+   update mode it keeps the existing file's version as the target; if a newly landed commit
+   would change that number (e.g. a `feat` bumps a patch to a minor) it still refreshes the
+   existing file and **flags the mismatch** in its report so you can decide whether to
+   regenerate at the new number.
+4. **Generates or refreshes** the notes file — in create mode it writes
+   `docs/releases/<new version>.md` from the template; in update mode it **overwrites the
+   existing in-progress file** (reading it first to preserve any manual edits) with notes
+   covering the full unreleased range. Either way it **wires the release in** as the sole
+   expanded accordion in `docs/templates/RELEASE_NOTES.md`, reusing the existing accordion
+   block in update mode instead of adding a duplicate.
 5. **Stages** both files with `git add` — then hands back to you. Run `/auro:commit` to
    finalize.
 
 > **Scope guardrail:** this skill only writes the two release-notes files and stages them.
 > It never commits, pushes, opens a PR, creates or moves tags, edits `package.json`, or
 > triggers any release workflow.
+>
+> **Idempotent re-runs:** because it detects an existing in-progress file and updates it in
+> place, running `/auro:release-notes` more than once on the same branch keeps refreshing the
+> **same** file as new commits land — you won't accumulate a pile of duplicate release-notes
+> files or accordion entries.
 
 ### `/auro:pr`
 

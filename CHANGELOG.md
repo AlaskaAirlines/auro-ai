@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.2.1...v1.2.2) (2026-07-28)
+
+
+### Performance Improvements
+
+* improve release notes to allow updating existing files ([9a92281](https://github.com/AlaskaAirlines/auro-ai/commit/9a92281fe787a7af189753dd8ee38e5c1f37f195))
+
 # Changelog
 
 All notable changes to the `auro` plugin are documented here. This project

@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.0...v1.3.1) (2026-07-29)
+
+
+### Bug Fixes
+
+* improve order of content in description for readability ([496e1e2](https://github.com/AlaskaAirlines/auro-ai/commit/496e1e289b87daa8339696f265f41e20bc6230cd))
+
 # [1.3.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.2.2...v1.3.0) (2026-07-28)
 
 

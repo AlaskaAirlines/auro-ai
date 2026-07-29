@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.1...v1.3.2) (2026-07-29)
+
+
+### Bug Fixes
+
+* only prompt for tokens version on UI/UX issues ([c9cdf28](https://github.com/AlaskaAirlines/auro-ai/commit/c9cdf28c2b5af63df4796bc3b75d35edc7946234))
+
 ## [1.3.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.0...v1.3.1) (2026-07-29)
 
 

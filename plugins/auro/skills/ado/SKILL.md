@@ -125,26 +125,29 @@ Draft three **separate, non-overlapping** blocks and store each distinctly for i
 **`TICKET_DESCRIPTION`** (ADO Description) — assembled in this order:
 
 1. **Explanation** — the current behavior, desired behavior, and rationale, grounded in the component/API. Present these three under **bold labels** — `**Current behavior:**`, `**Desired behavior:**`, and `**Rationale:**` — each followed by its content (the labels render bold in ADO via the markdown→HTML conversion at submission). For a **bug**, keep this high-level — the concrete reproduction, expected, and actual behavior go in the `REPRO_STEPS` block, not here.
-2. **Callouts** (placed after the Explanation, immediately following the Rationale):
-   - TRD — **always include exactly one outcome**:
-     - Non-trivial → `⚠️ **This change is likely not trivial — a Technical Research Document (TRD) is recommended before implementation.** <why>` — when the change spans multiple areas/components, is architectural or unclear, or needs investigation before it can be implemented.
-     - Trivial → `**TRD:** This change appears trivial and likely does not need a Technical Research Document.`
-   - Breaking change — **always include exactly one outcome**:
-     - Breaking → `🚨 **BREAKING CHANGE** 🚨 — <what breaks and how consumers migrate>` — when it removes/renames an attribute, property, or method; changes an event name or payload; alters a default; or changes a slot contract.
-     - Not breaking → `**Breaking change:** None — this change is backward compatible for existing consumers.`
-   - Figma — if a `FIGMA` link was provided: `**Figma:** <link>`.
-   - Order: TRD outcome first, breaking-change outcome second, Figma link (when present) last.
-3. **Affected components** — only if `AFFECTED_COMPONENTS` is set (not `none`): `**Also affects:** <the confirmed affected components>`, noting briefly how this change touches them. Omit otherwise.
-4. **Risks** — only if real risks exist (else omit). `**Risks:**` followed by concise bullets, each noting what to watch during dev/testing: regressions, edge cases, dependency/version impacts, performance, accessibility, cross-browser/framework, or consumer migration. Also, if the change describes **new UI** and no `FIGMA` link was provided, include a risk noting the absence of a Figma design to build and verify against. Likewise, for any affected component left unresolved in the affected-components assessment above (couldn't be reached and wasn't corrected), include a risk noting its impact couldn't be verified against current code.
-5. **Testing** — always. A short overview, not a per-test list, grounded in the component's test setup (or Auro conventions):
+2. **Figma** — if a `FIGMA` link was provided, `**Figma:** <link>`, placed after the Explanation, immediately following the Rationale. Omit when no link was provided. (The **TRD** and **breaking-change** flags are **not** part of the description — they lead the `ACCEPTANCE_CRITERIA` block instead; see below.)
+3. **Affected components** — only if `AFFECTED_COMPONENTS` is set (not `none`): `**Also affects:** <the confirmed affected components>`, noting briefly how this change touches them. Omit otherwise. (The **Risks** section is **not** part of the description — it sits in the `ACCEPTANCE_CRITERIA` block, after the flags and before the checklist; see below.)
+4. **Testing** — always. A short overview, not a per-test list, grounded in the component's test setup (or Auro conventions):
    `**Testing:** <overview of expected test changes>. WTR unit tests <are sufficient | should be extended>; <add Playwright interaction tests for … | add visual regression coverage for … | no Playwright or visual regression changes needed>.`
    Recommend **Playwright/framework tests** for interaction flows (keyboard/focus/pointer), a11y behavior, cross-component integration, form submission, or React/Vue/Angular wrapper behavior; **visual regression** for rendering, layout, styling, token, theming, or slotted-content changes; otherwise WTR alone.
    If a manual testing doc exists (from Step 3), also assess whether it needs updates for this change — new smoke steps or behaviors to verify manually — and state what to add, or that no update is needed. Omit this sentence when the component has no manual testing doc.
-6. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
+5. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
 
 The **Design review** recommendation is **not** part of the description — it's carried as an acceptance criterion instead (see `ACCEPTANCE_CRITERIA` below).
 
-**`ACCEPTANCE_CRITERIA`** (ADO Acceptance Criteria) — a concise, testable checklist (bullets or Given/When/Then) of what "done" looks like. It **must** include, as enforceable items:
+**`ACCEPTANCE_CRITERIA`** (ADO Acceptance Criteria) — leads with the TRD and breaking-change flags, then a testable checklist.
+
+**First, the two flags** — list these ahead of the checklist, each **always** with exactly one outcome:
+- TRD:
+  - Non-trivial → `⚠️ **This change is likely not trivial — a Technical Research Document (TRD) is recommended before implementation.** <why>` — when the change spans multiple areas/components, is architectural or unclear, or needs investigation before it can be implemented.
+  - Trivial → `**TRD:** This change appears trivial and likely does not need a Technical Research Document.`
+- Breaking change:
+  - Breaking → `🚨 **BREAKING CHANGE** 🚨 — <what breaks and how consumers migrate>` — when it removes/renames an attribute, property, or method; changes an event name or payload; alters a default; or changes a slot contract.
+  - Not breaking → `**Breaking change:** None — this change is backward compatible for existing consumers.`
+
+**Then, Risks** — only if real risks exist (else omit this entirely). `**Risks:**` followed by concise bullets, each noting what to watch during dev/testing: regressions, edge cases, dependency/version impacts, performance, accessibility, cross-browser/framework, or consumer migration. Also, if the change describes **new UI** and no `FIGMA` link was provided, include a risk noting the absence of a Figma design to build and verify against. Likewise, for any affected component left unresolved in the affected-components assessment (couldn't be reached and wasn't corrected), include a risk noting its impact couldn't be verified against current code.
+
+**Then the checklist** — a concise, testable list (bullets or Given/When/Then) of what "done" looks like. It **must** include, as enforceable items:
 - A testing criterion matching the Testing overview, e.g. *"New/updated WTR unit tests covering `<behavior>` are added and pass"* — plus Playwright and/or visual-regression criteria **only where the Testing overview recommends them**.
 - **If** the manual testing doc needs updates (from the Testing assessment): *"`MANUAL_TESTING.md` is updated to cover `<behavior/steps>`."* Omit when the component has no manual testing doc or none are needed.
 - **Design review** — assess the same way the callout used to: if the change involves a **user-facing UI/UX change** (visible changes to layout, spacing, styling, tokens, typography, iconography, motion, user-facing copy, interaction patterns, or accessibility-affecting presentation), include *"🎨 UI/UX changes are reviewed and approved by the Design team before release — <what changes for the user>."* Omit this criterion entirely when there's no user-facing UI/UX change.
@@ -441,16 +444,18 @@ Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **af
 
 **1. Confirm ADO credentials.** Apply the **Azure DevOps access (PAT)** rules from the top of this document — confirm `ADO_PAT` is set; if not, stop without submitting and show the PAT-setup guidance. (Edit mode already checked this in Edit Step 1; create mode with a non-bug work item may not have, so check here regardless.)
 
-**2. Assemble the field values and convert to the storage formats.** ADO stores **Description**, **Acceptance Criteria**, **Repro Steps**, and **System Info** as **HTML**; **Actual Results** and **Expected Results** are **plain-text** strings; the picklist and Area fields are plain strings.
-- Convert the drafted markdown to minimal, valid HTML: paragraphs → `<div>…</div>`, `**bold**` → `<b>…</b>`, bullet lists → `<ul><li>…</li></ul>`, numbered steps (Repro Steps) → `<ol><li>…</li></ol>`. Preserve emoji characters literally. Escape `&`, `<`, `>` in literal text (`&amp;`, `&lt;`, `&gt;`).
+**2. Assemble the field values and convert to the storage formats.** ADO stores **Description**, **Acceptance Criteria**, **Repro Steps**, and **System Info** as **HTML**, but keep the HTML to the **bare minimum** — the stored content should read as close to plain text as ADO's rendering allows. **Actual Results** and **Expected Results** are **plain-text** strings; the picklist and Area fields are plain strings.
+- **Use as few tags as possible.** The only markup allowed is `<br>` for line/paragraph breaks (ADO collapses raw newlines, so `<br>` is the one structural tag genuinely needed) and `<b>…</b>` for the bold labels the drafting steps call for (e.g. `**Current behavior:**`, callout labels). Use nothing else.
+- Do **not** wrap blocks in `<div>` or `<p>`, and do **not** use `<ul>`/`<ol>`/`<li>`. Render bullet lists as plain-text lines each prefixed with `- ` and separated by `<br>`; render numbered steps (Repro Steps) as plain-text lines each prefixed with `1.`, `2.`, … and separated by `<br>`.
+- Preserve emoji characters literally. Escape `&`, `<`, `>` in literal text (`&amp;`, `&lt;`, `&gt;`).
 - Send `ACTUAL_RESULTS` and `EXPECTED_RESULTS` exactly as drafted (no HTML, no markdown).
 
 **Bug field assembly (`TYPE = bug` only).** A bug consolidates its narrative into the Repro Steps and System Info fields and leaves Description and Acceptance Criteria empty:
-- **Repro Steps** (`Microsoft.VSTS.TCM.ReproSteps`) = the HTML of `TICKET_DESCRIPTION` **first**, then the HTML of the reproduction steps (`REPRO_STEPS`). Separate the two with a clear subheading between them, e.g. `<br><b>Steps to reproduce:</b>` ahead of the `<ol>`.
-- **System Info and Misc Information** (`Microsoft.VSTS.TCM.SystemInfo`) = the HTML of `SYSTEM_INFO`, then the HTML of `ACCEPTANCE_CRITERIA` **appended to the end** under a clear subheading, e.g. `<br><b>Acceptance Criteria:</b>` ahead of it.
+- **Repro Steps** (`Microsoft.VSTS.TCM.ReproSteps`) = the minimal-HTML `TICKET_DESCRIPTION` **first**, then the reproduction steps (`REPRO_STEPS`) as plain-text numbered lines. Separate the two with a clear subheading between them, e.g. `<br><b>Steps to reproduce:</b>` ahead of the numbered steps.
+- **System Info and Misc Information** (`Microsoft.VSTS.TCM.SystemInfo`) = the minimal-HTML `SYSTEM_INFO`, then `ACCEPTANCE_CRITERIA` **appended to the end** under a clear subheading, e.g. `<br><b>Acceptance Criteria:</b>` ahead of it.
 - Do **not** populate `System.Description` or `Microsoft.VSTS.Common.AcceptanceCriteria` for a bug. On the **create** path, omit both ops entirely. On the **update** path, **clear** them (older-format bugs may hold content there) by sending each as an empty string: `{ "op": "add", "path": "/fields/System.Description", "value": "" }` and the same for `Microsoft.VSTS.Common.AcceptanceCriteria`.
 
-**User stories** are unchanged: `TICKET_DESCRIPTION` → `System.Description` and `ACCEPTANCE_CRITERIA` → `Microsoft.VSTS.Common.AcceptanceCriteria`, each as HTML; user stories have no Repro Steps, System Info, Actual Results, or Expected Results.
+**User stories** are unchanged: `TICKET_DESCRIPTION` → `System.Description` and `ACCEPTANCE_CRITERIA` → `Microsoft.VSTS.Common.AcceptanceCriteria`, each as the same minimal HTML (only `<br>` and `<b>`); user stories have no Repro Steps, System Info, Actual Results, or Expected Results.
 
 **3. Build the JSON Patch payload.** Use the Write tool to write a JSON array to `/tmp/ado_workitem.json`, one op per field you have a value for — omit any field that's unset. Map values to these ADO field reference names, honoring the **When** column (the assembled bug values come from step 2):
 
@@ -459,10 +464,10 @@ Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **af
 | `System.Title` | `TITLE` | plain | always |
 | `System.AreaPath` | `AREA` | plain | always |
 | `System.Tags` | `Refinement` (merged with existing tags — see below) | plain | always |
-| `System.Description` | `TICKET_DESCRIPTION` | HTML | **user story only** |
-| `Microsoft.VSTS.Common.AcceptanceCriteria` | `ACCEPTANCE_CRITERIA` | HTML | **user story only** |
-| `Microsoft.VSTS.TCM.ReproSteps` | `TICKET_DESCRIPTION` + `REPRO_STEPS` (assembled) | HTML | **bug only** |
-| `Microsoft.VSTS.TCM.SystemInfo` | `SYSTEM_INFO` + `ACCEPTANCE_CRITERIA` (assembled) | HTML | **bug only** |
+| `System.Description` | `TICKET_DESCRIPTION` | min. HTML | **user story only** |
+| `Microsoft.VSTS.Common.AcceptanceCriteria` | `ACCEPTANCE_CRITERIA` | min. HTML | **user story only** |
+| `Microsoft.VSTS.TCM.ReproSteps` | `TICKET_DESCRIPTION` + `REPRO_STEPS` (assembled) | min. HTML | **bug only** |
+| `Microsoft.VSTS.TCM.SystemInfo` | `SYSTEM_INFO` + `ACCEPTANCE_CRITERIA` (assembled) | min. HTML | **bug only** |
 | `Custom.ActualResults` | `ACTUAL_RESULTS` | plain | **bug only** |
 | `Custom.ExpectedResults` | `EXPECTED_RESULTS` | plain | **bug only** |
 | `Custom.ImpactedGuestExperience` | `BUG_IMPACTED_GUEST_EXPERIENCE` | plain | **bug only** |

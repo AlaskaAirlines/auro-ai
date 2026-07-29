@@ -134,21 +134,20 @@ Draft three **separate, non-overlapping** blocks and store each distinctly for i
      - Not breaking → `**Breaking change:** None — this change is backward compatible for existing consumers.`
    - Figma — if a `FIGMA` link was provided: `**Figma:** <link>`.
    - Order: TRD outcome first, breaking-change outcome second, Figma link (when present) last.
-3. **Design review** — always include exactly one outcome:
-   - UI/UX change → `🎨 **Design review recommended** — <what changes for the user>; review with the Design team before release.` — for visible changes to layout, spacing, styling, tokens, typography, iconography, motion, user-facing copy, interaction patterns, or accessibility-affecting presentation.
-   - Otherwise → `**Design review:** Not required — no user-facing UI/UX change.`
-4. **Affected components** — only if `AFFECTED_COMPONENTS` is set (not `none`): `**Also affects:** <the confirmed affected components>`, noting briefly how this change touches them. Omit otherwise.
-5. **Risks** — only if real risks exist (else omit). `**Risks:**` followed by concise bullets, each noting what to watch during dev/testing: regressions, edge cases, dependency/version impacts, performance, accessibility, cross-browser/framework, or consumer migration. Also, if the change describes **new UI** and no `FIGMA` link was provided, include a risk noting the absence of a Figma design to build and verify against. Likewise, for any affected component left unresolved in the affected-components assessment above (couldn't be reached and wasn't corrected), include a risk noting its impact couldn't be verified against current code.
-6. **Testing** — always. A short overview, not a per-test list, grounded in the component's test setup (or Auro conventions):
+3. **Affected components** — only if `AFFECTED_COMPONENTS` is set (not `none`): `**Also affects:** <the confirmed affected components>`, noting briefly how this change touches them. Omit otherwise.
+4. **Risks** — only if real risks exist (else omit). `**Risks:**` followed by concise bullets, each noting what to watch during dev/testing: regressions, edge cases, dependency/version impacts, performance, accessibility, cross-browser/framework, or consumer migration. Also, if the change describes **new UI** and no `FIGMA` link was provided, include a risk noting the absence of a Figma design to build and verify against. Likewise, for any affected component left unresolved in the affected-components assessment above (couldn't be reached and wasn't corrected), include a risk noting its impact couldn't be verified against current code.
+5. **Testing** — always. A short overview, not a per-test list, grounded in the component's test setup (or Auro conventions):
    `**Testing:** <overview of expected test changes>. WTR unit tests <are sufficient | should be extended>; <add Playwright interaction tests for … | add visual regression coverage for … | no Playwright or visual regression changes needed>.`
    Recommend **Playwright/framework tests** for interaction flows (keyboard/focus/pointer), a11y behavior, cross-component integration, form submission, or React/Vue/Angular wrapper behavior; **visual regression** for rendering, layout, styling, token, theming, or slotted-content changes; otherwise WTR alone.
    If a manual testing doc exists (from Step 3), also assess whether it needs updates for this change — new smoke steps or behaviors to verify manually — and state what to add, or that no update is needed. Omit this sentence when the component has no manual testing doc.
-7. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
+6. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
+
+The **Design review** recommendation is **not** part of the description — it's carried as an acceptance criterion instead (see `ACCEPTANCE_CRITERIA` below).
 
 **`ACCEPTANCE_CRITERIA`** (ADO Acceptance Criteria) — a concise, testable checklist (bullets or Given/When/Then) of what "done" looks like. It **must** include, as enforceable items:
 - A testing criterion matching the Testing overview, e.g. *"New/updated WTR unit tests covering `<behavior>` are added and pass"* — plus Playwright and/or visual-regression criteria **only where the Testing overview recommends them**.
 - **If** the manual testing doc needs updates (from the Testing assessment): *"`MANUAL_TESTING.md` is updated to cover `<behavior/steps>`."* Omit when the component has no manual testing doc or none are needed.
-- **If** Design review was recommended: *"UI/UX changes are reviewed and approved by the Design team before release."* Omit when Design review is not required.
+- **Design review** — assess the same way the callout used to: if the change involves a **user-facing UI/UX change** (visible changes to layout, spacing, styling, tokens, typography, iconography, motion, user-facing copy, interaction patterns, or accessibility-affecting presentation), include *"🎨 UI/UX changes are reviewed and approved by the Design team before release — <what changes for the user>."* Omit this criterion entirely when there's no user-facing UI/UX change.
 
 Don't otherwise restate the description.
 

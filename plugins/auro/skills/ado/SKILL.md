@@ -157,15 +157,15 @@ Don't otherwise restate the description.
 - **`REPRO_STEPS`** (ADO Repro Steps) — the numbered **steps to reproduce** the defect, and nothing else. Do **not** restate the actual or expected behavior here — that content is captured in the `ACTUAL_RESULTS` and `EXPECTED_RESULTS` fields below, so repeating it in Repro Steps would duplicate it. Keep the steps to the actions taken; stop before the outcome.
 - **`ACTUAL_RESULTS`** (ADO Actual Results) — a concise, **plain-text** statement of the current/buggy behavior (what actually happens). One or two sentences; no markdown.
 - **`EXPECTED_RESULTS`** (ADO Expected Results) — a concise, **plain-text** statement of the correct behavior (what should happen). One or two sentences; no markdown.
-- **`SYSTEM_INFO`** (ADO "System Info and Misc Information") — for a bug, **always** prompt the user for these two questions and record the answers here:
+- **`SYSTEM_INFO`** (ADO "System Info and Misc Information") — for a bug, prompt the user for the following and record the answers here:
   1. "What version of `<COMPONENT>` reproduced this issue?" — accept a version number or `unknown`. (If `COMPONENT = none`, phrase it "What version of the component reproduced this issue?")
-  2. "What version of AuroDesignTokens are you using?" — accept a version number or `unknown`.
+  2. **Only if the bug describes a UI/UX issue** — a visual/presentational defect involving layout, spacing, styling, tokens, typography, iconography, motion, or accessibility-affecting presentation (the same UI/UX determination the Design review callout uses): "What version of AuroDesignTokens are you using?" — accept a version number or `unknown`. For a non-UI/UX bug, **skip this question entirely** and omit the AuroDesignTokens line from the output.
   3. "Does this issue reproduce on https://auro.alaskaair.com/?" — accept `yes`, `no`, or `unknown`.
 
   Format the answers as clear labeled lines, e.g.:
   ```
   <COMPONENT> version: <answer or "unknown">
-  AuroDesignTokens version: <answer or "unknown">
+  AuroDesignTokens version: <answer or "unknown">   # include only for UI/UX bugs
   Reproduces on https://auro.alaskaair.com/: <yes | no | unknown>
   ```
   Also fold in any other genuinely relevant misc/environment details the change description provides (browser, OS, framework/version) — but don't invent them. These answers make `SYSTEM_INFO` non-empty for every bug.
@@ -380,7 +380,7 @@ For a bug, also handle the **bug classification picklists** — `BUG_IMPACTED_GU
 
 Also handle the **on behalf of** question, as in create-mode Step 5 (its answer becomes the final `**Opened on behalf of:**` line of `TICKET_DESCRIPTION`). First check whether `EXISTING_DESCRIPTION` already carries an "Opened on behalf of" note: if it does, tell the user the current value and ask whether to keep it (`yes` → reuse it as `ON_BEHALF_OF`; `no` → ask the question below). Otherwise ask: "Is this ticket being opened on behalf of another team or user? Reply with the team or person's name, or `no`." Store the reply as `ON_BEHALF_OF` and render it in the standard format, replacing any old on-behalf-of note rather than duplicating it.
 
-Also handle the three **System Info** questions (component version, AuroDesignTokens version, and whether it reproduces on https://auro.alaskaair.com/). First check whether `EXISTING_SYSTEM_INFO` already answers any of them — a component version, an AuroDesignTokens version, and/or an auro.alaskaair.com reproduction note. For any question the existing content already answers, **use that existing value** as the answer (don't re-ask the user for it) and render it in the standard labeled-line format from create-mode Step 5. Only prompt the user for a question the existing content doesn't already answer. Build `SYSTEM_INFO` from these values in our standard format, **replacing** the old version/docsite content rather than duplicating it, while preserving any other unrelated misc/environment details already there.
+Also handle the **System Info** questions — component version, AuroDesignTokens version, and whether it reproduces on https://auro.alaskaair.com/ — with the **AuroDesignTokens question applying only to UI/UX bugs**, exactly as in create-mode Step 5 (a non-UI/UX bug skips that question and omits the AuroDesignTokens line). First check whether `EXISTING_SYSTEM_INFO` already answers any of the applicable questions — a component version, an AuroDesignTokens version, and/or an auro.alaskaair.com reproduction note. For any applicable question the existing content already answers, **use that existing value** as the answer (don't re-ask the user for it) and render it in the standard labeled-line format from create-mode Step 5. Only prompt the user for an applicable question the existing content doesn't already answer. Build `SYSTEM_INFO` from these values in our standard format, **replacing** the old version/docsite content rather than duplicating it, while preserving any other unrelated misc/environment details already there. If the bug is not a UI/UX issue, drop any pre-existing AuroDesignTokens line rather than carrying it forward.
 
 When refining a bug whose existing Repro Steps mix in the actual or expected outcome, move that content into `ACTUAL_RESULTS` / `EXPECTED_RESULTS` and remove it from `REPRO_STEPS` — the refined Repro Steps should be reproduction actions only, never a restatement of results already captured in their own fields.
 

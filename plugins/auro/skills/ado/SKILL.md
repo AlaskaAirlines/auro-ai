@@ -127,13 +127,11 @@ Draft three **separate, non-overlapping** blocks and store each distinctly for i
 1. **Explanation** — the current behavior, desired behavior, and rationale, grounded in the component/API. Present these three under **bold labels** — `**Current behavior:**`, `**Desired behavior:**`, and `**Rationale:**` — each followed by its content (the labels render bold in ADO via the markdown→HTML conversion at submission). For a **bug**, keep this high-level — the concrete reproduction, expected, and actual behavior go in the `REPRO_STEPS` block, not here.
 2. **Figma** — if a `FIGMA` link was provided, `**Figma:** <link>`, placed after the Explanation, immediately following the Rationale. Omit when no link was provided. (The **TRD** and **breaking-change** flags are **not** part of the description — they lead the `ACCEPTANCE_CRITERIA` block instead; see below.)
 3. **Affected components** — only if `AFFECTED_COMPONENTS` is set (not `none`): `**Also affects:** <the confirmed affected components>`, noting briefly how this change touches them. Omit otherwise. (The **Risks** section is **not** part of the description — it sits in the `ACCEPTANCE_CRITERIA` block, after the flags and before the checklist; see below.)
-4. **Testing** — always. A short overview, not a per-test list, grounded in the component's test setup (or Auro conventions):
-   `**Testing:** <overview of expected test changes>. WTR unit tests <are sufficient | should be extended>; <add Playwright interaction tests for … | add visual regression coverage for … | no Playwright or visual regression changes needed>.`
-   Recommend **Playwright/framework tests** for interaction flows (keyboard/focus/pointer), a11y behavior, cross-component integration, form submission, or React/Vue/Angular wrapper behavior; **visual regression** for rendering, layout, styling, token, theming, or slotted-content changes; otherwise WTR alone.
-   If a manual testing doc exists (from Step 3), also assess whether it needs updates for this change — new smoke steps or behaviors to verify manually — and state what to add, or that no update is needed. Omit this sentence when the component has no manual testing doc.
-5. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
+4. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
 
-The **Design review** recommendation is **not** part of the description — it's carried as an acceptance criterion instead (see `ACCEPTANCE_CRITERIA` below).
+**For a bug, only the Explanation (item 1) goes in the description.** Items 2–4 — **Figma**, **Affected components**, and **Opened on behalf of** — are **user-story-only**; omit them from a bug. A bug's Repro Steps field therefore carries just the Explanation (`**Current behavior:**` / `**Desired behavior:**` / `**Rationale:**`) followed by the Steps to reproduce — nothing else. (You still run the Figma prompt and the affected-components assessment for a bug, since they feed the Risks section; they simply don't render in the bug's description.)
+
+The **Design review** recommendation and the **Testing** overview are **not** part of the description — they're carried in the `ACCEPTANCE_CRITERIA` block instead (Testing comes **after** the checklist; see below).
 
 **`ACCEPTANCE_CRITERIA`** (ADO Acceptance Criteria) — leads with the TRD and breaking-change flags, then a testable checklist.
 
@@ -148,13 +146,18 @@ The **Design review** recommendation is **not** part of the description — it's
 **Then, Risks** — only if real risks exist (else omit this entirely). `**Risks:**` followed by concise bullets, each noting what to watch during dev/testing: regressions, edge cases, dependency/version impacts, performance, accessibility, cross-browser/framework, or consumer migration. Also, if the change describes **new UI** and no `FIGMA` link was provided, include a risk noting the absence of a Figma design to build and verify against. Likewise, for any affected component left unresolved in the affected-components assessment (couldn't be reached and wasn't corrected), include a risk noting its impact couldn't be verified against current code.
 
 **Then the checklist** — a concise, testable list (bullets or Given/When/Then) of what "done" looks like. It **must** include, as enforceable items:
-- A testing criterion matching the Testing overview, e.g. *"New/updated WTR unit tests covering `<behavior>` are added and pass"* — plus Playwright and/or visual-regression criteria **only where the Testing overview recommends them**.
-- **If** the manual testing doc needs updates (from the Testing assessment): *"`MANUAL_TESTING.md` is updated to cover `<behavior/steps>`."* Omit when the component has no manual testing doc or none are needed.
+- A testing criterion matching the Testing overview (below), e.g. *"New/updated WTR unit tests covering `<behavior>` are added and pass"* — plus Playwright and/or visual-regression criteria **only where the Testing overview recommends them**.
+- **If** the manual testing doc needs updates (from the Testing assessment below): *"`MANUAL_TESTING.md` is updated to cover `<behavior/steps>`."* Omit when the component has no manual testing doc or none are needed.
 - **Design review** — assess the same way the callout used to: if the change involves a **user-facing UI/UX change** (visible changes to layout, spacing, styling, tokens, typography, iconography, motion, user-facing copy, interaction patterns, or accessibility-affecting presentation), include *"🎨 UI/UX changes are reviewed and approved by the Design team before release — <what changes for the user>."* Omit this criterion entirely when there's no user-facing UI/UX change.
+
+**Then, after the checklist, Testing** — always. A short overview, not a per-test list, grounded in the component's test setup (or Auro conventions):
+   `**Testing:** <overview of expected test changes>. WTR unit tests <are sufficient | should be extended>; <add Playwright interaction tests for … | add visual regression coverage for … | no Playwright or visual regression changes needed>.`
+   Recommend **Playwright/framework tests** for interaction flows (keyboard/focus/pointer), a11y behavior, cross-component integration, form submission, or React/Vue/Angular wrapper behavior; **visual regression** for rendering, layout, styling, token, theming, or slotted-content changes; otherwise WTR alone.
+   If a manual testing doc exists (from Step 3), also assess whether it needs updates for this change — new smoke steps or behaviors to verify manually — and state what to add, or that no update is needed. Omit this sentence when the component has no manual testing doc.
 
 Don't otherwise restate the description.
 
-**Bug-only fields** — **draft these only when `TYPE = bug`; skip them entirely for user stories.** In this project a Bug keeps its narrative in these dedicated fields rather than the Description (which is typically left empty for bugs). Draft each as its own block, grounded in the component/API; keep them concrete and minimal and don't restate the callouts or testing notes from `TICKET_DESCRIPTION`:
+**Bug-only fields** — **draft these only when `TYPE = bug`; skip them entirely for user stories.** In this project a Bug keeps its narrative in these dedicated fields rather than the Description (which is typically left empty for bugs). Draft each as its own block, grounded in the component/API; keep them concrete and minimal and don't restate the callouts from `TICKET_DESCRIPTION` or the testing notes from `ACCEPTANCE_CRITERIA`:
 
 - **`REPRO_STEPS`** (ADO Repro Steps) — the numbered **steps to reproduce** the defect, and nothing else. Do **not** restate the actual or expected behavior here — that content is captured in the `ACTUAL_RESULTS` and `EXPECTED_RESULTS` fields below, so repeating it in Repro Steps would duplicate it. Keep the steps to the actions taken; stop before the outcome.
 - **`ACTUAL_RESULTS`** (ADO Actual Results) — a concise, **plain-text** statement of the current/buggy behavior (what actually happens). One or two sentences; no markdown.
@@ -173,7 +176,7 @@ Don't otherwise restate the description.
   Also fold in any other genuinely relevant misc/environment details the change description provides (browser, OS, framework/version) — but don't invent them. These answers make `SYSTEM_INFO` non-empty for every bug.
 
 **How a bug's blocks map to ADO fields.** Draft `TITLE`, `TICKET_DESCRIPTION`, `REPRO_STEPS`, `ACTUAL_RESULTS`, `EXPECTED_RESULTS`, `SYSTEM_INFO`, and `ACCEPTANCE_CRITERIA` as separate blocks (so each stays clear and independently editable in the review loop), but note how they are **combined at submission** for a bug — the **Submitting to Azure DevOps** section does the actual assembly:
-- The **Repro Steps** field leads with the `TICKET_DESCRIPTION` block, followed by the `REPRO_STEPS` reproduction steps.
+- The **Repro Steps** field carries **only** the Explanation from `TICKET_DESCRIPTION` (`**Current behavior:**` / `**Desired behavior:**` / `**Rationale:**`), followed by the `REPRO_STEPS` reproduction steps. The Figma, Affected-components, and Opened-on-behalf-of items are **not** included for bugs.
 - The **System Info and Misc Information** field is the `SYSTEM_INFO` content with the `ACCEPTANCE_CRITERIA` block **appended to the end**.
 - A bug's own **Description** and **Acceptance Criteria** ADO fields are **left empty** — not written on create, cleared on update.
 
@@ -211,7 +214,7 @@ Then handle **Issue Type** (`BUG_ISSUE_TYPE`) — **optional, with a suggestion*
 
 Set this as `AREA` and include it in the draft metadata below. The user can correct it in the review loop (it's one of the fields they may edit).
 
-**Ask who the ticket is for — just before presenting the draft.** Ask: "Is this ticket being opened on behalf of another team or user? Reply with the team or person's name, or `no`." Store the reply as `ON_BEHALF_OF` — a named team/user, or `no`. Fold it into the **end of `TICKET_DESCRIPTION`** as its final element (item 7 above): a named value renders as `**Opened on behalf of:** <team/user>`, and `no` renders as `**Opened on behalf of:** N/A`. (For a bug — whose description leads the Repro Steps field — this line therefore sits at the end of that leading description block, above the reproduction steps.)
+**Ask who the ticket is for — just before presenting the draft.** Ask: "Is this ticket being opened on behalf of another team or user? Reply with the team or person's name, or `no`." Store the reply as `ON_BEHALF_OF` — a named team/user, or `no`. **For a user story**, fold it into the **end of `TICKET_DESCRIPTION`** as its final element (item 4 above): a named value renders as `**Opened on behalf of:** <team/user>`, and `no` renders as `**Opened on behalf of:** N/A`. **For a bug, omit this line entirely** — Opened-on-behalf-of is user-story-only and does not appear in the bug's Repro Steps (still ask the question, just don't render it).
 
 Present the blocks with metadata, then ask what to change. Include the **Repro Steps / Actual Results / Expected Results / System Info** sections **only when `TYPE = bug`** (omit them for user stories); within a bug, omit the System Info line when `SYSTEM_INFO` is unset:
 
@@ -386,7 +389,7 @@ Also handle the **System Info** questions — component version, AuroDesignToken
 
 When refining a bug whose existing Repro Steps mix in the actual or expected outcome, move that content into `ACTUAL_RESULTS` / `EXPECTED_RESULTS` and remove it from `REPRO_STEPS` — the refined Repro Steps should be reproduction actions only, never a restatement of results already captured in their own fields.
 
-The **same bug field consolidation as create mode** applies at submission (see the create-mode "How a bug's blocks map to ADO fields" note and the Submitting section): the `TICKET_DESCRIPTION` block leads the Repro Steps field and `ACCEPTANCE_CRITERIA` is appended to the System Info field, while the bug's own Description and Acceptance Criteria ADO fields are dropped. So if the existing ticket held content in its Description or Acceptance Criteria fields (older-format bugs may), fold that content into your refined `TICKET_DESCRIPTION` / `ACCEPTANCE_CRITERIA` blocks so nothing is lost — the Submitting section clears those two ADO fields on update.
+The **same bug field consolidation as create mode** applies at submission (see the create-mode "How a bug's blocks map to ADO fields" note and the Submitting section): only the Explanation from `TICKET_DESCRIPTION` (Current/Desired/Rationale — not Figma/Affected/Opened-on-behalf) leads the Repro Steps field and `ACCEPTANCE_CRITERIA` is appended to the System Info field, while the bug's own Description and Acceptance Criteria ADO fields are dropped. So if the existing ticket held content in its Description or Acceptance Criteria fields (older-format bugs may), fold that content into your refined `TICKET_DESCRIPTION` / `ACCEPTANCE_CRITERIA` blocks so nothing is lost — the Submitting section clears those two ADO fields on update.
 
 Refinement, not reinvention: preserve the author's intent, keep anything already good, improve clarity and structure, fill gaps (missing testing/acceptance criteria, absent callouts), and correct what the code shows to be inaccurate. Don't expand scope beyond what the existing content implies. Where the existing ticket already satisfies a rule, keep its wording rather than rephrasing for its own sake.
 
@@ -451,7 +454,7 @@ Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **af
 - Send `ACTUAL_RESULTS` and `EXPECTED_RESULTS` exactly as drafted (no HTML, no markdown).
 
 **Bug field assembly (`TYPE = bug` only).** A bug consolidates its narrative into the Repro Steps and System Info fields and leaves Description and Acceptance Criteria empty:
-- **Repro Steps** (`Microsoft.VSTS.TCM.ReproSteps`) = the minimal-HTML `TICKET_DESCRIPTION` **first**, then the reproduction steps (`REPRO_STEPS`) as plain-text numbered lines. Separate the two with a clear subheading between them, e.g. `<br><b>Steps to reproduce:</b>` ahead of the numbered steps.
+- **Repro Steps** (`Microsoft.VSTS.TCM.ReproSteps`) = the minimal-HTML **Explanation only** from `TICKET_DESCRIPTION` (`**Current behavior:**` / `**Desired behavior:**` / `**Rationale:**` — **not** the Figma, Affected-components, or Opened-on-behalf-of items) **first**, then the reproduction steps (`REPRO_STEPS`) as plain-text numbered lines. Separate the two with a clear subheading between them, e.g. `<br><b>Steps to reproduce:</b>` ahead of the numbered steps.
 - **System Info and Misc Information** (`Microsoft.VSTS.TCM.SystemInfo`) = the minimal-HTML `SYSTEM_INFO`, then `ACCEPTANCE_CRITERIA` **appended to the end** under a clear subheading, e.g. `<br><b>Acceptance Criteria:</b>` ahead of it.
 - Do **not** populate `System.Description` or `Microsoft.VSTS.Common.AcceptanceCriteria` for a bug. On the **create** path, omit both ops entirely. On the **update** path, **clear** them (older-format bugs may hold content there) by sending each as an empty string: `{ "op": "add", "path": "/fields/System.Description", "value": "" }` and the same for `Microsoft.VSTS.Common.AcceptanceCriteria`.
 
@@ -466,7 +469,7 @@ Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **af
 | `System.Tags` | `Refinement` (merged with existing tags — see below) | plain | always |
 | `System.Description` | `TICKET_DESCRIPTION` | min. HTML | **user story only** |
 | `Microsoft.VSTS.Common.AcceptanceCriteria` | `ACCEPTANCE_CRITERIA` | min. HTML | **user story only** |
-| `Microsoft.VSTS.TCM.ReproSteps` | `TICKET_DESCRIPTION` + `REPRO_STEPS` (assembled) | min. HTML | **bug only** |
+| `Microsoft.VSTS.TCM.ReproSteps` | Explanation of `TICKET_DESCRIPTION` + `REPRO_STEPS` (assembled) | min. HTML | **bug only** |
 | `Microsoft.VSTS.TCM.SystemInfo` | `SYSTEM_INFO` + `ACCEPTANCE_CRITERIA` (assembled) | min. HTML | **bug only** |
 | `Custom.ActualResults` | `ACTUAL_RESULTS` | plain | **bug only** |
 | `Custom.ExpectedResults` | `EXPECTED_RESULTS` | plain | **bug only** |

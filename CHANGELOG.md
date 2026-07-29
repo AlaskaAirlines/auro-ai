@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.4...v1.3.5) (2026-07-29)
+
+
+### Bug Fixes
+
+* improve structure and clarity of ADO ticket description guidelines ([f5a3db0](https://github.com/AlaskaAirlines/auro-ai/commit/f5a3db021b468028a1a06f2f6c510acd70d81037))
+
 ## [1.3.4](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.3...v1.3.4) (2026-07-29)
 
 

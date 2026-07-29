@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.3...v1.3.4) (2026-07-29)
+
+
+### Bug Fixes
+
+* use as little HTML as possible when inserting content into ADO tickets ([3d5fc15](https://github.com/AlaskaAirlines/auro-ai/commit/3d5fc15b83683ee6bae0acc357df41bdda00850b))
+
 ## [1.3.3](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.2...v1.3.3) (2026-07-29)
 
 

@@ -1,3 +1,10 @@
+## [1.3.7](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.6...v1.3.7) (2026-07-29)
+
+
+### Bug Fixes
+
+* update ADO ticket description guidelines to support Markdown formatting ([b99f590](https://github.com/AlaskaAirlines/auro-ai/commit/b99f590d7417d9196bad7f975b507eed2468b900))
+
 ## [1.3.6](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.5...v1.3.6) (2026-07-29)
 
 

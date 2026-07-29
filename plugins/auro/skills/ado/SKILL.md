@@ -124,7 +124,7 @@ Draft three **separate, non-overlapping** blocks and store each distinctly for i
 
 **`TICKET_DESCRIPTION`** (ADO Description) — assembled in this order:
 
-1. **Explanation** — the current behavior, desired behavior, and rationale, grounded in the component/API. Present these three under **bold labels** — `**Current behavior:**`, `**Desired behavior:**`, and `**Rationale:**` — each followed by its content (the labels render bold in ADO via the markdown→HTML conversion at submission). For a **bug**, keep this high-level — the concrete reproduction, expected, and actual behavior go in the `REPRO_STEPS` block, not here.
+1. **Explanation** — the current behavior, desired behavior, and rationale, grounded in the component/API. Present these three under labels — `Current behavior:`, `Desired behavior:`, and `Rationale:` — each followed by its content. These labels (and all field content) are written as **plain text with no HTML** at submission — no bold, no markdown markers — per the zero-HTML rule in the **Submitting** section. For a **bug**, keep this high-level — the concrete reproduction, expected, and actual behavior go in the `REPRO_STEPS` block, not here.
 2. **Figma** — if a `FIGMA` link was provided, `**Figma:** <link>`, placed after the Explanation, immediately following the Rationale. Omit when no link was provided. (The **TRD** and **breaking-change** flags are **not** part of the description — they lead the `ACCEPTANCE_CRITERIA` block instead; see below.)
 3. **Affected components** — only if `AFFECTED_COMPONENTS` is set (not `none`): `**Also affects:** <the confirmed affected components>`, noting briefly how this change touches them. Omit otherwise. (The **Risks** section is **not** part of the description — it sits in the `ACCEPTANCE_CRITERIA` block, after the flags and before the checklist; see below.)
 4. **Opened on behalf of** — the **last** element of the description, from the `ON_BEHALF_OF` answer collected just before the draft is presented (see below): if a team or user was named → `**Opened on behalf of:** <team/user>`; if the answer was `no` → `**Opened on behalf of:** N/A`.
@@ -140,8 +140,10 @@ The **Design review** recommendation and the **Testing** overview are **not** pa
   - Non-trivial → `⚠️ **This change is likely not trivial — a Technical Research Document (TRD) is recommended before implementation.** <why>` — when the change spans multiple areas/components, is architectural or unclear, or needs investigation before it can be implemented.
   - Trivial → `**TRD:** This change appears trivial and likely does not need a Technical Research Document.`
 - Breaking change:
-  - Breaking → `🚨 **BREAKING CHANGE** 🚨 — <what breaks and how consumers migrate>` — when it removes/renames an attribute, property, or method; changes an event name or payload; alters a default; or changes a slot contract.
-  - Not breaking → `**Breaking change:** None — this change is backward compatible for existing consumers.`
+  - Breaking → `🚨 **BREAKING CHANGE** 🚨 — <what breaks and how consumers migrate>` — when it removes/renames an attribute, property, or method; changes an event name or payload; alters a default; or changes a slot contract. Set `IS_BREAKING = yes`.
+  - Not breaking → `**Breaking change:** None — this change is backward compatible for existing consumers.` Set `IS_BREAKING = no`.
+
+  Record this as `IS_BREAKING` (yes/no) — it applies to **both** work item types. When `IS_BREAKING = yes` on a **newly created** ticket, a `BREAKING CHANGE` tag is added to the work item at submission (see **Submitting to Azure DevOps**).
 
 **Then, Risks** — only if real risks exist (else omit this entirely). `**Risks:**` followed by concise bullets, each noting what to watch during dev/testing: regressions, edge cases, dependency/version impacts, performance, accessibility, cross-browser/framework, or consumer migration. Also, if the change describes **new UI** and no `FIGMA` link was provided, include a risk noting the absence of a Figma design to build and verify against. Likewise, for any affected component left unresolved in the affected-components assessment (couldn't be reached and wasn't corrected), include a risk noting its impact couldn't be verified against current code.
 
@@ -206,6 +208,8 @@ Handle the first four **before** the Issue Type field:
 
 Then handle **Issue Type** (`BUG_ISSUE_TYPE`) — **optional, with a suggestion**: based on the drafted content, pick the allowed value that best fits (e.g. an accessibility fix → `Accessibility`; a visual/layout change → `UI/UX`; a docs-only change → `Documentation`) and ask: "For **Issue Type** I suggest `<suggested value>`. Reply `yes` to accept, pick a different value from the list (1) Accessibility  2) Configuration  …), or reply `none` to leave it unset." Resolve: `yes` → the suggested value; a listed value → that value; `none`/`skip` → leave unset. Only ever offer values from the live/allowed list.
 
+**Effort assessment (`TYPE = bug` only).** Make a general assessment of the effort to implement the fix — one of `Low`, `Medium`, or `High` — grounded in the code you read and the drafted change: scope, the number of components/files touched, architectural complexity, risk, and whether a TRD is recommended (a non-trivial/TRD-recommended change usually maps to `High`; a small, localized, low-risk fix to `Low`). Store it as `BUG_EFFORT`. It is **not** an ADO field — it's applied to the ticket as a tag (`Effort - Low` / `Effort - Medium` / `Effort - High`) at submission (see **Submitting to Azure DevOps**). Present it in the draft (in the Bug Fields section of the presentation below) with a one-line reason, so the user can override it in the review loop; if the user names a different level, use it verbatim (must be `Low`, `Medium`, or `High`).
+
 **Derive the Area path now** (just before presenting the draft — it isn't needed earlier). All Area paths start with `E_Retain_Content\Auro Design System`, extended from `COMPONENT` using the `IS_FORMKIT` determination from Step 3:
 - `COMPONENT = none` → the root, unchanged.
 - `auro-formkit` → append `\auro-formkit`.
@@ -247,12 +251,13 @@ Highest Environment Impacted:  <BUG_ENVIRONMENT>
 Defect How Found:  <BUG_DEFECT_HOW_FOUND>
 Defect Root Cause:  <BUG_DEFECT_ROOT_CAUSE, or "(unset)">
 Issue Type:  <BUG_ISSUE_TYPE, or "(unset)">
+Effort (tag):  <BUG_EFFORT>
 
 ── Acceptance Criteria ─
 <ACCEPTANCE_CRITERIA>
 ```
 
-Ask: "Change anything? Name a field (title, description, repro steps, actual results, expected results, system info, bug fields, acceptance criteria) with your edits, or reply no/none if it's good." (Offer `repro steps`, `actual results`, `expected results`, `system info`, and `bug fields` only for bugs.) On no/none → Step 6. Otherwise apply the edits to the named block(s) — or type/area if they correct those — re-present the blocks, and ask again. If they edit a **bug field**, re-run its prompt so the new value still comes only from ADO's allowed values. Loop until approved.
+Ask: "Change anything? Name a field (title, description, repro steps, actual results, expected results, system info, bug fields, effort, acceptance criteria) with your edits, or reply no/none if it's good." (Offer `repro steps`, `actual results`, `expected results`, `system info`, `bug fields`, and `effort` only for bugs.) On no/none → Step 6. Otherwise apply the edits to the named block(s) — or type/area if they correct those — re-present the blocks, and ask again. If they edit a **bug field**, re-run its prompt so the new value still comes only from ADO's allowed values. If they edit **effort**, set `BUG_EFFORT` to their choice (`Low`, `Medium`, or `High`). Loop until approved.
 
 ---
 
@@ -383,6 +388,8 @@ For a bug, also handle the **bug classification picklists** — `BUG_IMPACTED_GU
      - `no` → go to step 2.
 2. **Ask for the correct value.** Present the field's numbered allowed values and have the user pick one, accepting only a value from the list (by number or exact text), exactly as in create-mode Step 5. When the current value was empty, the user **must** choose a value — do **not** allow `none`/`skip`, even for the optional fields (Defect Root Cause, Issue Type). Only when the current value was already set and the user chose to change it may the optional fields be set back to unset via `none`/`skip`. For **Issue Type**, if the current value is empty, offer a content-based suggestion (as in create mode) as the recommended pick.
 
+Also make the **effort assessment** (`TYPE = bug` only), exactly as in create-mode Step 5: assess the effort to implement the fix — `Low`, `Medium`, or `High` — grounded in the refined content and the code, and store it as `BUG_EFFORT`. First check `EXISTING_TAGS` (read in Edit Step 3) for an existing `Effort - <level>` tag: if one is present, use its level as your starting point and note it as the current value. Present `BUG_EFFORT` in the Edit Step 7 draft with a one-line reason so the user can override it; it's applied as an `Effort - <level>` tag at submission (replacing any existing effort tag — see **Submitting to Azure DevOps**).
+
 Also handle the **on behalf of** question, as in create-mode Step 5 (its answer becomes the final `**Opened on behalf of:**` line of `TICKET_DESCRIPTION`). First check whether `EXISTING_DESCRIPTION` already carries an "Opened on behalf of" note: if it does, tell the user the current value and ask whether to keep it (`yes` → reuse it as `ON_BEHALF_OF`; `no` → ask the question below). Otherwise ask: "Is this ticket being opened on behalf of another team or user? Reply with the team or person's name, or `no`." Store the reply as `ON_BEHALF_OF` and render it in the standard format, replacing any old on-behalf-of note rather than duplicating it.
 
 Also handle the **System Info** questions — component version, AuroDesignTokens version, and whether it reproduces on https://auro.alaskaair.com/ — with the **AuroDesignTokens question applying only to UI/UX bugs**, exactly as in create-mode Step 5 (a non-UI/UX bug skips that question and omits the AuroDesignTokens line). First check whether `EXISTING_SYSTEM_INFO` already answers any of the applicable questions — a component version, an AuroDesignTokens version, and/or an auro.alaskaair.com reproduction note. For any applicable question the existing content already answers, **use that existing value** as the answer (don't re-ask the user for it) and render it in the standard labeled-line format from create-mode Step 5. Only prompt the user for an applicable question the existing content doesn't already answer. Build `SYSTEM_INFO` from these values in our standard format, **replacing** the old version/docsite content rather than duplicating it, while preserving any other unrelated misc/environment details already there. If the bug is not a UI/UX issue, drop any pre-existing AuroDesignTokens line rather than carrying it forward.
@@ -426,6 +433,7 @@ Highest Environment Impacted:  <BUG_ENVIRONMENT>
 Defect How Found:  <BUG_DEFECT_HOW_FOUND>
 Defect Root Cause:  <BUG_DEFECT_ROOT_CAUSE, or "(unset)">
 Issue Type:  <BUG_ISSUE_TYPE, or "(unset)">
+Effort (tag):  <BUG_EFFORT>
 
 ── Acceptance Criteria ─
 <ACCEPTANCE_CRITERIA>
@@ -433,7 +441,7 @@ Issue Type:  <BUG_ISSUE_TYPE, or "(unset)">
 
 Briefly summarize the notable changes from the original in a line or two above the block (e.g. "tightened the title, added a Testing section and two acceptance criteria").
 
-Ask: "Does this look good, or should I make further edits? Name a field (title, description, repro steps, actual results, expected results, system info, bug fields, acceptance criteria) with your edits, or reply `good`/`no`/`none` if it's ready." (Offer `repro steps`, `actual results`, `expected results`, `system info`, and `bug fields` only for bugs.) Apply any edits to the named block(s) — or type/area if they correct those — re-present, and ask again. If they edit a **bug field**, re-run its prompt so the new value still comes only from ADO's allowed values. Loop until approved.
+Ask: "Does this look good, or should I make further edits? Name a field (title, description, repro steps, actual results, expected results, system info, bug fields, effort, acceptance criteria) with your edits, or reply `good`/`no`/`none` if it's ready." (Offer `repro steps`, `actual results`, `expected results`, `system info`, `bug fields`, and `effort` only for bugs.) Apply any edits to the named block(s) — or type/area if they correct those — re-present, and ask again. If they edit a **bug field**, re-run its prompt so the new value still comes only from ADO's allowed values. If they edit **effort**, set `BUG_EFFORT` to their choice (`Low`, `Medium`, or `High`). Loop until approved.
 
 On approval, ask for explicit confirmation before writing anything back: "Ready to save these changes to AB#<TICKET> in Azure DevOps? Reply `yes` to update, or `no` to cancel."
 - `no` (or anything other than a clear yes) → stop without submitting; the refined values are kept in case they want to re-run.
@@ -447,18 +455,21 @@ Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **af
 
 **1. Confirm ADO credentials.** Apply the **Azure DevOps access (PAT)** rules from the top of this document — confirm `ADO_PAT` is set; if not, stop without submitting and show the PAT-setup guidance. (Edit mode already checked this in Edit Step 1; create mode with a non-bug work item may not have, so check here regardless.)
 
-**2. Assemble the field values and convert to the storage formats.** ADO stores **Description**, **Acceptance Criteria**, **Repro Steps**, and **System Info** as **HTML**, but keep the HTML to the **bare minimum** — the stored content should read as close to plain text as ADO's rendering allows. **Actual Results** and **Expected Results** are **plain-text** strings; the picklist and Area fields are plain strings.
-- **Use as few tags as possible.** The only markup allowed is `<br>` for line/paragraph breaks (ADO collapses raw newlines, so `<br>` is the one structural tag genuinely needed) and `<b>…</b>` for the bold labels the drafting steps call for (e.g. `**Current behavior:**`, callout labels). Use nothing else.
-- Do **not** wrap blocks in `<div>` or `<p>`, and do **not** use `<ul>`/`<ol>`/`<li>`. Render bullet lists as plain-text lines each prefixed with `- ` and separated by `<br>`; render numbered steps (Repro Steps) as plain-text lines each prefixed with `1.`, `2.`, … and separated by `<br>`.
-- Preserve emoji characters literally. Escape `&`, `<`, `>` in literal text (`&amp;`, `&lt;`, `&gt;`).
-- Send `ACTUAL_RESULTS` and `EXPECTED_RESULTS` exactly as drafted (no HTML, no markdown).
+**2. Assemble the field values and convert to the storage formats.** **All free-text fields carry ZERO HTML** — for **both** work item types. **Actual Results** and **Expected Results** are **plain-text** strings; the picklist and Area fields are plain strings.
 
-**Bug field assembly (`TYPE = bug` only).** A bug consolidates its narrative into the Repro Steps and System Info fields and leaves Description and Acceptance Criteria empty:
-- **Repro Steps** (`Microsoft.VSTS.TCM.ReproSteps`) = the minimal-HTML **Explanation only** from `TICKET_DESCRIPTION` (`**Current behavior:**` / `**Desired behavior:**` / `**Rationale:**` — **not** the Figma, Affected-components, or Opened-on-behalf-of items) **first**, then the reproduction steps (`REPRO_STEPS`) as plain-text numbered lines. Separate the two with a clear subheading between them, e.g. `<br><b>Steps to reproduce:</b>` ahead of the numbered steps.
-- **System Info and Misc Information** (`Microsoft.VSTS.TCM.SystemInfo`) = the minimal-HTML `SYSTEM_INFO`, then `ACCEPTANCE_CRITERIA` **appended to the end** under a clear subheading, e.g. `<br><b>Acceptance Criteria:</b>` ahead of it.
+**Free-text fields — ZERO HTML (bugs and user stories).** ADO stores **Description**, **Acceptance Criteria**, **Repro Steps**, and **System Info** as HTML-typed fields, but insert **no HTML whatsoever** into any of them — no `<br>`, no `<b>`, no `<div>`/`<p>`, no `<ul>`/`<ol>`/`<li>`, and no HTML entities (`&amp;`/`&lt;`/`&gt;`). Write **plain text only**, and make a best effort to preserve the drafted formatting within that constraint:
+- **Line breaks:** use real newline characters — a single `\n` between lines and a blank line (`\n\n`) between sections. Because these are HTML-typed fields and we no longer emit `<br>`, ADO may collapse some line breaks when rendering; this is the accepted best-effort tradeoff for zero HTML. Favor newlines and let ADO render them as best it can.
+- **Labels/subheadings:** render as plain text with no emphasis and no markdown markers — `**Current behavior:**` becomes `Current behavior:` (drop the `**`, do not bold); likewise callout labels and subheadings such as `Steps to reproduce:` and `Acceptance Criteria:`.
+- **Lists:** bullets as plain lines each prefixed `- `, one per newline-separated line; numbered steps as plain lines each prefixed `1.`, `2.`, …, one per line.
+- **Characters:** preserve emoji literally, and write `&`, `<`, `>` as the literal characters — do **not** convert them to entities (that would be inserting HTML). Any literal `<…>` in the text is left as typed (best effort).
+- Send `ACTUAL_RESULTS` and `EXPECTED_RESULTS` exactly as drafted (already plain text — no HTML, no markdown).
+
+**User stories.** `TICKET_DESCRIPTION` → `System.Description` and `ACCEPTANCE_CRITERIA` → `Microsoft.VSTS.Common.AcceptanceCriteria`, each as plain text per the zero-HTML rules above. User stories have no Repro Steps, System Info, Actual Results, or Expected Results.
+
+**Bug field assembly (`TYPE = bug` only).** A bug consolidates its narrative into the Repro Steps and System Info fields (both plain text per above) and leaves Description and Acceptance Criteria empty:
+- **Repro Steps** (`Microsoft.VSTS.TCM.ReproSteps`) = the **Explanation only** from `TICKET_DESCRIPTION` (`Current behavior:` / `Desired behavior:` / `Rationale:` — **not** the Figma, Affected-components, or Opened-on-behalf-of items) **first**, then the reproduction steps (`REPRO_STEPS`) as plain-text numbered lines. Separate the two with a plain-text subheading on its own line (a blank line, then `Steps to reproduce:`, then the numbered steps) — no tags.
+- **System Info and Misc Information** (`Microsoft.VSTS.TCM.SystemInfo`) = the plain-text `SYSTEM_INFO`, then `ACCEPTANCE_CRITERIA` **appended to the end** under a plain-text subheading on its own line (a blank line, then `Acceptance Criteria:`, then the content) — no tags.
 - Do **not** populate `System.Description` or `Microsoft.VSTS.Common.AcceptanceCriteria` for a bug. On the **create** path, omit both ops entirely. On the **update** path, **clear** them (older-format bugs may hold content there) by sending each as an empty string: `{ "op": "add", "path": "/fields/System.Description", "value": "" }` and the same for `Microsoft.VSTS.Common.AcceptanceCriteria`.
-
-**User stories** are unchanged: `TICKET_DESCRIPTION` → `System.Description` and `ACCEPTANCE_CRITERIA` → `Microsoft.VSTS.Common.AcceptanceCriteria`, each as the same minimal HTML (only `<br>` and `<b>`); user stories have no Repro Steps, System Info, Actual Results, or Expected Results.
 
 **3. Build the JSON Patch payload.** Use the Write tool to write a JSON array to `/tmp/ado_workitem.json`, one op per field you have a value for — omit any field that's unset. Map values to these ADO field reference names, honoring the **When** column (the assembled bug values come from step 2):
 
@@ -466,11 +477,11 @@ Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **af
 |---|---|---|---|
 | `System.Title` | `TITLE` | plain | always |
 | `System.AreaPath` | `AREA` | plain | always |
-| `System.Tags` | `Refinement` (merged with existing tags — see below) | plain | always |
-| `System.Description` | `TICKET_DESCRIPTION` | min. HTML | **user story only** |
-| `Microsoft.VSTS.Common.AcceptanceCriteria` | `ACCEPTANCE_CRITERIA` | min. HTML | **user story only** |
-| `Microsoft.VSTS.TCM.ReproSteps` | Explanation of `TICKET_DESCRIPTION` + `REPRO_STEPS` (assembled) | min. HTML | **bug only** |
-| `Microsoft.VSTS.TCM.SystemInfo` | `SYSTEM_INFO` + `ACCEPTANCE_CRITERIA` (assembled) | min. HTML | **bug only** |
+| `System.Tags` | `Refinement` (plus `Effort - <BUG_EFFORT>` for bugs, plus `BREAKING CHANGE` for a newly created breaking change), merged with existing tags — see below | plain | always |
+| `System.Description` | `TICKET_DESCRIPTION` | plain, no HTML | **user story only** |
+| `Microsoft.VSTS.Common.AcceptanceCriteria` | `ACCEPTANCE_CRITERIA` | plain, no HTML | **user story only** |
+| `Microsoft.VSTS.TCM.ReproSteps` | Explanation of `TICKET_DESCRIPTION` + `REPRO_STEPS` (assembled) | plain, no HTML | **bug only** |
+| `Microsoft.VSTS.TCM.SystemInfo` | `SYSTEM_INFO` + `ACCEPTANCE_CRITERIA` (assembled) | plain, no HTML | **bug only** |
 | `Custom.ActualResults` | `ACTUAL_RESULTS` | plain | **bug only** |
 | `Custom.ExpectedResults` | `EXPECTED_RESULTS` | plain | **bug only** |
 | `Custom.ImpactedGuestExperience` | `BUG_IMPACTED_GUEST_EXPERIENCE` | plain | **bug only** |
@@ -486,9 +497,11 @@ Each op looks like `{ "op": "add", "path": "/fields/<ref>", "value": <value> }`.
   { "op": "add", "path": "/fields/System.AreaPath", "value": "E_Retain_Content\\Auro Design System\\auro-dialog" }
 ]
 ```
-**Always tag the ticket `Refinement`.** Every work item this skill writes — created (create mode) or edited (edit mode) — gets a `Refinement` tag on `System.Tags`. Tags are a single semicolon-delimited string and a write replaces the whole set, so:
-- **Create path** — no existing tags, so send `{ "op": "add", "path": "/fields/System.Tags", "value": "Refinement" }`.
-- **Update path** — preserve existing tags: build the value from `EXISTING_TAGS` (read in Edit Step 3) **plus** `Refinement`, e.g. `"<EXISTING_TAGS>; Refinement"` (or just `"Refinement"` if there were none). If `Refinement` is already present (case-insensitive), leave the tags unchanged and skip this op — don't duplicate it.
+**Always tag the ticket `Refinement`, and tag every bug with its effort.** Every work item this skill writes — created (create mode) or edited (edit mode) — gets a `Refinement` tag on `System.Tags`. **In addition, every bug (`TYPE = bug`) gets an effort tag** — exactly one of `Effort - Low`, `Effort - Medium`, or `Effort - High`, matching `BUG_EFFORT`. (User stories get no effort tag.) Tags are a single semicolon-delimited string and a write replaces the whole set, so assemble the full set:
+**A newly created breaking change also gets a `BREAKING CHANGE` tag.** On the **create path**, when `IS_BREAKING = yes` (from create-mode Step 5), add a `BREAKING CHANGE` tag — for either work item type. This is create-only; the update path doesn't add or remove it (any existing `BREAKING CHANGE` tag on an edited ticket is preserved by the existing-tag merge below).
+
+- **Create path** — no existing tags, so send just the tags being added, joined with `; `: `Refinement`, plus `Effort - <BUG_EFFORT>` for a bug, plus `BREAKING CHANGE` when `IS_BREAKING = yes`. E.g. a breaking bug → `{ "op": "add", "path": "/fields/System.Tags", "value": "Refinement; Effort - Medium; BREAKING CHANGE" }`; a non-breaking user story → `"Refinement"`.
+- **Update path** — preserve existing tags: start from `EXISTING_TAGS` (read in Edit Step 3). For a **bug**, first drop any existing `Effort - <level>` tag from that set (case-insensitive match on the `Effort - ` prefix) so the new one replaces it rather than duplicating, then add `Effort - <BUG_EFFORT>`. Add `Refinement` unless it's already present (case-insensitive). (Don't add or remove `BREAKING CHANGE` on update — leave whatever is already there untouched.) Join the result with `; `. If nothing would change (e.g. a user story that already has `Refinement`, or a bug whose `Refinement` and effort tags already match), leave the tags unchanged and skip this op.
 
 **Update path only:**
 - For a **bug**, clear the two dropped fields as described in step 2 — send `System.Description` and `Microsoft.VSTS.Common.AcceptanceCriteria` each as an empty string (`{ "op": "add", "path": "/fields/System.Description", "value": "" }`) so any older-format content there is removed.

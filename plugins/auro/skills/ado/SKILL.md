@@ -124,7 +124,8 @@ Draft three **separate, non-overlapping** blocks and store each distinctly for i
 
 **`TICKET_DESCRIPTION`** (ADO Description) — assembled in this order:
 
-1. **Leading callouts:**
+1. **Explanation** — the current behavior, desired behavior, and rationale, grounded in the component/API. Present these three under **bold labels** — `**Current behavior:**`, `**Desired behavior:**`, and `**Rationale:**` — each followed by its content (the labels render bold in ADO via the markdown→HTML conversion at submission). For a **bug**, keep this high-level — the concrete reproduction, expected, and actual behavior go in the `REPRO_STEPS` block, not here.
+2. **Callouts** (placed after the Explanation, immediately following the Rationale):
    - TRD — **always include exactly one outcome**:
      - Non-trivial → `⚠️ **This change is likely not trivial — a Technical Research Document (TRD) is recommended before implementation.** <why>` — when the change spans multiple areas/components, is architectural or unclear, or needs investigation before it can be implemented.
      - Trivial → `**TRD:** This change appears trivial and likely does not need a Technical Research Document.`
@@ -133,7 +134,6 @@ Draft three **separate, non-overlapping** blocks and store each distinctly for i
      - Not breaking → `**Breaking change:** None — this change is backward compatible for existing consumers.`
    - Figma — if a `FIGMA` link was provided: `**Figma:** <link>`.
    - Order: TRD outcome first, breaking-change outcome second, Figma link (when present) last.
-2. **Explanation** — the current behavior, desired behavior, and rationale, grounded in the component/API. Present these three under **bold labels** — `**Current behavior:**`, `**Desired behavior:**`, and `**Rationale:**` — each followed by its content (the labels render bold in ADO via the markdown→HTML conversion at submission). For a **bug**, keep this high-level — the concrete reproduction, expected, and actual behavior go in the `REPRO_STEPS` block, not here.
 3. **Design review** — always include exactly one outcome:
    - UI/UX change → `🎨 **Design review recommended** — <what changes for the user>; review with the Design team before release.` — for visible changes to layout, spacing, styling, tokens, typography, iconography, motion, user-facing copy, interaction patterns, or accessibility-affecting presentation.
    - Otherwise → `**Design review:** Not required — no user-facing UI/UX change.`

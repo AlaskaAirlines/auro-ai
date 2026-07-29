@@ -1,3 +1,10 @@
+## [1.3.6](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.5...v1.3.6) (2026-07-29)
+
+
+### Bug Fixes
+
+* add bug effort tagging and strip html formatting ([7be81ee](https://github.com/AlaskaAirlines/auro-ai/commit/7be81eee0d61f7d62a56e423cf9630d733209b7e))
+
 ## [1.3.5](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.4...v1.3.5) (2026-07-29)
 
 

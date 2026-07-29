@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.2...v1.3.3) (2026-07-29)
+
+
+### Bug Fixes
+
+* move design review recommendation to acceptance criteria ([d9935d7](https://github.com/AlaskaAirlines/auro-ai/commit/d9935d759a7222cabb3264dc768d3b7d09d17014))
+
 ## [1.3.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.1...v1.3.2) (2026-07-29)
 
 

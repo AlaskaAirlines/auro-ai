@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Review a GitHub pull request or local branch for bugs and correctness issues. Use a PR number to post comments to GitHub, or `local` (or no argument) to review the current branch in chat.
+description: Review a GitHub pull request or local branch for bugs and correctness issues. Use a PR number to review a PR — findings are always previewed in chat first and only posted to GitHub after you confirm — or `local` (or no argument) to review the current branch in chat.
 disable-model-invocation: true
 context: fork
 allowed-tools: Bash(gh pr view *), Bash(gh repo view *), Bash(gh pr comment *), Bash(gh api graphql *), Bash(gh api repos/*/pulls/*/comments *), Bash(gh api --paginate repos/*/pulls/*/comments *), Bash(gh api --paginate repos/*/issues/*/comments *), Bash(gh api --method PATCH repos/*/pulls/comments/* *), Bash(gh api --method PATCH repos/*/pulls/* *), Bash(git fetch *), Bash(git log *), Bash(git diff *), Bash(git merge-base *), Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git remote set-head *), Read, Grep, Glob, Write(/tmp/*), Task
@@ -9,7 +9,7 @@ argument-hint: "[PR number]  ·  local"
 
 ## Task — start now
 
-You are executing the **code-review** skill. The invocation itself is the request: **begin the review immediately and autonomously.** Do not treat the text below as reference documentation — it is your procedure to follow now. Do not ask the user what they want, **with exactly one exception:** in local mode you must first ask the single base-branch question described below, then proceed autonomously. That base-branch question is the **only** question this skill may ever ask. In particular, **never ask the user which model(s) to use or whether to run single- vs multi-model** — multi-model is always on and non-negotiable (see "Multi-model review"); there is no single-model mode and no such choice to offer. Silently run the fixed two-model roster (Opus 4.8 + Sonnet 5).
+You are executing the **code-review** skill. The invocation itself is the request: **begin the review immediately and autonomously.** Do not treat the text below as reference documentation — it is your procedure to follow now. Do not ask the user what they want, **with exactly two exceptions:** (1) in local mode you must first ask the single base-branch question described below, then proceed autonomously; and (2) in PR mode, after the review is complete you must present the findings in chat and ask the single submit-or-exit question described in "Preview and confirm before posting (PR mode)" before any comment is posted to GitHub. Those two questions are the **only** questions this skill may ever ask. In particular, **never ask the user which model(s) to use or whether to run single- vs multi-model** — multi-model is always on and non-negotiable (see "Multi-model review"); there is no single-model mode and no such choice to offer. Silently run the fixed two-model roster (Opus 4.8 + Sonnet 5).
 
 Select the mode from the invocation argument (`$ARGUMENTS` — the text after `/code-review`, e.g. `1572` or `local`; empty if none). **First normalize `$ARGUMENTS` before matching:** trim leading/trailing whitespace; silently discard a trailing `multi`/`multimodel`/`single` token if present (multi-model review is **always on** and there is no single-model mode — see "Multi-model review" — so any such token is meaningless; drop it without comment and without asking anything, kept tolerated only so an older `1572 multi` invocation doesn't hit the unrecognized-argument stop); then strip a single optional leading `#` (so ` 1572 ` and `#1572` are both treated as `1572`). Match the `local` keyword case-insensitively. Apply the normalized value in all three branches below:
 - **`$ARGUMENTS` is a number** (after trimming and stripping a leading `#`, the value is all digits) → **PR mode**: review that PR and post findings to GitHub (see "PR context" and "Posting comments").
@@ -31,7 +31,7 @@ When `$ARGUMENTS` is empty or "local", do not use the GitHub/`gh` PR API (no PR 
 
 **Determine the base branch (local mode):**
 
-**This is a hard stop and the one permitted follow-up prompt. Before running any git command (including `git fetch`), before gathering any diff, and regardless of the "begin autonomously" directive above, you MUST first ask the user this question, then wait for their reply.** Ask with a plain-text message (not the `AskUserQuestion` tool — in a forked skill run that tool does not surface an interactive prompt to the user, so the ask would be silently skipped). Ask exactly:
+**This is a hard stop and the one permitted follow-up prompt in local mode (PR mode has its own, separate submit-or-exit prompt — see "Preview and confirm before posting (PR mode)"). Before running any git command (including `git fetch`), before gathering any diff, and regardless of the "begin autonomously" directive above, you MUST first ask the user this question, then wait for their reply.** Ask with a plain-text message (not the `AskUserQuestion` tool — in a forked skill run that tool does not surface an interactive prompt to the user, so the ask would be silently skipped). Ask exactly:
 
 > Which branch should I compare your current branch against? Reply `default` to use the repository's default branch, or type a branch name (e.g. `origin/release-6.0`).
 
@@ -68,7 +68,7 @@ If the SHAs differ, **stop the review immediately** and output: "⚠️ Your che
 gh api --paginate repos/{owner}/{repo}/issues/$ARGUMENTS/comments \
   --jq '.[] | select(.body | contains("<!-- claude-code-review:summary")) | .body | split("\n")[0]'
 ```
-Each output line is one summary comment's marker; take the `head=<sha>` from the **last** line. If a prior summary exists but its marker carries **no** `head=` value (it predates this feature), treat that as no recorded head — fall through to a full review rather than trying to parse a missing SHA. If that `head=<sha>` equals the current PR head SHA (`headRefOid` from the head check above), the diff has not changed since the last review: **do not re-run the review.** Skip diff gathering, the persona sweep, inline reconciliation, and context re-reading — **except** the post-mortem executive summary needed for the sync below. Still run the exec-summary description sync (it is idempotent and cheap; read just the post-mortem's `## Executive Summary` for it), then post a single short summary comment — `head unchanged since the last review (@ <sha>); no re-review performed — prior findings stand` (with the summary marker carrying the same `head=<sha>`) — and stop. This avoids paying full review cost when nothing changed, which is the common case when the skill is re-run repeatedly on one PR. (No equivalent exists in local mode: each local run is a fresh forked context with no place to record the last-reviewed state, so local mode always reviews.)
+Each output line is one summary comment's marker; take the `head=<sha>` from the **last** line. If a prior summary exists but its marker carries **no** `head=` value (it predates this feature), treat that as no recorded head — fall through to a full review rather than trying to parse a missing SHA. If that `head=<sha>` equals the current PR head SHA (`headRefOid` from the head check above), the diff has not changed since the last review: **do not re-run the review.** Skip diff gathering, the persona sweep, inline reconciliation, and context re-reading — **except** the post-mortem executive summary needed for the sync below. Tell the user in chat that the head is unchanged since the last review (`@ <sha>`) so no re-review was performed and prior findings stand — then still honor the preview-and-confirm gate before any GitHub write: ask the same submit-or-exit question from "Preview and confirm before posting (PR mode)" and wait for the reply. Only on a `submit`-equivalent reply, run the exec-summary description sync (it is idempotent and cheap; read just the post-mortem's `## Executive Summary` for it) and post a single short summary comment — `head unchanged since the last review (@ <sha>); no re-review performed — prior findings stand` (with the summary marker carrying the same `head=<sha>`). On any other reply, post nothing and stop. Either way, stop after this. This avoids paying full review cost when nothing changed, which is the common case when the skill is re-run repeatedly on one PR. (No equivalent exists in local mode: each local run is a fresh forked context with no place to record the last-reviewed state, so local mode always reviews.)
 
 If the head is new (or no prior summary exists) and the local head matches the PR head, gather context (`<base>` is the PR's base ref determined above, e.g. `origin/dev`):
 - Use `git diff $(git merge-base <base> HEAD) HEAD` for the diff
@@ -190,7 +190,7 @@ Review the diff gathered above for:
 
 Then add a one-line **verdict** per model — e.g. "opus: 2 unique 🔴 (would have been missed without it) — high value; sonnet: 0 unique, corroborated 1 nit — low value this run". Base the "what one model caught that the other missed" section entirely on the **unique contribution** above: for every finding raised by only one model, name the model, the finding, and (briefly) why the other plausibly missed it (e.g. "only sonnet flagged the race in `updated()`; opus didn't surface it").
 
-Then hand the reconciled consensus list **and this model-contribution summary** to the normal output path — **Output mode** (chat) in local, or **Posting comments** (inline + summary + description sync) in PR mode. The orchestrator is the only writer; the summary must note that the review was multi-model, list the roster used, and include the model-contribution summary (per-model raised/survived/unique + verdicts, and the "caught by one model only" list).
+Then hand the reconciled consensus list **and this model-contribution summary** to the normal output path — **Output mode** (chat) in local, or **Preview and confirm before posting (PR mode)** → **Posting comments** (inline + summary + description sync) in PR mode. In PR mode the findings are **always** presented in chat first and only written to GitHub after the user confirms — see "Preview and confirm before posting (PR mode)". The orchestrator is the only writer; the summary must note that the review was multi-model, list the roster used, and include the model-contribution summary (per-model raised/survived/unique + verdicts, and the "caught by one model only" list).
 
 ## Post-code-review validation
 
@@ -234,7 +234,7 @@ If a commit prefix does not match its content (e.g., `docs:` prefix but the comm
 
 If `$ARGUMENTS` is empty or "local", do NOT post any comments to GitHub. Instead, output all findings directly in the chat response formatted with the same severity prefixes and structure. Include the high-level summary and all inline findings with file paths and line numbers. Use code blocks for suggested fixes. **Also include the model-contribution summary** (from "Multi-model review"): the roster used, per-model raised/survived/unique counts with one-line verdicts, and the "caught by one model only" list — so the value each model added this run is visible.
 
-If `$ARGUMENTS` is a number, post comments to GitHub as described below.
+If `$ARGUMENTS` is a number, first present the same chat output described above as a preview, then ask the user whether to submit — see "Preview and confirm before posting (PR mode)". Only after the user confirms `submit` do you post comments to GitHub as described below.
 
 ## Review quality assessment
 
@@ -248,9 +248,26 @@ Before presenting findings (in chat or as the first section of the GitHub summar
 
 If there are no quality concerns, state: "📊 **Review Quality:** High confidence — diff is manageable, full context available." and still include the estimated token cost line.
 
+## Preview and confirm before posting (PR mode)
+
+**PR mode only — skip this section entirely if `$ARGUMENTS` is empty or "local".** This is the second (and last) permitted question of the skill (see "Task — start now"). Nothing is written to GitHub before the user confirms here — until then, a PR review behaves exactly like a local review.
+
+After the review and all "Post-code-review validation" are complete, and **before** running any step in "Posting comments" (including the post-mortem executive-summary description sync), **present the full review in chat first.** Output everything exactly as local **Output mode** would — the **Review Quality** assessment, every finding with its severity prefix, file path, line number, and any suggested-fix code blocks, and the full **model-contribution summary** (roster used, per-model raised/survived/unique counts with verdicts, and the "caught by one model only" list). This preview is the same content that would otherwise be posted to the PR, shown locally so the user can act on it before it becomes public.
+
+Then ask the user to choose, and **wait for their reply.** Ask with a plain-text message (not the `AskUserQuestion` tool — in a forked skill run that tool does not surface an interactive prompt, so the ask would be silently skipped, exactly as documented for the local base-branch question). Ask exactly:
+
+> The review above has **not** been posted to PR #$ARGUMENTS yet. Reply `submit` to post these findings to GitHub (inline comments, the high-level summary, and the post-mortem executive-summary sync into the PR description), or `exit` to stop here and keep this as a local-only review so you can make code changes first, then re-run `/code-review $ARGUMENTS`.
+
+Do **not** tell the user to "press enter" — an empty Enter is never submitted to the agent in the CLI, so the skill would hang. Every reply must be non-empty.
+
+Then interpret the reply:
+
+1. **The reply is `submit`** (case-insensitive; also treat an obvious affirmative equivalent like `post`, `yes`, `y`, or `go` this way) → proceed to "Posting comments (GitHub mode only)" below and perform all GitHub writes (description sync, inline comments, summary).
+2. **Any other reply — including `exit`, `no`, `cancel`, `stop`, or anything unrecognized** → **do not post anything to GitHub.** Make no `gh` write calls of any kind (no comments, no description sync). Output a short confirmation — "🛑 Nothing posted to PR #$ARGUMENTS. Review kept local — make your changes and re-run `/code-review $ARGUMENTS` when ready." — and stop. Defaulting an ambiguous reply to *not posting* is deliberate: GitHub writes are public and should only happen on explicit confirmation.
+
 ## Posting comments (GitHub mode only)
 
-Skip this section entirely if `$ARGUMENTS` is empty or "local".
+Skip this section entirely if `$ARGUMENTS` is empty or "local". **Reaching this section requires the user to have confirmed `submit` in "Preview and confirm before posting (PR mode)" above — never post any comment or sync the description without that confirmation.**
 
 Get the PR's head commit SHA with:
 ```

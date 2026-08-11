@@ -10,6 +10,8 @@ allowed-tools: Bash(gh auth status *), Bash(gh api *), Bash(gh repo view *), Bas
 
 Begin immediately and run the steps below **in order** — don't skip or reorder. Most steps prompt the user: ask, wait for the reply, and branch on it before continuing.
 
+**Fresh start — discard every previous draft.** Each `/ado` invocation is a clean slate. Before you begin, treat **all** working variables as **unset** — `TITLE`, `TICKET_DESCRIPTION`, `ACCEPTANCE_CRITERIA`, `REPRO_STEPS`, `ACTUAL_RESULTS`, `EXPECTED_RESULTS`, `SYSTEM_INFO`, every `BUG_*` value, `COMPONENT`, `IS_FORMKIT`, `AREA`, `AFFECTED_COMPONENTS`, `FIGMA`, `ON_BEHALF_OF`, and any `EXISTING_*` value — even if a **previous run of this skill** left them populated in the conversation. **Never** carry a title, description, acceptance criteria, field value, or user answer from an earlier `/ado` run into this one. In **edit mode**, the only permitted source of pre-existing content is what you fetch **fresh from Azure DevOps in this run** (the `EXISTING_*` values from Edit Step 2) and the live repo reads — not any draft you produced before. Likewise, do not trust a stale `/tmp/ado_*.json` file from a prior run; every read re-fetches with `-o` and every payload is rewritten before use. If you cannot cleanly separate this run's data from a previous one, rebuild it from scratch here.
+
 **Scope guardrail:** everything up to the final submission step is **read-only** — it reads GitHub and Azure DevOps to draft (create mode) or refine (edit mode) the work item, and never touches git or repo files. The **only** mutation it performs is the single Azure DevOps write at the end — creating the new work item (create mode) or updating the existing one (edit mode) — and that happens **only after the user explicitly confirms** at that step. It may write a temporary JSON payload file under `/tmp` to make that API call; it never writes anywhere else, and never commits. Do not create or update the ADO ticket at any earlier step, and never mutate ADO without the user's confirmation.
 
 `$ARGUMENTS` = text after `/ado`, trimmed. A mode argument is **required**: `new` → **create mode**; a ticket number (digits, optional `#`/`AB#`) → **edit mode**.
@@ -268,7 +270,7 @@ Ask: "Change anything? Name a field (title, description, repro steps, actual res
 ## Step 6 — Confirm and create
 
 The draft is approved. Ask for explicit confirmation before writing anything to Azure DevOps: "Ready to create this work item in Azure DevOps? Reply `yes` to submit, or `no` to cancel."
-- `no` (or anything other than a clear yes) → stop without submitting; the draft values are kept in case they want to re-run.
+- `no` (or anything other than a clear yes) → stop without submitting. The draft values remain available **only if the user immediately continues this same run** (e.g. "actually, go ahead" or a tweak). If they later launch `/ado` again, that is a **fresh start** per the top-of-file rule — discard this draft and rebuild from scratch; never reuse it in a new invocation.
 - `yes` → submit by following the **Submitting to Azure DevOps** section below (create path), then report the outcome exactly as that section describes.
 
 ---
@@ -357,6 +359,8 @@ Ask: "Is this the correct ticket to edit? Reply `yes` to continue, or `no` to en
 - `no` → ask for a new ticket number (strip a leading `#`/`AB#`, must be digits), update `TICKET`, and go back to **Edit Step 2**.
 - `yes` → continue to **Edit Step 5**.
 
+**This `yes` confirms only that this is the right ticket to edit — nothing more.** It is **not** approval of any refined draft and **not** permission to submit. The refined content doesn't exist yet. You must still present it at **Edit Step 7** and clear **both** gates there (draft approval, then an explicit save confirmation) before anything is written to Azure DevOps. Never reuse this ticket-confirmation `yes` as either of those.
+
 ## Edit Step 5 — Understand the ticket and ground it in code
 
 Treat the existing content as the source of intent to be refined (not rewritten from scratch): consolidate `EXISTING_TITLE`, `EXISTING_DESCRIPTION`, `EXISTING_ACCEPTANCE_CRITERIA`, and (for bugs) `EXISTING_REPRO_STEPS`, `EXISTING_ACTUAL_RESULTS`, `EXISTING_EXPECTED_RESULTS`, and `EXISTING_SYSTEM_INFO` into your understanding of the change the ticket is asking for — this is the edit-mode analog of `CHANGE_DESCRIPTION`.
@@ -406,6 +410,8 @@ Refinement, not reinvention: preserve the author's intent, keep anything already
 
 ## Edit Step 7 — Review the refined content (loop until approved)
 
+**STOP — mandatory review barrier. The refined draft has NOT been reviewed yet.** Reaching the end of Edit Step 6 does **not** authorize submission, and nothing earlier in edit mode — including the Edit Step 4 ticket-confirmation `yes` — counts as approval. You **must** present the refined draft below and **wait for a user reply** before doing anything else. **Never draft and submit in the same turn.** Getting here requires clearing **two distinct user turns**: first the draft approval (below), then a separate explicit save confirmation. Do not collapse them into one, and do not infer either from a prior message.
+
 Present the refined content next to what it replaces so the user can see what changed. Include the **Repro Steps / Actual Results / Expected Results / System Info** sections only when `TYPE = bug`; within a bug, omit the System Info line when `SYSTEM_INFO` is unset:
 
 ```
@@ -448,7 +454,7 @@ Briefly summarize the notable changes from the original in a line or two above t
 Ask: "Does this look good, or should I make further edits? Name a field (title, description, repro steps, actual results, expected results, system info, bug fields, effort, acceptance criteria) with your edits, or reply `good`/`no`/`none` if it's ready." (Offer `repro steps`, `actual results`, `expected results`, `system info`, `bug fields`, and `effort` only for bugs.) Apply any edits to the named block(s) — or type/area if they correct those — re-present, and ask again. If they edit a **bug field**, re-run its prompt so the new value still comes only from ADO's allowed values. If they edit **effort**, set `BUG_EFFORT` to their choice (`Low`, `Medium`, or `High`). Loop until approved.
 
 On approval, ask for explicit confirmation before writing anything back: "Ready to save these changes to AB#<TICKET> in Azure DevOps? Reply `yes` to update, or `no` to cancel."
-- `no` (or anything other than a clear yes) → stop without submitting; the refined values are kept in case they want to re-run.
+- `no` (or anything other than a clear yes) → stop without submitting. The refined values remain available **only if the user immediately continues this same run** (e.g. "actually, save it" or a tweak). If they later launch `/ado` again, that is a **fresh start** per the top-of-file rule — discard this draft and re-fetch the ticket from Azure DevOps, rebuilding the refinement from scratch; never reuse this draft in a new invocation.
 - `yes` → submit by following the **Submitting to Azure DevOps** section below (update path), then report the outcome exactly as that section describes.
 
 ---
@@ -456,6 +462,12 @@ On approval, ask for explicit confirmation before writing anything back: "Ready 
 # Submitting to Azure DevOps
 
 Reached only from **Step 6** (create) or **Edit Step 7** (update), and only **after** the user has explicitly confirmed. This is the one and only place the skill mutates Azure DevOps. Org `itsals`, project `E_Retain_Content`.
+
+**0. Verify the review gates before writing anything.** Do **not** enter the steps below unless all of the following happened **in this run, as separate user messages** — if any is missing, stop and go back to the review step; do not submit:
+- **Update path (edit mode):** (a) you presented the refined-draft block (Edit Step 7), (b) the user approved it (`good`/`no`/`none` to the edit loop), and (c) the user replied `yes` to "Ready to save these changes to AB#<TICKET>?". The Edit Step 4 ticket-confirmation `yes` does **not** satisfy (b) or (c) — it only confirmed which ticket to edit.
+- **Create path (create mode):** (a) you presented the draft block (Step 5), (b) the user approved it (`no`/`none` to the edit loop), and (c) the user replied `yes` to "Ready to create this work item in Azure DevOps?".
+
+Each of the three must be a distinct user turn. Never infer approval or confirmation from an earlier reply, and never present-and-submit in the same turn.
 
 **1. Confirm ADO credentials.** Apply the **Azure DevOps access (PAT)** rules from the top of this document — confirm `ADO_PAT` is set; if not, stop without submitting and show the PAT-setup guidance. (Edit mode already checked this in Edit Step 1; create mode with a non-bug work item may not have, so check here regardless.)
 

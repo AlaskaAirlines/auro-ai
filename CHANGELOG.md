@@ -1,3 +1,10 @@
+## [1.3.9](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.8...v1.3.9) (2026-08-11)
+
+
+### Bug Fixes
+
+* enhance acceptance checklist formatting in SKILL.md for clarity ([c8f814f](https://github.com/AlaskaAirlines/auro-ai/commit/c8f814f77ff3539ce90f70b212acdc17616b47bd))
+
 ## [1.3.8](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.7...v1.3.8) (2026-08-07)
 
 

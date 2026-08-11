@@ -1,3 +1,10 @@
+## [1.3.11](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.10...v1.3.11) (2026-08-11)
+
+
+### Bug Fixes
+
+* clarify draft handling and user confirmation steps in ADO skill ([919d8bb](https://github.com/AlaskaAirlines/auro-ai/commit/919d8bb3122ce6765fb7759013c7d61e686b9bd0))
+
 ## [1.3.10](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.9...v1.3.10) (2026-08-11)
 
 

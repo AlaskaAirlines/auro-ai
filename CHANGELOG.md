@@ -1,3 +1,10 @@
+## [1.3.10](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.9...v1.3.10) (2026-08-11)
+
+
+### Bug Fixes
+
+* clarify model usage and error handling in code-review skill documentation ([bd87849](https://github.com/AlaskaAirlines/auro-ai/commit/bd878491d660dc5913326e389142d1fe4035ef20))
+
 ## [1.3.9](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.8...v1.3.9) (2026-08-11)
 
 

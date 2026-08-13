@@ -1,7 +1,7 @@
 # Using the `auro` plugin in another repository
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
-— which provides the `commit`, `code-review`, `release-notes`, `pr`, and `ado` skills — in any repository.
+— which provides the `commit`, `code-review`, `release-notes`, `pr`, `ado`, and `post-mortem` skills — in any repository.
 
 The plugin is distributed through the **`auro-ai` marketplace**, hosted in this repo
 (`AlaskaAirlines/auro-ai`). Claude Code plugins are **not** npm packages: installing
@@ -19,10 +19,11 @@ for skills. Use the marketplace flow below instead.
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a **draft** GitHub PR for the current branch into the repo default branch, **assigned to you** (`@me`), seeded from the repo's `.github` PR template, with the `## Executive Summary` of any post-mortem files added on the branch prepended to the description — then returns a link to the new PR. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
+| `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
-> and `/auro:ado` — not the bare forms.
+> `/auro:ado`, and `/auro:post-mortem` — not the bare forms.
 
 ---
 

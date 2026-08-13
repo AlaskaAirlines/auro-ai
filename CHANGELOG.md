@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.4.0...v1.5.0) (2026-08-13)
+
+
+### Features
+
+* enhance post-mortem skill to validate ticket completeness and extract requirements ([4539116](https://github.com/AlaskaAirlines/auro-ai/commit/45391164eb692ccda2d862b7a8295923c9e421e9))
+
 # [1.4.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.11...v1.4.0) (2026-08-13)
 
 

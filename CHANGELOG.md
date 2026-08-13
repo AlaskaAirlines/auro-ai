@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.11...v1.4.0) (2026-08-13)
+
+
+### Features
+
+* add new post-mortem skill and update code-review to validate correct PMs were created ([6cabcfe](https://github.com/AlaskaAirlines/auro-ai/commit/6cabcfe8ddef3aff67993f1f0697624984da18e3))
+
 ## [1.3.11](https://github.com/AlaskaAirlines/auro-ai/compare/v1.3.10...v1.3.11) (2026-08-11)
 
 

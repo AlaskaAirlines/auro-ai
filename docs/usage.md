@@ -17,7 +17,7 @@ for skills. Use the marketplace flow below instead.
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
-| `pr` | `/auro:pr [base branch]` | Opens a **draft** GitHub PR for the current branch into the repo default branch, **assigned to you** (`@me`), seeded from the repo's `.github` PR template, with the `## Executive Summary` of any post-mortem files added on the branch prepended to the description — then returns a link to the new PR. Never pushes |
+| `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 
@@ -181,30 +181,36 @@ the release (that's owned by the GitHub Actions semantic-release workflow). It:
 ### `/auro:pr`
 
 ```shell
-/auro:pr            # PR the current branch into the repo default branch
-/auro:pr release/6  # override: target an explicit base branch instead of the default
+/auro:pr            # PR the current branch — prompts for base branch and draft/ready
+/auro:pr release/6  # pre-fill the base-branch prompt with an explicit branch
 ```
 
-Opens a **draft** pull request for the current branch and hands you a link to it. It:
+Opens a pull request for the current branch and hands you a link to it. It:
 
 1. **Checks preconditions** — `gh` must be authenticated, and you must be on a feature branch.
 2. **Handles an existing PR first** — if an open PR already exists for the branch, it doesn't
-   create a second one; instead it asks whether to **refresh that PR's Executive Summary**. Say
-   yes and it re-syncs the post-mortem summaries into the existing PR's description
-   (idempotently, leaving the assignee and everything else untouched); say no and it exits
-   without touching anything. Checking this up front avoids doing any other work on a re-run.
-3. **Resolves the base and verifies the push** — targets the repo's default branch (or the
-   `[base branch]` argument), and requires the branch to be **pushed** to `origin` (stops with
-   push instructions otherwise, since it never pushes).
-4. **Builds the description** — seeds it from the repo's `.github` PR template and prepends the
-   `## Executive Summary` of any post-mortem files **added on this branch** (one block each).
-5. **Confirms first** — auto-generates a Conventional-Commits-style title and shows the full PR
-   for a confirm-or-edit loop before anything is created.
-6. **Creates the draft PR** assigned to you (`@me`) and returns the URL.
+   create a second one; instead it asks whether to **refresh it**. Say yes and it re-syncs the
+   post-mortem section into the existing PR's description (idempotently) and adds any missing
+   component labels, leaving the assignee, title, base, and everything else untouched; say no
+   and it exits without touching anything.
+3. **Prompts for the base branch** — reply **yes** to target the repo's default branch, or type
+   a branch name to target that instead (verified against `origin`). Requires the branch to be
+   **pushed** to `origin` (stops with push instructions otherwise, since it never pushes).
+4. **Prompts for draft vs. ready-for-review** — you choose the PR's state.
+5. **Adds component labels (auro-formkit only)** — derives `auro-<name>` from every
+   `components/<name>/…` path touched by the PR's commits and applies the matching repo labels.
+6. **Builds the description** — seeds it from the repo's `.github` PR template and adds one
+   section per **post-mortem ticket in the PR** (post-mortem files added on the branch plus
+   `AB#<n>` references in the commits): each ticket's `## Executive Summary` text and a link to
+   its **"Post Mortems" GitHub Discussion**.
+7. **Confirms first** — auto-generates a Conventional-Commits-style title and shows the full PR
+   (base, draft/ready, assignee, labels, body) for a confirm-or-edit loop before anything is created.
+8. **Creates the PR** assigned to you (`@me`) with the chosen state and labels, and returns the URL.
 
-> **Scope guardrail:** this skill's only side effect is opening one draft PR. It **never
-> pushes** — if the branch isn't pushed yet it stops and tells you to `git push` first — and
-> it never commits, marks the PR ready-for-review, merges, or edits files.
+> **Scope guardrail:** this skill's only side effects are opening one PR (with labels) or
+> refreshing one existing PR's description and adding missing labels. It **never pushes** — if
+> the branch isn't pushed yet it stops and tells you to `git push` first — and it never commits,
+> marks the PR ready-for-review after creation, removes labels, merges, or edits files.
 
 ### `/auro:ado`
 

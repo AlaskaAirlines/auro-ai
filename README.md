@@ -11,7 +11,7 @@ repository, with versioning and change history tracked in git.
 | `auro` | `commit` — guided Conventional Commits workflow (protected-branch/sync guards, ADO/PR reference, `amend` mode, post-mortem linking, AI + human co-author accreditation) | `/auro:commit <ADO # \| PR # \| prev \| amend>` |
 | `auro` | `code-review` — adversarial multi-model PR / local-branch review | `/auro:code-review <PR #>` · `/auro:code-review local` |
 | `auro` | `release-notes` — derive the next version from Conventional Commits and author (or refresh) the release-notes doc | `/auro:release-notes [base ref]` |
-| `auro` | `pr` — open a draft PR (current branch → default), assigned to you, seeded from the `.github` template + post-mortem summaries | `/auro:pr [base branch]` |
+| `auro` | `pr` — open a PR for the current branch, assigned to you; prompts for base branch + draft/ready, applies component labels (auro-formkit), and adds each post-mortem ticket's Executive Summary + Discussion link | `/auro:pr [base branch]` |
 | `auro` | `ado` — draft a new Azure DevOps work item or refine an existing one (infers component, classifies bug vs. story, drafts title/description/acceptance criteria, then writes to ADO) | `/auro:ado <new \| ADO # >` |
 
 > Plugin skills are **namespaced** by the plugin name, so `/commit` becomes

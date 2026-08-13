@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.5.0...v1.6.0) (2026-08-13)
+
+
+### Features
+
+* **pr:** enhance PR skill to support component labels and improved description handling ([a7769e0](https://github.com/AlaskaAirlines/auro-ai/commit/a7769e0a7bb38b338b5c05fd2608dfc006e4b64b))
+
 # [1.5.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.4.0...v1.5.0) (2026-08-13)
 
 

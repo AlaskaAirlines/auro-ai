@@ -1,6 +1,6 @@
 ---
 name: post-mortem
-description: Author or refresh a post-mortem for a piece of work, keyed to an Azure DevOps ticket. Prompts for the ADO ticket number (offering to reuse the ticket from the most recent post-mortem), then gathers context from the current git branch (commits + diff vs. its base), this session's conversation, the ADO work item, and any linked Technical Research Document (TRD). It composes a structured post-mortem — Executive Summary (with a link to the ADO ticket), optional TRD link, The Problem, Root Cause, The Fix, Why This Works, Outcome, Learnings, and any failed iterations — then writes it to docs/post-mortem/<ticket>.md and publishes it as a GitHub Discussion in the repo's "Post Mortems" category. On auro-formkit it also applies a discussion label for each component the post-mortem mentions. If a file or discussion already exists for the ticket, it updates them in place instead of creating duplicates.
+description: Author or refresh a post-mortem for a piece of work, keyed to an Azure DevOps ticket. Prompts for the ADO ticket number (offering to reuse the ticket from the most recent post-mortem), then gathers context from the current git branch (commits + diff vs. its base), this session's conversation, the ADO work item, and any linked Technical Research Document (TRD). It cross-checks the ticket's requirements and acceptance criteria against the actual code changes to determine which parts were resolved and which were not. It composes a structured post-mortem — Executive Summary (with a link to the ADO ticket), optional TRD link, The Problem, Root Cause, The Fix, Why This Works, Outcome, Ticket Completeness (what the ticket asked for and what the change did/didn't resolve), Learnings, and any failed iterations — then writes it to docs/post-mortem/<ticket>.md and publishes it as a GitHub Discussion in the repo's "Post Mortems" category. On auro-formkit it also applies a discussion label for each component the post-mortem mentions. If a file or discussion already exists for the ticket, it updates them in place instead of creating duplicates.
 disable-model-invocation: true
 argument-hint: "[ADO ticket #]"
 allowed-tools: Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git log *), Bash(git diff *), Bash(git merge-base *), Bash(git status *), Bash(git remote *), Bash(gh auth status *), Bash(gh repo view *), Bash(gh api *), Bash(curl *), Bash(ls *), Bash([ -n *), Read, Glob, Grep, Write, Edit, WebFetch, AskUserQuestion
@@ -71,6 +71,8 @@ curl -sS -u ":$ADO_PAT" \
 ```
 On `200`, read `System.Title`, `System.Description`, and `Microsoft.VSTS.Common.AcceptanceCriteria` from `/tmp/pm_ado.json` (fields live under `.fields`) — use them to ground The Problem and the Executive Summary. On a missing token, non-200, or auth-bounce HTML, warn once (per the PAT rules above) and continue without ADO content.
 
+**Extract the ticket's discrete requirements.** From `System.Description` and `Microsoft.VSTS.Common.AcceptanceCriteria`, decompose the ticket into an itemized checklist of what it actually asked for — each acceptance-criterion line, bullet, or numbered item becomes one requirement; split compound statements into separate items. Record this **requirement set** — you'll check each one against the diff in Step 3 to build the Ticket Completeness section. If ADO was unavailable, note that requirement coverage can't be assessed from the ticket (fall back to any requirements stated in the TRD or the conversation).
+
 **2c — TRD (auto-detect, else ask).** A TRD is a **GitHub Discussion**. Look for its URL, in order, in: the ADO description/acceptance-criteria fetched in 2b; an existing `docs/post-mortem/<TICKET>.md` (if one is present); and the branch commit messages from 2a. URLs look like `https://github.com/orgs/AlaskaAirlines/discussions/<n>` or `https://github.com/<owner>/<repo>/discussions/<n>`.
 - **Found →** fetch its content via GraphQL. Org-level discussions are only reachable via GraphQL scoped to their **backing repository** — `gh api orgs/.../discussions/<n>` will not work. Query the repository's discussion by number for its `title` and `body`. If the fetch fails, keep the **link** but note the body couldn't be read.
 - **Not found →** ask the user once: *"Is there a Technical Research Document (TRD) for this work? Paste its GitHub Discussion URL, or reply `none`."* Use the URL if given; `none` → no TRD.
@@ -82,6 +84,13 @@ On `200`, read `System.Title`, `System.Description`, and `Microsoft.VSTS.Common.
 
 ## Step 3 — Compose the post-mortem
 
+**First, assess ticket completeness.** Take the **requirement set** from Step 2b (plus any requirements from the TRD or conversation) and check each item against the actual code changes (the diff/commits from Step 2a and the results established in this session). Classify every requirement as one of:
+- **Resolved** — the change demonstrably satisfies it (cite the file/mechanism that does so).
+- **Partially resolved** — some of it is addressed but a gap remains (say what's missing).
+- **Not resolved** — the change does not address it (say so plainly).
+
+Do not mark a requirement resolved unless the diff or a verified session result actually supports it — when in doubt, mark it partial or not resolved and note the uncertainty. This classification feeds the Ticket Completeness section below.
+
 Write for two audiences, as marked. Non-technical sections target Product Managers and leadership — plain language, no code identifiers. Technical sections are for engineers and AI tools. Use this structure exactly (Markdown):
 
 - **(a) Title** — H1 = `# AB#<TICKET>` (the ticket ID; the `AB#` prefix keeps the discussion searchable).
@@ -92,7 +101,8 @@ Write for two audiences, as marked. Non-technical sections target Product Manage
 - **(f) The Fix** — `## The Fix`. What the change does in the code.
 - **(g) Why This Works** — `## Why This Works`. Additional context for why The Fix is correct (invariants restored, edge cases covered, why alternatives were rejected).
 - **(h) Outcome** — `## Outcome`. **Non-technical** results of the change set.
-- **(i) Learnings** — `## Learnings`. A bulleted list of important takeaways for humans and AI tools.
+- **(i) Ticket Completeness** — `## Ticket Completeness`. The requirement-by-requirement assessment from the analysis above, showing which parts of the linked ticket the change resolved and which it did not. Present it as two labeled lists (plain language, so PMs can read it): **Resolved** — each satisfied requirement with a one-line note on how; and **Not Resolved / Partial** — each unmet or partially-met requirement with a one-line note on what's missing. If everything was resolved, say so explicitly and omit the second list. Open the section with a one-line summary (e.g. "3 of 4 acceptance criteria resolved"). **If ADO was unavailable and no requirements could be sourced from the TRD or conversation, replace the lists with a single note that ticket completeness couldn't be assessed because the ticket's requirements weren't accessible.**
+- **(j) Learnings** — `## Learnings`. A bulleted list of important takeaways for humans and AI tools.
 - **Iterations That Didn't Work** — `## Iterations That Didn't Work`. Fixes/changes that were tried and abandoned, and why. **Omit if none surfaced** from the commits or conversation.
 
 Keep it precise and consumer-facing where marked; no filler.

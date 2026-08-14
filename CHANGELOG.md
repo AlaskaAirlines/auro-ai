@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.6.0...v1.7.0) (2026-08-14)
+
+
+### Features
+
+* enhance PR skill to extract Executive Summaries and links from post-mortem files ([ea5d77d](https://github.com/AlaskaAirlines/auro-ai/commit/ea5d77d21347d765cf90b5676b3129041e723993))
+
 # [1.6.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.5.0...v1.6.0) (2026-08-13)
 
 

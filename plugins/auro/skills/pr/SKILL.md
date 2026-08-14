@@ -168,12 +168,13 @@ Scan the output for `AB#<digits>` (also accept a bare `#<digits>` only when adja
 
 ## Step 7 — Build the post-mortem description block
 
-For each ticket in `TICKETS` (in order), assemble one section containing its Executive Summary text **and** a link to its "Post Mortems" GitHub Discussion.
+For each ticket in `TICKETS` (in order), assemble one section: its Executive Summary text followed by a grouped **Links** list — the ADO ticket, its TRD (if any), and its "Post Mortems" GitHub Discussion (if any).
 
-**7a — Executive Summary text (from the file, if any).** When a `docs/post-mortem/<ticket>.md` file is available, extract just its Executive Summary — **do not read the whole file** (post-mortems can be large):
-1. **Grep** the file for `^## ` with `-n` (line numbers). The `## Executive Summary` line is the start; the **next** `## ` line is the end.
-2. **Ranged `Read`** only that span (`offset`/`limit` from the two line numbers) and take the text between the heading and the next `##`.
-3. If the file has **no** `## Executive Summary` section, or no file is available for the ticket, there is no summary text — include the section with just the discussion link (7b).
+**7a — Executive Summary text and TRD link (from the file, if any).** When a `docs/post-mortem/<ticket>.md` file is available, read only what you need — **do not read the whole file** (post-mortems can be large):
+1. **Grep** the file for `^## ` with `-n` (line numbers) to get every H2 heading and its line — this bounds both the Executive Summary and the Technical Research Document sections.
+2. **Executive Summary:** the `## Executive Summary` line is the start; the **next** `## ` line is the end. **Ranged `Read`** only that span (`offset`/`limit` from the two line numbers) and take the text between the heading and the next `##`. **Strip the inline ADO link** from it: the post-mortem skill embeds `[AB#<ticket>](https://itsals.visualstudio.com/E_Retain_Content/_workitems/edit/<ticket>)` in the summary prose, and the ADO link now lives in the grouped Links list below — so replace that Markdown link with its **plain label** `AB#<ticket>` (de-link it; keep the sentence intact). Don't remove any other links.
+3. **TRD link:** if the file has a `## Technical Research Document` section (from the Grep), ranged-`Read` it and take the **first** URL in it — the target of the first `[…](<url>)` Markdown link, or the first bare `https://…`. No such section → no TRD link.
+4. If the file has **no** `## Executive Summary` section, or no file is available for the ticket, there is no summary text or TRD link — the section carries just the links that resolve (the ADO link, always; the discussion link from 7b if found).
 
 **7b — Post-mortem Discussion link (GraphQL search).** Find the ticket's discussion in the repo's "Post Mortems" category. Write the query to `/tmp/pr-disc.graphql` and search by title:
 ```
@@ -185,23 +186,26 @@ query($q:String!){
 ```
 Call it with `-f q="repo:<owner>/<name> in:title AB#<ticket>"`. Keep the first result whose title contains `AB#<ticket>` and whose `category.name` matches **"Post Mortems"** case-insensitively (tolerate `Post-Mortems`/`Post Mortem`). Record its `url`. If none matches, note "no published post-mortem discussion found" for that ticket and omit the link line (keep the summary text if there was any). Handle a GraphQL/permission error gracefully — skip the link, don't crash.
 
-**7c — Assemble the block.** Wrap everything in idempotency markers and give each ticket its own subsection:
+**7c — Assemble the block.** Wrap everything in idempotency markers and give each ticket its own subsection, with the three links grouped in a `**Links:**` list **after** the summary text:
 ```
 <!-- auro-pr:pm:start -->
 ## Post-Mortems
 
 ### AB#<ticket>
 
-Post-mortem discussion: <url>
-
 <executive summary text>
+
+**Links:**
+- [AB#<ticket>](https://itsals.visualstudio.com/E_Retain_Content/_workitems/edit/<ticket>) — Azure DevOps ticket
+- [Technical Research Document](<TRD URL>)
+- [Post-mortem discussion](<discussion URL>)
 
 ### AB#<ticket2>
 
 ...
 <!-- auro-pr:pm:end -->
 ```
-Rules: one `### AB#<ticket>` subsection per ticket, in `TICKETS` order, all inside a **single** marker pair (never one pair per ticket). Omit the "Post-mortem discussion:" line for a ticket with no discussion; omit the summary paragraph for a ticket with no summary text; a ticket may legitimately have only one of the two. If `TICKETS` is empty, the block is empty — omit it entirely (no markers).
+Rules: one `### AB#<ticket>` subsection per ticket, in `TICKETS` order, all inside a **single** marker pair (never one pair per ticket). The **ADO ticket** bullet is always present (derived from the ticket number). Omit the **Technical Research Document** bullet when there's no TRD link (7a) and the **Post-mortem discussion** bullet when no discussion was found (7b) — a ticket with no post-mortem file still gets its ADO bullet (plus the discussion bullet if found). Omit the summary paragraph for a ticket with no summary text. If `TICKETS` is empty, the block is empty — omit it entirely (no markers).
 
 ---
 
@@ -294,7 +298,7 @@ gh pr create [--draft] --base <base> --head <branch> --assignee @me --title "<ti
 
 Tell the user concisely:
 - The **PR URL** as a clickable link.
-- A one-line summary: `<base> ← <branch>`, **draft** or **ready for review**, assignee (`@me` or "unassigned — assign manually"), whether the `.github` template was applied, how many post-mortem sections were added, and (auro-formkit) which component labels were applied plus any component that had no matching label.
-- Anything degraded: a post-mortem ticket with no discussion found, GraphQL/permission errors, etc.
+- A one-line summary: `<base> ← <branch>`, **draft** or **ready for review**, assignee (`@me` or "unassigned — assign manually"), whether the `.github` template was applied, how many post-mortem sections were added (each with its grouped ADO/TRD/discussion links), and (auro-formkit) which component labels were applied plus any component that had no matching label.
+- Anything degraded: a post-mortem ticket whose TRD or discussion link couldn't be resolved (e.g. no published discussion found), GraphQL/permission errors, etc.
 
 Do not push and do not change the PR's draft state — hand control back to the user.

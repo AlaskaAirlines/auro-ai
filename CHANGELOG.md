@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.7.0...v1.8.0) (2026-08-17)
+
+
+### Features
+
+* enhance code review process by pinning reviewed head SHA for accurate diffs and comments ([366351d](https://github.com/AlaskaAirlines/auro-ai/commit/366351d9f16a15481e684e2a20517d191cd11c62))
+
 # [1.7.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.6.0...v1.7.0) (2026-08-14)
 
 

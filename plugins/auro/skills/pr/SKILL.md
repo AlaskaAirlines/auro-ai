@@ -1,6 +1,6 @@
 ---
 name: pr
-description: Open a GitHub pull request for the current branch — assigned to you, seeded from the repo's .github PR template. Prompts whether to target the repo's default branch or a branch you name, and whether the PR should be a draft or ready for review. On auro-formkit it applies a component label (auro-<name>) for every component touched by the PR's commits. In the description it adds one section per post-mortem ticket in the PR — the ticket's Executive Summary text plus a link to its "Post Mortems" GitHub Discussion — sourced from post-mortem files added on the branch and AB#<n> references in the commits. If a PR already exists for the branch, it refreshes that description block and adds any missing component labels instead of opening a second PR. Never pushes.
+description: Open a GitHub pull request for the current branch — assigned to you, seeded from the repo's .github PR template. Prompts whether to target the repo's default branch or a branch you name, and whether the PR should be a draft or ready for review. On auro-formkit it applies a component label (auro-<name>) for every component touched by the PR's commits. In the description it adds one section per ticket referenced in the PR — sourced from post-mortem files added on the branch and AB#<n> references in the commits. A ticket that has a post-mortem gets its Executive Summary text plus a link to its "Post Mortems" GitHub Discussion; a ticket with no post-mortem gets a brief executive summary synthesized from what its commits changed. If a PR already exists for the branch, it refreshes that description block and adds any missing component labels instead of opening a second PR. Never pushes.
 disable-model-invocation: true
 argument-hint: "[base branch]"
 allowed-tools: Bash(gh pr create *), Bash(gh pr list *), Bash(gh repo view *), Bash(gh auth status *), Bash(gh api *), Bash(git symbolic-ref *), Bash(git rev-parse *), Bash(git rev-list *), Bash(git merge-base *), Bash(git branch *), Bash(git ls-remote *), Bash(git status *), Bash(git fetch *), Bash(git log *), Bash(git diff *), Bash(git remote *), Bash(git config *), Read, Glob, Grep, Write(/tmp/*), AskUserQuestion
@@ -10,7 +10,7 @@ allowed-tools: Bash(gh pr create *), Bash(gh pr list *), Bash(gh repo view *), B
 
 You are executing the **pr** skill. The invocation itself is the request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step and do not reorder them. Several steps require a user prompt — ask it, wait for the reply, and branch on the answer before continuing.
 
-> **Scope guardrail — open one PR, or refresh one existing PR; nothing more.** This skill's **only** mutating side effects are (a) a single `gh pr create` that opens **one pull request** (Step 11), (b) applying **component labels** to that PR (Step 11), and (c) — when a PR already exists for the branch and you explicitly opt in — refreshing **only** that PR's **description** post-mortem block and adding any **missing component labels** (Step 2). Every mutation happens only after you confirm. It must **NOT**, under any circumstance:
+> **Scope guardrail — open one PR, or refresh one existing PR; nothing more.** This skill's **only** mutating side effects are (a) a single `gh pr create` that opens **one pull request** (Step 11), (b) applying **component labels** to that PR (Step 11), and (c) — when a PR already exists for the branch and you explicitly opt in — refreshing **only** that PR's **description** ticket block and adding any **missing component labels** (Step 2). Every mutation happens only after you confirm. It must **NOT**, under any circumstance:
 > - `git push`, force-push, or otherwise write to the remote — if the branch isn't already pushed, it **stops and tells the user to push** (Step 5);
 > - commit, amend, stage, create/move/delete tags or branches, or edit any file in the repo (the only file it writes is a temporary PR body under `/tmp`);
 > - mark a PR ready-for-review after creation, merge, close, or comment on one; **remove** labels; reassign an existing PR; or change an existing PR's title, base, reviewers, or draft state — the only permitted edits to an existing PR are the opt-in description refresh and additive labels in Step 2;
@@ -60,17 +60,17 @@ If **none** exists, continue to Step 3 (create a new PR).
 
 If one **already exists**, do **not** create a second PR. Ask the user whether to refresh it. Prompt with `AskUserQuestion`:
 
-> An open PR already exists for `<branch>`: #<number> — <title> (<url>). Refresh its description's post-mortem section and add any missing component labels?
+> An open PR already exists for `<branch>`: #<number> — <title> (<url>). Refresh its description's ticket section and add any missing component labels?
 
 Options (exactly two):
-- **Refresh it** — sync the post-mortem block and add missing labels (procedure below), then stop.
+- **Refresh it** — sync the ticket block and add missing labels (procedure below), then stop.
 - **No — exit** — take no action whatsoever and end the workflow immediately.
 
 If the user chooses **No — exit**, end now without touching the PR, the branch, or any file.
 
 If the user chooses **Refresh it**, do exactly the following and nothing else (do **not** run Steps 3–12 — no new PR is created). This refresh **must not** reassign the PR, change its title, base, reviewers, or draft state, and **must not** remove any label:
 
-1. **Build the post-mortem block** using the Step 6 + Step 7 procedure, but relative to the **existing PR's base** (`baseRefName` from the query above) rather than a freshly resolved default. If there are **no** post-mortem tickets, tell the user there is nothing to sync and **do not** blank or otherwise change the description — skip straight to the label sync in sub-step 4.
+1. **Build the ticket block** using the Step 6 + Step 7 procedure, but relative to the **existing PR's base** (`baseRefName` from the query above) rather than a freshly resolved default. If there are **no** tickets at all (`TICKETS` empty), tell the user there is nothing to sync and **do not** blank or otherwise change the description — skip straight to the label sync in sub-step 4.
 2. **Insert or replace — always overwrite, never diff-and-skip.** The block is wrapped in idempotency markers (`<!-- auro-pr:pm:start -->` / `<!-- auro-pr:pm:end -->`, invisible in GitHub's rendered view) so re-runs never stack copies:
    - If the fetched body **already contains** the markers, replace everything between them (inclusive) with the freshly built block. Exactly one such block must remain afterward.
    - Otherwise, insert the block **directly after the first Markdown header** in the body (the first line beginning with `#` that is **not** inside a fenced code block or an HTML comment); if the body has no header, prepend the block to the top.
@@ -84,7 +84,7 @@ If the user chooses **Refresh it**, do exactly the following and nothing else (d
    gh api --method POST repos/{owner}/{repo}/issues/<number>/labels -f "labels[]=<label>" [-f "labels[]=<label>" ...]
    ```
    Apply only labels that actually exist in the repo (Step 8 records which do). If `IS_FORMKIT` is false, skip labeling.
-5. **Report** the existing PR's URL as a clickable link, how many post-mortem sections were synced, and which labels were added (if any), then **stop**. Do not create a new PR, do not push, do not make any other change.
+5. **Report** the existing PR's URL as a clickable link, how many ticket sections were synced (noting post-mortem vs. synthesized summaries), and which labels were added (if any), then **stop**. Do not create a new PR, do not push, do not make any other change.
 
 ---
 
@@ -146,7 +146,7 @@ A PR can only be created from a branch that already exists on the remote, and it
 
 ---
 
-## Step 6 — Identify the post-mortem tickets in this PR
+## Step 6 — Identify the tickets in this PR
 
 The PR's tickets come from **two** sources, unioned:
 
@@ -162,19 +162,32 @@ git log <base>..HEAD --format=%s%n%b
 ```
 Scan the output for `AB#<digits>` (also accept a bare `#<digits>` only when adjacent to `AB`); collect each distinct ticket number.
 
-**Union** the ticket IDs from 6a and 6b into an ordered, de-duplicated `TICKETS` set (preserve first-seen order; 6a files first, then any commit-only tickets). For each ticket, note whether a post-mortem **file** is available for it — either one added on the branch (6a) or an existing `docs/post-mortem/<ticket>.md` in the repo (check with `Glob`). If `TICKETS` is empty, there is simply no post-mortem block to add — continue to Step 7, which will produce an empty block.
+**Union** the ticket IDs from 6a and 6b into an ordered, de-duplicated `TICKETS` set (preserve first-seen order; 6a files first, then any commit-only tickets). For each ticket, note whether a post-mortem **file** is available for it — either one added on the branch (6a) or an existing `docs/post-mortem/<ticket>.md` in the repo (check with `Glob`). If `TICKETS` is empty, there is no ticket block to add — continue to Step 7, which will produce an empty block.
+
+Every ticket in `TICKETS` gets a section in Step 7 — those **with** a post-mortem file use its Executive Summary; those **without** get a summary synthesized from their commits (Step 7a). So for each ticket **that has no post-mortem file**, also record the commits that reference it, for Step 7 to summarize:
+```
+git log <base>..HEAD --format='%H%x09%s%x09%b' --grep='AB#<ticket>\b' -E
+```
+Keep the matching commit subjects/bodies. (A ticket surfaced only via a 6a file with no `AB#` mention in any commit will have no matching commits — that's fine; it uses its post-mortem summary.)
 
 ---
 
-## Step 7 — Build the post-mortem description block
+## Step 7 — Build the ticket description block
 
-For each ticket in `TICKETS` (in order), assemble one section: its Executive Summary text followed by a grouped **Links** list — the ADO ticket, its TRD (if any), and its "Post Mortems" GitHub Discussion (if any).
+For each ticket in `TICKETS` (in order), assemble one section: an Executive Summary followed by a grouped **Links** list — the ADO ticket, its TRD (if any), and its "Post Mortems" GitHub Discussion (if any). **Every ticket gets a summary paragraph** — read from its post-mortem file when one exists (7a steps 1–3), or synthesized from its commits when one does not (7a step 4).
 
 **7a — Executive Summary text and TRD link (from the file, if any).** When a `docs/post-mortem/<ticket>.md` file is available, read only what you need — **do not read the whole file** (post-mortems can be large):
 1. **Grep** the file for `^## ` with `-n` (line numbers) to get every H2 heading and its line — this bounds both the Executive Summary and the Technical Research Document sections.
 2. **Executive Summary:** the `## Executive Summary` line is the start; the **next** `## ` line is the end. **Ranged `Read`** only that span (`offset`/`limit` from the two line numbers) and take the text between the heading and the next `##`. **Strip the inline ADO link** from it: the post-mortem skill embeds `[AB#<ticket>](https://itsals.visualstudio.com/E_Retain_Content/_workitems/edit/<ticket>)` in the summary prose, and the ADO link now lives in the grouped Links list below — so replace that Markdown link with its **plain label** `AB#<ticket>` (de-link it; keep the sentence intact). Don't remove any other links.
 3. **TRD link:** if the file has a `## Technical Research Document` section (from the Grep), ranged-`Read` it and take the **first** URL in it — the target of the first `[…](<url>)` Markdown link, or the first bare `https://…`. No such section → no TRD link.
-4. If the file has **no** `## Executive Summary` section, or no file is available for the ticket, there is no summary text or TRD link — the section carries just the links that resolve (the ADO link, always; the discussion link from 7b if found).
+4. **No post-mortem summary → synthesize one.** If the file has **no** `## Executive Summary` section, or **no** post-mortem file is available for the ticket, write a **brief executive summary (1–3 sentences, plain prose)** of what changed for this ticket, and use it as the section's summary text. There is no TRD link in this case. Base the summary on the ticket's commits (recorded in Step 6b) and the files they touched:
+   - Use the matching commit **subjects and bodies** for intent (what was done and why).
+   - For the concrete changes, list the files those commits touched:
+     ```
+     git log <base>..HEAD --name-only --format= --grep='AB#<ticket>\b' -E
+     ```
+     (De-duplicate the file list. On auro-formkit, `components/<name>/…` paths tell you which components changed.)
+   - Keep it factual and concise — summarize the change, don't editorialize. Do **not** fabricate a discussion or TRD link; those bullets are simply omitted for this ticket (7c). If a ticket has neither a post-mortem summary nor any matching commits to summarize (e.g. a 6a file with no Executive Summary and no `AB#` commit reference), omit the summary paragraph and carry just the links.
 
 **7b — Post-mortem Discussion link (GraphQL search).** Find the ticket's discussion in the repo's "Post Mortems" category. Write the query to `/tmp/pr-disc.graphql` and search by title:
 ```
@@ -186,14 +199,14 @@ query($q:String!){
 ```
 Call it with `-f q="repo:<owner>/<name> in:title AB#<ticket>"`. Keep the first result whose title contains `AB#<ticket>` and whose `category.name` matches **"Post Mortems"** case-insensitively (tolerate `Post-Mortems`/`Post Mortem`). Record its `url`. If none matches, note "no published post-mortem discussion found" for that ticket and omit the link line (keep the summary text if there was any). Handle a GraphQL/permission error gracefully — skip the link, don't crash.
 
-**7c — Assemble the block.** Wrap everything in idempotency markers and give each ticket its own subsection, with the three links grouped in a `**Links:**` list **after** the summary text:
+**7c — Assemble the block.** Wrap everything in idempotency markers and give each ticket its own subsection, with the links grouped in a `**Links:**` list **after** the summary text:
 ```
 <!-- auro-pr:pm:start -->
-## Post-Mortems
+## Tickets
 
 ### AB#<ticket>
 
-<executive summary text>
+<executive summary text — from the post-mortem, or synthesized from the ticket's commits>
 
 **Links:**
 - [AB#<ticket>](https://itsals.visualstudio.com/E_Retain_Content/_workitems/edit/<ticket>) — Azure DevOps ticket
@@ -205,7 +218,9 @@ Call it with `-f q="repo:<owner>/<name> in:title AB#<ticket>"`. Keep the first r
 ...
 <!-- auro-pr:pm:end -->
 ```
-Rules: one `### AB#<ticket>` subsection per ticket, in `TICKETS` order, all inside a **single** marker pair (never one pair per ticket). The **ADO ticket** bullet is always present (derived from the ticket number). Omit the **Technical Research Document** bullet when there's no TRD link (7a) and the **Post-mortem discussion** bullet when no discussion was found (7b) — a ticket with no post-mortem file still gets its ADO bullet (plus the discussion bullet if found). Omit the summary paragraph for a ticket with no summary text. If `TICKETS` is empty, the block is empty — omit it entirely (no markers).
+Rules: one `### AB#<ticket>` subsection per ticket, in `TICKETS` order, all inside a **single** marker pair (never one pair per ticket). The **ADO ticket** bullet is always present (derived from the ticket number). Omit the **Technical Research Document** bullet when there's no TRD link (only post-mortem tickets have one — 7a) and the **Post-mortem discussion** bullet when no discussion was found (7b) — so a ticket with no post-mortem carries its synthesized summary plus just the ADO bullet. Include the summary paragraph for every ticket that has one (post-mortem or synthesized); omit it only when neither is available (7a step 4). If `TICKETS` is empty, the block is empty — omit it entirely (no markers).
+
+(The idempotency markers keep the legacy `auro-pr:pm:*` names so a PR whose description was written by an earlier version of this skill is refreshed in place rather than duplicated.)
 
 ---
 
@@ -236,13 +251,13 @@ Record `LABELS` for Steps 10/11.
 3. Repo root `pull_request_template.md` / `PULL_REQUEST_TEMPLATE.md`.
 4. `docs/pull_request_template.md` / `docs/PULL_REQUEST_TEMPLATE.md`.
 
-Use `Glob` (e.g. `.github/**/*ull_*equest*emplate*.md`) then `Read` the match. If **none** is found, warn ("ℹ️ No PR template found under `.github/` — creating the PR with the post-mortem section only.") and continue with an empty template.
+Use `Glob` (e.g. `.github/**/*ull_*equest*emplate*.md`) then `Read` the match. If **none** is found, warn ("ℹ️ No PR template found under `.github/` — creating the PR with the ticket section only.") and continue with an empty template.
 
 **9b — Compose the body**, top to bottom:
-1. The **post-mortem block** from Step 7 (only if non-empty).
+1. The **ticket block** from Step 7 (only if non-empty).
 2. A `---` horizontal rule (only if both a block and a template exist).
 3. The **PR template** verbatim.
-4. If **neither** a template nor any post-mortem block exists, use a minimal body: a one-line description synthesized from the branch's commits (the `git log` from Step 9c).
+4. If **neither** a template nor any ticket block exists, use a minimal body: a one-line description synthesized from the branch's commits (the `git log` from Step 9c).
 
 **Write the assembled body** to `/tmp/pr-body-<branch>.md` with the **Write tool** (sanitize `<branch>` — replace `/` with `-`). Do not build it on the command line.
 
@@ -268,7 +283,7 @@ Labels:   <comma-separated LABELS, or "none"> (auro-formkit only)
 <the assembled body>
 ```
 
-Also note whether a template was used, how many post-mortem sections were included, and — for auro-formkit — any component with no matching label. Then ask with a plain-text prompt (not `AskUserQuestion`, so the user can approve *or* give free-form edits):
+Also note whether a template was used, how many ticket sections were included (and how many of those had a post-mortem vs. a synthesized summary), and — for auro-formkit — any component with no matching label. Then ask with a plain-text prompt (not `AskUserQuestion`, so the user can approve *or* give free-form edits):
 
 > Create this PR? Reply **yes** to create it, **no** to cancel, or tell me what to change (title, body, base, draft/ready, labels).
 
@@ -298,7 +313,7 @@ gh pr create [--draft] --base <base> --head <branch> --assignee @me --title "<ti
 
 Tell the user concisely:
 - The **PR URL** as a clickable link.
-- A one-line summary: `<base> ← <branch>`, **draft** or **ready for review**, assignee (`@me` or "unassigned — assign manually"), whether the `.github` template was applied, how many post-mortem sections were added (each with its grouped ADO/TRD/discussion links), and (auro-formkit) which component labels were applied plus any component that had no matching label.
-- Anything degraded: a post-mortem ticket whose TRD or discussion link couldn't be resolved (e.g. no published discussion found), GraphQL/permission errors, etc.
+- A one-line summary: `<base> ← <branch>`, **draft** or **ready for review**, assignee (`@me` or "unassigned — assign manually"), whether the `.github` template was applied, how many ticket sections were added (noting how many used a post-mortem Executive Summary vs. a synthesized summary, each with its grouped ADO/TRD/discussion links), and (auro-formkit) which component labels were applied plus any component that had no matching label.
+- Anything degraded: a post-mortem ticket whose TRD or discussion link couldn't be resolved (e.g. no published discussion found), a ticket with neither a post-mortem nor summarizable commits, GraphQL/permission errors, etc.
 
 Do not push and do not change the PR's draft state — hand control back to the user.

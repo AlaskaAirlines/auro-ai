@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Writes a release version into the two files Claude Code reads at install time,
-// keeping them in lockstep. Invoked by semantic-release's @semantic-release/exec
-// prepareCmd as: node scripts/bump-version.mjs <version>
+// Writes a release version into the two manifests Claude Code reads at install
+// time plus the root package.json, keeping all three in lockstep. Invoked by
+// semantic-release's @semantic-release/exec prepareCmd as:
+//   node scripts/bump-version.mjs <version>
 //
-// Both files are re-serialized with 2-space indentation and a trailing newline
-// to match their committed formatting so the release diff stays minimal.
+// Each file is re-serialized with 2-space indentation and a trailing newline
+// to match its committed formatting so the release diff stays minimal.
 import { readFile, writeFile } from 'node:fs/promises';
 
 const version = process.argv[2];
@@ -15,6 +16,7 @@ if (!version) {
 
 const PLUGIN_MANIFEST = 'plugins/auro/.claude-plugin/plugin.json';
 const MARKETPLACE_MANIFEST = '.claude-plugin/marketplace.json';
+const ROOT_PACKAGE = 'package.json';
 
 async function writeJson(path, value) {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
@@ -34,5 +36,10 @@ if (!auro) {
 }
 auro.version = version;
 await writeJson(MARKETPLACE_MANIFEST, marketplace);
+
+// package.json — top-level `version`, kept in lockstep with the manifests.
+const rootPackage = JSON.parse(await readFile(ROOT_PACKAGE, 'utf8'));
+rootPackage.version = version;
+await writeJson(ROOT_PACKAGE, rootPackage);
 
 console.log(`bump-version: set auro plugin version to ${version}`);

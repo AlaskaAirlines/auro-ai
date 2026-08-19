@@ -22,3 +22,11 @@ jobs:
             echo "::error::copilot/prompts/ is out of date. Run 'npm run build:copilot' and commit the result."
             exit 1
           fi
+      - name: Regenerate Copilot CLI agent files
+        run: node scripts/build-copilot-agents.mjs
+      - name: Fail if copilot/agents is out of date
+        run: |
+          if ! git diff --exit-code -- copilot/agents/; then
+            echo "::error::copilot/agents/ is out of date. Run 'npm run build:copilot:agents' and commit the result."
+            exit 1
+          fi

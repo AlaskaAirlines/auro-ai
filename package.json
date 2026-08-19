@@ -9,7 +9,9 @@
     "url": "https://github.com/AlaskaAirlines/auro-ai.git"
   },
   "scripts": {
-    "build:copilot": "node scripts/build-copilot-prompts.mjs"
+    "build:copilot": "node scripts/build-copilot-prompts.mjs",
+    "build:copilot:agents": "node scripts/build-copilot-agents.mjs",
+    "build:copilot:all": "npm run build:copilot && npm run build:copilot:agents"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

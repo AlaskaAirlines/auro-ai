@@ -1,10 +1,14 @@
 ---
-name: pr
-description: Open a GitHub pull request for the current branch — assigned to you, seeded from the repo's .github PR template. Prompts whether to target the repo's default branch or a branch you name, and whether the PR should be a draft or ready for review. On auro-formkit it applies a component label (auro-<name>) for every component touched by the PR's commits. In the description it adds one section per ticket referenced in the PR — sourced from post-mortem files added on the branch and AB#<n> references in the commits. A ticket that has a post-mortem gets its Executive Summary text plus a link to its "Post Mortems" GitHub Discussion; a ticket with no post-mortem gets a brief executive summary synthesized from what its commits changed. If a PR already exists for the branch, it refreshes that description block and adds any missing component labels instead of opening a second PR. Never pushes.
-disable-model-invocation: true
-argument-hint: "[base branch]"
-allowed-tools: Bash(gh pr create *), Bash(gh pr list *), Bash(gh repo view *), Bash(gh auth status *), Bash(gh api *), Bash(git symbolic-ref *), Bash(git rev-parse *), Bash(git rev-list *), Bash(git merge-base *), Bash(git branch *), Bash(git ls-remote *), Bash(git status *), Bash(git fetch *), Bash(git log *), Bash(git diff *), Bash(git remote *), Bash(git config *), Read, Glob, Grep, Write(/tmp/*), AskUserQuestion
+mode: 'agent'
+description: 'Open a GitHub pull request for the current branch — assigned to you, seeded from the repo''s .github PR template. Prompts whether to target the repo''s default branch or a branch you name, and whether the PR should be a draft or ready for review. On auro-formkit it applies a component label (auro-<name>) for every component touched by the PR''s commits. In the description it adds one section per ticket referenced in the PR — sourced from post-mortem files added on the branch and AB#<n> references in the commits. A ticket that has a post-mortem gets its Executive Summary text plus a link to its "Post Mortems" GitHub Discussion; a ticket with no post-mortem gets a brief executive summary synthesized from what its commits changed. If a PR already exists for the branch, it refreshes that description block and adds any missing component labels instead of opening a second PR. Never pushes.'
+tools: ['runCommands', 'editFiles', 'search', 'codebase']
 ---
+
+<!-- Generated from plugins/auro/skills/pr/SKILL.md by scripts/build-copilot-prompts.mjs. Do not edit by hand. -->
+
+> **Argument** (`${input:args}`): "[base branch]"
+
+> **Copilot compatibility:** Where the workflow says to prompt you, Copilot asks inline in chat instead of via a structured picker.
 
 ## Task — start now
 
@@ -18,7 +22,7 @@ You are executing the **pr** skill. The invocation itself is the request: **begi
 >
 > If any step seems to call for one of these actions, stop and hand control back to the user instead.
 
-**The invocation takes one optional argument** — available as `$ARGUMENTS` (the text after `/pr`, trimmed; empty if none): an explicit **base branch** to target. If provided, it **pre-fills** the base-branch prompt in Step 3 (you still confirm it there); if empty, Step 3 prompts from scratch.
+**The invocation takes one optional argument** — available as `${input:args}` (the text after `/pr`, trimmed; empty if none): an explicit **base branch** to target. If provided, it **pre-fills** the base-branch prompt in Step 3 (you still confirm it there); if empty, Step 3 prompts from scratch.
 
 ### Shell constraints
 
@@ -96,7 +100,7 @@ First resolve the repo's **default branch** as `<default>`, in this order (mirro
 2. If that ref isn't set locally, run `git remote set-head origin --auto` once to populate it, then retry step 1.
 3. If it still fails, fall back to `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`.
 
-**Now prompt the user** with a plain-text question (not `AskUserQuestion`, so a branch name can be typed freely). If `$ARGUMENTS` is non-empty, mention it as the suggested answer:
+**Now prompt the user** with a plain-text question (not `AskUserQuestion`, so a branch name can be typed freely). If `${input:args}` is non-empty, mention it as the suggested answer:
 
 > Which branch should this PR target? Reply **yes** to target the default branch (`<default>`), or type a branch name to target that instead.
 

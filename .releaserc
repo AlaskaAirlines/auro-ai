@@ -26,7 +26,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "node scripts/bump-version.mjs ${nextRelease.version}"
+        "prepareCmd": "node scripts/bump-version.mjs ${nextRelease.version} && node scripts/build-copilot-prompts.mjs"
       }
     ],
     [
@@ -35,7 +35,8 @@
         "assets": [
           "CHANGELOG.md",
           "plugins/auro/.claude-plugin/plugin.json",
-          ".claude-plugin/marketplace.json"
+          ".claude-plugin/marketplace.json",
+          "copilot/prompts/*.prompt.md"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }

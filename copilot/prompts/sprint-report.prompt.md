@@ -822,13 +822,70 @@ else
       }' /tmp/sprint_rca_fixfiles.tsv >> "$OUT" 2>/dev/null
   done < /tmp/sprint_rca_ids.txt
 
+  # 5. Render pass -- turn each finished evidence file into a ready-to-transcribe Markdown block so Step 4
+  #    only fills the <<FILL: ...>> judgment slots. The mechanical fields (header, fix/last-touch links,
+  #    dates, contributors) are pre-assembled here exactly the way the ten data tables are printed as
+  #    finished data -- which is why the tables never drift. Appended as a "--- RENDER BLOCK ... ---"
+  #    section to each /tmp/sprint_rca_<id>.txt (a separate pass, so SKIP bugs get a block too). Reading
+  #    and appending the same file is safe: awk consumes all input before its END block writes.
+  for OUT in /tmp/sprint_rca_[0-9]*.txt; do
+    [ -e "$OUT" ] || continue
+    awk -F'\t' '
+      $1=="BUG"       { id=$2; title=$3 }
+      $1=="SUPPORT"   { sup=$2 }
+      $1=="SKIP"      { skip=$2 }
+      $1=="FIXPR"     { fx[++nf]=$2 "|" $4 }
+      $1=="LASTTOUCH" { ltnum=$2; lturl=$3; ltdate=$4 }
+      $1=="CONTRIB"   { nc++; contrib[nc]=$3 " (" $2 ")" }
+      $1=="REVIEWER"  { nr++; rev[nr]=$2 " (" $3 ", " $4 ")" }
+      END {
+        sub(/T.*/, "", ltdate)
+        fixstr=""
+        for (i=1;i<=nf;i++) { split(fx[i],a,"|"); link="[PR " a[1] "](" a[2] ")"; fixstr=(fixstr==""?link:fixstr ", " link) }
+        cstr=""
+        for (i=1;i<=nc;i++) { cstr=(cstr==""?contrib[i]:cstr ", " contrib[i]) }
+        rstr=""
+        for (i=1;i<=nr;i++) { rstr=(rstr==""?rev[i]:rstr "; " rev[i]) }
+        if (rstr=="") rstr="(none recorded)"
+        print ""
+        print "--- RENDER BLOCK (Section 8a; output verbatim, replace only <<FILL: ...>> tokens) ---"
+        hdr="- **"
+        if (sup=="true") hdr=hdr "🎫 Support — "
+        hdr=hdr "[" id "](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/" id ") — " title "**"
+        print hdr
+        if (skip != "") {
+          print "  - **Not analyzed:** " skip
+        } else {
+          if (sup=="true") print "  - **Reported by:** <<FILL: name who/which team reported it, from the REPORTER lines above>>"
+          print "  - **Fix:** " fixstr " — <<FILL: one line on what the fix changed, read from the FIX DIFF above>>"
+          if (ltnum != "") {
+            lt="  - **Last touched by:** [PR " ltnum "](" lturl ") — " ltdate "."
+            if (cstr != "") lt=lt " **Contributors:** " cstr
+            print lt
+            print "  - **Who reviewed the last touch (" ltnum "):** <<FILL: name the human reviewers + their actions; list any bots separately as NOT human review; call out a review gap (single or zero human approver)>> — reviewers: " rstr
+          } else {
+            lt="  - **Last touched by:** no prior PR resolved — the buggy lines were net-new in the fix'\''s own history or could not be attributed."
+            if (cstr != "") lt=lt " **Contributors:** " cstr
+            print lt
+            print "  - **Who reviewed the last touch:** no prior PR to attribute review to."
+          }
+          print "  - **Last touched by AI/Human — guess (low/med/high):** <<FILL: guess — AI|human (confidence): ground in the PROVENANCE SIGNALS above (trailers, author/committer, era); fall back to a code-style read of the FIX DIFF at low confidence>>"
+          print "  - **Why it slipped through:** <<FILL: high-level, leadership-understandable process-failure assessment — missing acceptance criteria, skipped TRD, thin/absent testing, over-trusting AI, single/zero-human-approver merge, etc.>>"
+          print "  - **Regression Remedies Applied:** <<FILL: what the fix already did (from the REGRESSION REMEDIES lines) + meaningful absences, e.g. no Playwright/e2e, no post-mortem>>"
+          print "  - **Follow-on Recommendations:** <<FILL: concrete not-yet-taken steps tied to the causes above — improve the ado / code-review skills, require a human approver, add the missing test type>>"
+        }
+        print "--- END RENDER BLOCK ---"
+      }
+    ' "$OUT" >> "$OUT"
+  done
+
   RCA_N=$(wc -l </tmp/sprint_rca_ids.txt | tr -d ' ')
   RCA_SKIP=$(cat /tmp/sprint_rca_[0-9]*.txt 2>/dev/null | awk -F'\t' '$1=="SKIP"' | wc -l | tr -d ' ')
   echo "rca bugs: $RCA_N; analyzed $((RCA_N - RCA_SKIP)); skipped $RCA_SKIP"
 fi
 ```
 
-**Validate before reporting:** a `NO_RCA_BUGS` line means no closed Bug shipped code this sprint — Step 4 omits Section 8a entirely. Otherwise the `rca bugs: N; analyzed M; skipped K` echo summarizes coverage, and each `/tmp/sprint_rca_<id>.txt` holds that bug's evidence (`BUG` / `AREA` / `SUPPORT` / `REPORTER` (support only) / `REPO` / `FIXPR` / `--- FIX DIFF … ---` / `--- PRIOR PRS ---` / `--- WHO REVIEWED THE LAST TOUCH ---` (`LASTTOUCH` + `REVIEWER` lines) / `--- CONTRIBUTORS ---` / `--- PROVENANCE SIGNALS ---` / `--- REGRESSION REMEDIES ---` (`REMEDY` lines), plus any `SKIP`/`NOTE` markers). A bug whose file carries a `SKIP` marker had no analyzable code (repo unresolved, clone failed, or no fix PR); a `NOTE no-prior-code` means the fix was entirely net-new lines with nothing prior to blame, and `NOTE no-last-touch-pr` means no prior PR was found to attribute reviewers to. These are expected for some bugs — don't treat them as failures.
+**Validate before reporting:** a `NO_RCA_BUGS` line means no closed Bug shipped code this sprint — Step 4 omits Section 8a entirely. Otherwise the `rca bugs: N; analyzed M; skipped K` echo summarizes coverage, and each `/tmp/sprint_rca_<id>.txt` holds that bug's evidence (`BUG` / `AREA` / `SUPPORT` / `REPORTER` (support only) / `REPO` / `FIXPR` / `--- FIX DIFF … ---` / `--- PRIOR PRS ---` / `--- WHO REVIEWED THE LAST TOUCH ---` (`LASTTOUCH` + `REVIEWER` lines) / `--- CONTRIBUTORS ---` / `--- PROVENANCE SIGNALS ---` / `--- REGRESSION REMEDIES ---` (`REMEDY` lines), plus any `SKIP`/`NOTE` markers), followed by a `--- RENDER BLOCK (Section 8a; …) --- … --- END RENDER BLOCK ---` section the render pass appended — the ready-to-transcribe Markdown block Step 4 copies verbatim, filling only its `<<FILL: …>>` slots. A bug whose file carries a `SKIP` marker had no analyzable code (repo unresolved, clone failed, or no fix PR); a `NOTE no-prior-code` means the fix was entirely net-new lines with nothing prior to blame, and `NOTE no-last-touch-pr` means no prior PR was found to attribute reviewers to. These are expected for some bugs — don't treat them as failures.
 
 ---
 
@@ -936,48 +993,27 @@ If Step 3 printed `=== NO_PREVIOUS ===` instead of a diff block, render only the
 
 *What this shows: for each bug the team fixed this sprint — flagging which came in as customer/partner **Support** tickets and who reported them — a trace from the fix back to the pull request(s) that last touched that same code, who reviewed that last touch, the people who wrote it, a best-effort guess at whether the buggy code was AI- or human-authored, a **leadership-level** explanation of the process gap that let it slip through, the prevention steps the fix already applied, and the follow-on actions still recommended. Use it to spot recurring process gaps — missing acceptance criteria, skipped TRDs, thin test coverage, over-trusting AI, single-reviewer merges — and target prevention. (Scope: closed bugs that shipped a code change; bugs closed without code aren't analyzable here.)*
 
-**Non-negotiable render rules for this section — read before writing a single bug block.** This section has one legal shape, given as the skeleton below. It is **not** a place to compose your own root-cause write-up. Fill the skeleton; do not redesign it.
+**Section 8a is pre-rendered — transcribe it, do not compose it.** Step 3.5's render pass has already written a ready-to-output Markdown block into each `/tmp/sprint_rca_<id>.txt`, delimited by a `--- RENDER BLOCK (Section 8a; …) ---` line and an `--- END RENDER BLOCK ---` line. Your job here is **transcription, not authorship**: for each evidence file, copy everything **between** those two delimiters (not the delimiter lines themselves) into the report verbatim, and change **only** the `<<FILL: …>>` tokens. Do this for every `/tmp/sprint_rca_<id>.txt`, one block per bug, in the component order described below. The header, labels, links, dates, and structure are already final — this is why the ten data tables never drift, and 8a now works the same way.
 
-- **Copy the label text verbatim.** The only labels allowed are, in this exact order: **Reported by** (Support only), **Fix**, **Last touched by**, **Who reviewed the last touch (#N)**, **Last touched by AI/Human — guess (low/med/high)**, **Why it slipped through**, **Regression Remedies Applied**, **Follow-on Recommendations**. Do **not** rename, merge, split, drop, reorder, or add labels.
-- **Never invent your own structure.** In particular, **never collapse a bug into an ad-hoc summary such as `Fix:` / `Review:` / `Root cause:`** (or any other label set not listed above). If you catch yourself about to write a label that is not in the list, stop and use the skeleton. `Review:` and `Root cause:` are forbidden; the review information goes under **Who reviewed the last touch**, and the causal analysis goes under **Why it slipped through** — always as separate labeled sub-bullets, never fused.
-- **The header is `[<id>](url) — <title>` only** (optionally 🎫-prefixed for Support). **Never** write `Bug <id> — <component> — "<title>"`, never add a `Bug ` prefix, never insert the component/repo name into the header, never wrap the title in quotes. The component grouping is conveyed by block *order* and an optional subheading, not by the header text.
-- **Every labeled sub-bullet is on its own line.** No inlining several labels into one paragraph; no prose paragraph in place of the bullets. The interpretive fields (the AI/Human guess, why-it-slipped-through, mislink caveat) are written *as the value of their labeled bullet*, never as free-standing narration.
+- **Do not touch anything outside the `<<FILL: …>>` tokens.** The header (`[<id>](url) — <title>`, optionally 🎫-prefixed for Support), every label, every PR link, every date, the contributor names, the sub-bullet order, and the block structure are already correct in the block. Do **not** rename, merge, split, drop, reorder, or add labels; do **not** rewrite the header (never `Bug <id> — <component> — "<title>"`, no `Bug ` prefix, no component name, no quotes); do **not** collapse a block into an ad-hoc `Fix:` / `Review:` / `Root cause:` summary; do **not** merge two bugs into one block. If you find yourself typing a label that isn't already in the block, stop — you are composing, not transcribing.
+- **Replace each `<<FILL: …>>` token** with your judgment for that field, grounded in the evidence that sits *above* the RENDER BLOCK in the same file (the `--- FIX DIFF …---`, `--- PROVENANCE SIGNALS ---`, `--- REGRESSION REMEDIES ---`, `REPORTER`, `CONTRIB`/`REVIEWER` lines). When you fill a slot, delete the entire `<<FILL: … >>` wrapper, and also delete any trailing raw-data hint the block appends after a slot — e.g. the `— reviewers: <login (state, kind); …>` tail on the *Who reviewed* line is there to help you write the value; use it, then remove it. **A finished block contains no `<<FILL` text and no `— reviewers:` hint.** Ground every filled value in that file's evidence; never invent PRs, names, reviewers, or causes. Render each login as the **person's name** where known (keep the raw handle otherwise), and label AI accounts (`kind=bot`, e.g. `sourcery-ai[bot]`, `Copilot`) as bots, never as people.
 
-Copy this skeleton per bug and fill each value from that bug's evidence file (omit **Reported by** when `SUPPORT` is `false`; keep every other label):
+**How to fill each slot** (the token text names the field; this is the fuller guidance):
+  - **Reported by** *(Support blocks only — the slot is absent on non-Support blocks)* — name who/which team reported it from the `REPORTER` lines: `created_by` opened it, and the `repro`/`how_found`/`environment` evidence often names the actual reporting team or channel (e.g. *"opened on behalf of the Flight Search team," found in Regression Testing in Prod*). One line; if only the creator is known, say that.
+  - **Fix** — one line on what the fix changed, read from the `--- FIX DIFF (source hunks) ---` block (the `-`/`+` lines are old vs new). The PR link(s) are already printed; add only the description after the em-dash.
+  - **Who reviewed the last touch (#N)** — name every **human** reviewer (`REVIEWER kind=human`) with their action where useful (*approved*, *requested changes*, *commented*); list **AI reviewers** (`kind=bot`) **separately and explicitly as bots** that do **not** count as human review; **call out a review gap** — only one human approver, or **zero** humans with only bots (a real risk signal). The raw reviewer list is supplied as the `— reviewers:` hint after the slot.
+  - **Last touched by AI/Human — guess (low/med/high)** — a best-effort AI-vs-human authorship call with confidence, from the `--- PROVENANCE SIGNALS ---` block: an AI trailer (`trailers=` shows `Co-authored-by:` a bot, "Generated with", or Copilot/Claude/Cursor/aider/Devin) or a bot author/committer → AI (higher confidence); a plain human author, no trailer, older commit era → human. When inconclusive (`trailers=NONE`, ordinary author), **fall back to a code-style read** of the fix diff at **low** confidence. Keep the leading "guess —"; never state it as fact.
+  - **Why it slipped through** — a **high-level, leadership-understandable process-failure** assessment, NOT a technical one. Written for a Product Manager or leader: *what about how the team works* let this defect through — missing/underspecified acceptance criteria, a skipped TRD, a coding-knowledge gap, missing automated/manual testing, over-trusting AI without verifying (support this with the AI/Human guess and the reviewer bots), a thin-review merge (single/zero human approver), or another high-level reason. Call out **all that apply**; keep it about the *process*.
+  - **Regression Remedies Applied** — what the fix PR **already did**, grounded in the `--- REGRESSION REMEDIES ---` (`REMEDY`) lines and the diff — e.g. *added a unit test (`test/…`, +139 lines)*, *a Storybook regression story*, *a post-mortem (`docs/post-mortem/…`)* — plus meaningful **absences** (e.g. *no Playwright/e2e*, *no post-mortem*). If the changes are only source/style with no safety net, say the fix added **no new safety net**.
+  - **Follow-on Recommendations** — concrete steps **not yet taken**, each tied to a "Why it slipped through" cause: improve the auro-ai **`ado` skill**'s acceptance-criteria generation; improve the **`code-review` skill** to require a human approver and to surface unaddressed AI-review nits before merge; add the missing test type (Playwright/e2e, negative-path unit). Any other team-level action the evidence warrants. If the fix already covers everything, say the applied remedies look sufficient and note only monitoring.
 
-```markdown
-- **[<id>](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/<id>) — <title>**
-  - **Reported by:** <support only — else omit this line>
-  - **Fix:** [PR #<n>](<url>) — <one line on what changed>
-  - **Last touched by:** [PR #<n>](<url>) — <date>. **Contributors:** <name (n lines), …>
-  - **Who reviewed the last touch (#<n>):** <human reviewers + actions; AI bots labeled separately; call out review gaps>
-  - **Last touched by AI/Human — guess (low/med/high):** guess — <AI|human> (<confidence>): <evidence>
-  - **Why it slipped through:** <leadership-level process assessment>
-  - **Regression Remedies Applied:** <what the fix already did / meaningful absences>
-  - **Follow-on Recommendations:** <concrete not-yet-taken steps>
-```
+**Mislink caveat — a judgment only you can make (the bash trusts ADO's link).** Sanity-check the `--- FIX DIFF ---` against the bug's title/symptom. If the linked PR clearly doesn't address the described defect (e.g. a bug about *modal focus after a second Esc keypress* linked to a PR that only *renames a dropdown reference*), **insert `- **⚠ Data-quality caveat — mislinked fix:** …` as the first sub-bullet** of that block (right after the header), annotate **Fix** as `(as linked, not the real fix)`, lower the block's confidence, note the real fix may be linked elsewhere in the repo, and recommend re-linking the correct PR in ADO under **Follow-on Recommendations**. Keep the rest of the block exactly as transcribed — don't switch to a narrative paragraph. (This also covers the case where the Step 3.5 `FIXPR` disagrees with the eighth table's `PR` column: trust the Step 3.5 evidence and call the discrepancy out.)
 
-When the fix PR looks mislinked (see the data-quality note below), keep the same skeleton and add the caveat as the **first** sub-bullet — `- **⚠ Data-quality caveat — mislinked fix:** …` — then continue with the standard labels (you may annotate **Fix** as `(as linked, not the real fix)`); do **not** discard the skeleton or switch to a narrative paragraph.
-
-**Read each `/tmp/sprint_rca_<id>.txt` and render exactly one block per bug in the labeled shape above** — one block for each `/tmp/sprint_rca_<id>.txt` file, with each of the labeled lines (**Reported by**, **Fix**, **Last touched by**, **Who reviewed the last touch**, **Last touched by AI/Human**, **Why it slipped through**, **Regression Remedies Applied**, **Follow-on Recommendations**) on its **own line** as a sub-bullet, exactly as in the skeleton and example block. **Never merge, batch, or summarize multiple bugs into a single combined write-up or paragraph** — even when several bugs share the same component, area, or fix PR, each bug still gets its own full labeled block (repeat the shared `Fix` / `Last touched by` details in each block rather than collapsing them). "Grouped by component" means only the **order** in which the per-bug blocks appear (blocks for bugs in the same `REPO`/`AREA` sit next to each other, optionally under a component subheading); it does **not** mean combining them. Ground every sentence in that file's evidence; never invent PRs, names, reviewers, or causes not present in the file. When a login appears (contributors, reviewers, provenance authors), render the **person's name** where you know it and keep the raw handle otherwise; label AI accounts (`kind=bot`, e.g. `sourcery-ai[bot]`, `Copilot`) as bots, never as people:
-
-- **[<id>](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/<id>) — <title>** (from the `BUG` line). **If `SUPPORT` is `true`, prefix the title with a 🎫 and the word "Support"** (e.g. *🎫 Support — [<id>] …*). Do **not** list any other tags anywhere.
-  - **Reported by:** *(Support tickets only — omit this bullet entirely when `SUPPORT` is `false`.)* Name who/which team reported it, read from the `REPORTER` lines — `created_by` is who opened it, and the `repro`/`how_found`/`environment` evidence often names the actual reporting team or channel (e.g. *"opened on behalf of the Flight Search team,"* found in *Regression Testing* in *Prod*). State it in one line; if the evidence only gives the creator, say that.
-  - **Fix:** `[PR #<n>](<url>)` (from the `FIXPR` line) — one line on what the fix changed, read from the `--- FIX DIFF (source hunks) ---` block (the `-`/`+` lines show old vs new).
-  - **Last touched by:** the prior PR list from the `PRIORPR` lines (newest first) as **link + date only** — `[PR #<n>](<url>)` followed by the date from that line (the `merged_at`, **date only, strip the time**). **Never show the PR title or a branch name here** — link and date, nothing else. Then a **Contributors:** line naming the blame authors of the buggy lines from the `CONTRIB` lines (each is `count`/`author`; most-lines-first, and you may show the line counts, e.g. *Jane Doe (7 lines), John Roe (2)*). If there are no `PRIORPR`/`CONTRIB` lines (a `NOTE no-prior-code` marker), say the buggy lines were **net-new in the fix's own history** with no earlier PR to attribute.
-  - **Who reviewed the last touch (#N):** from the `--- WHO REVIEWED THE LAST TOUCH ---` block — the `LASTTOUCH` line is the specific prior PR (`#N`) these reviewers belong to. Name every **human** reviewer/commenter (`REVIEWER` lines with `kind=human`), noting their action where useful (*approved*, *requested changes*, *commented*). List any **AI reviewers** (`kind=bot`) **separately and explicitly labeled as bots** — they do **not** count as human review. **Call out a review gap** when it exists: only one human approver, or **zero** human reviewers with only bots (a real risk signal worth surfacing). If the marker is `NOTE no-last-touch-pr`, say there was no prior PR to attribute review to.
-  - **Last touched by AI/Human — guess (low/med/high):** from the `--- PROVENANCE SIGNALS ---` block, a best-effort call on whether the buggy code was **AI-generated or human-written**, with a **confidence**. Ground it in evidence — an AI trailer (`trailers=` shows `Co-authored-by:` a bot, "Generated with", or a named tool like Copilot/Claude/Cursor/aider/Devin) or a bot author/committer points to AI (higher confidence); a plain human author, no such trailer, older commit era points to human. When provenance is inconclusive (`trailers=NONE`, ordinary author), **fall back to a code-style guess** from the fix diff and mark it **low** confidence. **Always prefix with "guess —"** and never state it as fact.
-  - **Why it slipped through:** a **high-level, leadership-understandable process-failure assessment** — NOT a technical explanation. Written for a Product Manager or leader: *what about how we work* let this defect through. Call out **all that apply**, grounded in the evidence: missing or underspecified **requirements / acceptance criteria**; a **TRD called for but skipped**; a **coding-knowledge gap**; **missing automated or manual testing**; **over-trusting AI without verifying** its work (support this with the AI/Human guess and the reviewer bots); a **thin-review merge** (single or zero human approver); or another high-level reason. Keep it about the *process*, not the code — this is what helps the team ship more reliably.
-  - **Regression Remedies Applied:** what the fix PR **already did** to prevent recurrence, grounded in the `--- REGRESSION REMEDIES ---` (`REMEDY`) lines and the fix diff — e.g. *added a unit test (`test/…`, +139 lines)*, *added a Storybook regression story*, *wrote a post-mortem (`docs/post-mortem/…`)*. Also note meaningful **absences** the evidence implies (e.g. *no Playwright/e2e test was added*, *no post-mortem*). If the only changes are source/style with no test/story/post-mortem, say the fix added **no new safety net**.
-  - **Follow-on Recommendations:** concrete steps **not yet taken** that would keep this class of defect from recurring — tie each to a "Why it slipped through" cause. Examples: if acceptance criteria were missing, recommend improving the auro-ai **`ado` skill**'s acceptance-criteria generation; if an AI review (Sourcery/Copilot) flagged a Bug/Nit that was merged unfixed, or the PR merged with a single/zero human approver, recommend improving the auro-ai **`code-review` skill** to flag those and not skip them (and to require a human approver); if testing was thin, recommend the specific test type (Playwright/e2e, negative-path unit). Add any other team-level action the evidence warrants. If the fix already covers everything, say the remedies applied look sufficient and note only monitoring.
-- **Bugs with a `SKIP` marker** (`repo-unresolved`, `clone-failed`, `no-fix-pr`): list the bug id + title in a short "**Not analyzed:**" line at the end of its component group with the one-word reason — don't fabricate an analysis. (Still show the 🎫 Support flag if `SUPPORT` is `true`.)
-- **Data-quality note — the fix PR can be mislinked.** Two independent failure modes, both worth a one-line caveat:
-  - *Commit-derived disagreement:* if the Step 3.5 evidence contradicts the eighth table's `PR` column (the tightened `commit_fallback` and the fix-PR resolution here can disagree with a stale ADO link), trust the Step 3.5 `FIXPR` and call the discrepancy out.
-  - *ADO link looks unrelated to the bug:* the `FIXPR` here is whatever Azure DevOps recorded, which is **not always the real fix** — the `AB#<id>` mention that created the link can sit on an unrelated PR. **Sanity-check the `--- FIX DIFF ---` against the bug's title/symptom.** If the linked PR clearly doesn't address the described defect (e.g. a bug about *modal focus after a second Esc keypress* linked to a PR that only *renames a dropdown reference*), say so explicitly, **lower the confidence of the whole block, and note the actual fix may be linked elsewhere in the repo** (and recommend re-linking the correct PR in ADO under Follow-on Recommendations) — don't narrate a root cause as if the mislinked PR were the fix. This is a judgment only the render step can make (the bash trusts ADO's link), so it's the model's job to flag it.
+**Ordering & SKIP blocks.** Emit the blocks grouped by component — blocks for bugs in the same repo/area sit next to each other, optionally under a component subheading; "grouped" refers only to block **order**, never to combining bugs. A bug whose file carries a `SKIP` marker was pre-rendered as its header plus a `- **Not analyzed:** <reason>` line with **no `<<FILL>>` slots** — transcribe it as-is (nothing to fill), still showing the 🎫 Support flag when `SUPPORT` is `true`.
 
 **Close the whole section with a "How the team can ship more reliably" summary** (after all bug blocks): 3–6 bullets grouping the **categories of reasons** these bugs slipped through (e.g. *missing acceptance criteria*, *thin/absent automated testing*, *over-trusting AI without verification*, *single- or zero-human-approver merges*, *broad refactors that regressed one path*), each with the concrete team action that addresses it (the recurring Follow-on Recommendations — improving the `ado` and `code-review` skills, requiring a human approver, adding the missing test types). This is the leadership takeaway — keep it about process, count how many bugs each category touched, and make it actionable.
 
-Example of a single rendered bug block (illustrative shape only — use the real evidence):
+Example of a **finished** bug block — all `<<FILL: …>>` slots resolved and the `— reviewers:` hint removed. Yours will match the pre-rendered block's structure exactly; only the filled values differ (use the real evidence):
 
 > **🎫 Support — [1613688](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1613688) — Dropdown reference is undefined after re-render**
 > - **Reported by:** the Flight Search team, via Regression Testing in Prod (opened by Kyle Evitts on their behalf; Severity 2 – High).

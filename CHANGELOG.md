@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.0...v1.9.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sprint-report:** update descriptions for clarity and consistency in sprint report generation ([f47648b](https://github.com/AlaskaAirlines/auro-ai/commit/f47648bd8c1fc0ee5d2b180279f095e3581cfa34))
+
 # [1.9.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.8.0...v1.9.0) (2026-08-19)
 
 

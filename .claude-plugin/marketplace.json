@@ -10,7 +10,7 @@
       "name": "auro",
       "source": "./plugins/auro",
       "description": "Commit, code-review, release-notes, pr, ado, and post-mortem skills for auro-formkit: guided Conventional Commits workflow, multi-model PR/local review, automated release-notes generation from Conventional Commits, PR creation with prompted base/draft, component labels, and post-mortem summaries and Discussion links, Azure DevOps work-item drafting, and post-mortem authoring with GitHub Discussions publishing.",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "author": {
         "name": "Alaska Airlines — Auro Design System"
       }

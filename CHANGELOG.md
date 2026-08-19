@@ -1,3 +1,16 @@
+# [1.9.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.8.0...v1.9.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* update PR skill description for clarity on ticket handling and post-mortem sections ([2c38212](https://github.com/AlaskaAirlines/auro-ai/commit/2c382129842680533a8ef49f4eecdfac127d0e72))
+
+
+### Features
+
+* **copilot:** generate GitHub Copilot prompt files from Auro skills ([2dd222b](https://github.com/AlaskaAirlines/auro-ai/commit/2dd222b149be1b665ef48bcdab0e2f6c19637b8d))
+* **sprint-report:** add sprint report skill with bug root-cause analysis ([939a9d5](https://github.com/AlaskaAirlines/auro-ai/commit/939a9d5d44ea76aa77b7d1d53bd54ec2c24b914f))
+
 # [1.8.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.7.0...v1.8.0) (2026-08-17)
 
 

@@ -1,3 +1,10 @@
+## [1.9.3](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.2...v1.9.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sprint-report:** exclude New and Approved tickets from open work-in-progress list ([c945950](https://github.com/AlaskaAirlines/auro-ai/commit/c9459506f43a3c4d86324aeee203a9c2953d819f))
+
 ## [1.9.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.1...v1.9.2) (2026-08-19)
 
 

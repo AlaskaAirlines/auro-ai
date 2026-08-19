@@ -9,6 +9,10 @@ as **GitHub Copilot prompt files** (`.prompt.md`). They live in
 > **VS Code**, **Visual Studio (17.10+)**, and **JetBrains** — not on github.com or
 > in the CLI. They are **not** namespaced, so the command is bare `/commit` (Copilot),
 > versus `/auro:commit` (Claude Code).
+>
+> **Using the Copilot CLI instead?** The CLI doesn't load these prompt files; the
+> skills are packaged there as **custom agents** — see
+> [`copilot-cli-usage.md`](./copilot-cli-usage.md).
 
 ---
 

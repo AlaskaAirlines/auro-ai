@@ -31,6 +31,11 @@ regenerate them automatically. Copilot has no marketplace, so teams copy the fil
 into a repo's `.github/prompts/` or register them at the user level — see
 [`docs/copilot-usage.md`](docs/copilot-usage.md).
 
+The **Copilot CLI** doesn't load prompt files, so the same skills are also generated
+as **CLI custom agents** (`.agent.md`) in [`copilot/agents/`](copilot/agents/) —
+invoked with `/agent <name>` or `copilot --agent <name>`. See
+[`docs/copilot-cli-usage.md`](docs/copilot-cli-usage.md).
+
 ## Repository layout
 
 ```

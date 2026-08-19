@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.4...v1.10.0) (2026-08-19)
+
+
+### Features
+
+* **copilot:** generate Copilot CLI custom agents from skills ([6e8d64f](https://github.com/AlaskaAirlines/auro-ai/commit/6e8d64f6acbd2592af279fda1eeb82c097964863))
+
 ## [1.9.4](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.3...v1.9.4) (2026-08-19)
 
 

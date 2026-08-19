@@ -1,3 +1,10 @@
+## [1.9.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.1...v1.9.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sprint-report:** refine bug report formatting for clarity and structure ([f5c1787](https://github.com/AlaskaAirlines/auro-ai/commit/f5c1787073a263407b78aaa995abc6829e2d1a99))
+
 ## [1.9.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.0...v1.9.1) (2026-08-19)
 
 

@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.10.1...v1.10.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **release:** keep package.json version in lockstep with plugin manifests ([428ba11](https://github.com/AlaskaAirlines/auro-ai/commit/428ba113ee21582669468d6983bc0f929552f0a0))
+
 ## [1.10.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.10.0...v1.10.1) (2026-08-19)
 
 

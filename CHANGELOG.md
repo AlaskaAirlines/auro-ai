@@ -1,3 +1,10 @@
+## [1.9.4](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.3...v1.9.4) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sprint-report:** pin Section 8a to a verbatim labeled skeleton to stop RCA collapse ([366047b](https://github.com/AlaskaAirlines/auro-ai/commit/366047b2af1f203d3bf84f75e809ea14d584df3d))
+
 ## [1.9.3](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.2...v1.9.3) (2026-08-19)
 
 

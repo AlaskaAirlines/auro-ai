@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.10.0...v1.10.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sprint-report:** pre-render Section 8a so the model transcribes instead of composes ([daf3b3a](https://github.com/AlaskaAirlines/auro-ai/commit/daf3b3aa0cad52eed3ead74345dca2f72b920453))
+
 # [1.10.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.9.4...v1.10.0) (2026-08-19)
 
 

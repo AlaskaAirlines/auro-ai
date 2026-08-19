@@ -1,7 +1,7 @@
 {
   "name": "auro",
   "description": "Commit, code-review, release-notes, pr, ado, and post-mortem skills for the Auro design system / auro-formkit.",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "author": {
     "name": "Alaska Airlines — Auro Design System"
   },

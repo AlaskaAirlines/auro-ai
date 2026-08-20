@@ -1,3 +1,12 @@
+# [1.11.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.10.2...v1.11.0) (2026-08-20)
+
+
+### Features
+
+* **code-review:** add dependencies vs devDependencies hygiene gate ([3600071](https://github.com/AlaskaAirlines/auro-ai/commit/36000712547080ac73332b11fbd6a0e3db9aad90))
+* **code-review:** add min-width:0 flex/grid overflow checklist item ([2e874a5](https://github.com/AlaskaAirlines/auro-ai/commit/2e874a5c2545da33adb9f6646405f6b5ec29b717))
+* **code-review:** surface recommended follow-up work ([8c83315](https://github.com/AlaskaAirlines/auro-ai/commit/8c83315028050bdb6727e2905504cc761548da08)), closes [hi#level](https://github.com/hi/issues/level)
+
 ## [1.10.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.10.1...v1.10.2) (2026-08-19)
 
 

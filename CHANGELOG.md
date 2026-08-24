@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.11.0...v1.12.0) (2026-08-24)
+
+
+### Features
+
+* **sprint-report:** enhance report generation with additional metrics and filters ([118cf0b](https://github.com/AlaskaAirlines/auro-ai/commit/118cf0bc4080a648d111ebed822916c649eac09f))
+
 # [1.11.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.10.2...v1.11.0) (2026-08-20)
 
 

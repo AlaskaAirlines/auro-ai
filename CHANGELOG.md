@@ -1,3 +1,11 @@
+# [1.14.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.13.0...v1.14.0) (2026-09-04)
+
+
+### Features
+
+* **code-review:** add effort-level prompt and medium-default review standard ([7596d89](https://github.com/AlaskaAirlines/auro-ai/commit/7596d89d88b44626f40c06fb4dae81753b9633a6))
+* **code-review:** run auro cem-check and report manifest findings ([f557eae](https://github.com/AlaskaAirlines/auro-ai/commit/f557eae4c6928e12e559696f67a77c99081d8879)), closes [hi#level](https://github.com/hi/issues/level)
+
 # [1.13.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.12.0...v1.13.0) (2026-09-04)
 
 

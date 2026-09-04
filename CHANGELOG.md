@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.12.0...v1.13.0) (2026-09-04)
+
+
+### Features
+
+* **create-rcs:** add Release Candidate Summary skill for Azure DevOps ([3135127](https://github.com/AlaskaAirlines/auro-ai/commit/31351271bff2687cfca19d460d3110decaf00964))
+
 # [1.12.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.11.0...v1.12.0) (2026-08-24)
 
 

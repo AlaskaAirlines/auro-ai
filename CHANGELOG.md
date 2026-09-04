@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.14.0...v1.15.0) (2026-09-04)
+
+
+### Features
+
+* **create-rcs:** always plan AuroDocsSite release with dependency AC and cross-release links ([94ef107](https://github.com/AlaskaAirlines/auro-ai/commit/94ef107c42b15a93f0c4c00b50d548885eece42c))
+
 # [1.14.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.13.0...v1.14.0) (2026-09-04)
 
 

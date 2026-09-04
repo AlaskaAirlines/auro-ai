@@ -1,6 +1,6 @@
 ---
 name: create-rcs
-description: Build a Release Candidate Summary (RCS) from the Auro Design System Azure DevOps board for a chosen sprint iteration. It prompts for which iteration to summarize, defaulting to the current sprint, then gathers the work items whose Iteration Path is that sprint — scoped to items under `E_Retain_Content\Auro Design System`, excluding the Test Case/Test Plan/Test Suite/Epic/Feature/Initiative/Design Story/Task work item types, limited to items whose State is Committed/Blocked/Active/Ready For Acceptance/Resolved/Closed, and excluding anything tagged `auro-rcs` (so a re-run never gathers the skill's own Release tickets) — and lists them grouped by the Area Path they sit in, collapsing any area under `E_Retain_Content\Auro Design System\auro-formkit` into a single `auro-formkit` group. It then plans a `Release <area> - <iteration>` User Story per area — set to the iteration, on the area's path, State Blocked, Target Date set to the iteration's last day, tagged `auro-rcs`, with Predecessor links to every ticket in that area and child `Generate Release Notes` and `Update Dependencies` Tasks. Before creating anything it reconciles existing links: a predecessor already linked (via the `auro-rcs` tag) to a Release ticket in another sprint can be moved to this sprint's ticket, and an area already linked to a this-sprint Release ticket can reuse it instead of creating a duplicate. The skill plans the full change set, shows it, and writes to Azure DevOps — creating work items and adding/removing links — only after the user confirms at a submit gate.
+description: Build a Release Candidate Summary (RCS) from the Auro Design System Azure DevOps board for a chosen sprint iteration. It prompts for which iteration to summarize, defaulting to the current sprint, then gathers the work items whose Iteration Path is that sprint — scoped to items under `E_Retain_Content\Auro Design System`, excluding the Test Case/Test Plan/Test Suite/Epic/Feature/Initiative/Design Story/Task work item types, limited to items whose State is Committed/Blocked/Active/Ready For Acceptance/Resolved/Closed, and excluding anything tagged `auro-rcs` (so a re-run never gathers the skill's own Release tickets) — and lists them grouped by the Area Path they sit in, collapsing any area under `E_Retain_Content\Auro Design System\auro-formkit` into a single `auro-formkit` group. It then plans a `Release <area> - <iteration>` User Story per area — set to the iteration, on the area's path, State Blocked, Target Date set to the iteration's last day, tagged `auro-rcs`, with Predecessor links to every ticket in that area and child `Generate Release Notes` and `Update Dependencies` Tasks. Whenever the sprint plans any non-`AuroDocsSite` Release ticket, an `AuroDocsSite` Release ticket is always planned too (even if the `AuroDocsSite` area has no sprint tickets): it keeps its own area's tickets as Predecessors, is additionally Predecessor-linked to every other area's Release ticket, and its Acceptance Criteria lists an `@aurodesignsystem/<area>` dependency-update checkbox for each of those other releases. Before creating anything it reconciles existing links: a predecessor already linked (via the `auro-rcs` tag) to a Release ticket in another sprint can be moved to this sprint's ticket, and an area already linked to a this-sprint Release ticket can reuse it instead of creating a duplicate. The skill plans the full change set, shows it, and writes to Azure DevOps — creating work items and adding/removing links — only after the user confirms at a submit gate.
 disable-model-invocation: true
 allowed-tools: Bash(curl *), Bash(jq *), Bash(seq *), Bash(sort *), Bash(awk *), Bash(wc *), Bash(date *), Bash(tr *), Bash(sed *), Bash(test *), Bash(printf *), Bash(echo *), Bash(grep *), Bash(cut *), Bash(cat *), Bash(setopt *), Bash(rm -f /tmp/rcs_*)
 ---
@@ -166,6 +166,8 @@ For each `=== <sub-group>  (<count>) ===` block, print a heading and a compact t
 
 For each **Group 2** area sub-group (skip the `(root)` group), the skill plans a parent **User Story** titled `Release <area> - <iteration>` plus its child **Tasks** `Generate Release Notes` and `Update Dependencies`. It runs in phases: **3A** builds the drafts and scans for existing links (read-only), **3B** shows the full change set, **3C** asks the user to confirm, **3D** performs the ADO writes only on a yes, and **3E** reports what changed. **Nothing is written to Azure DevOps before the 3C gate.**
 
+**The `AuroDocsSite` Release ticket is always planned when any other area releases.** The Auro docs site depends on every Auro component, so whenever the sprint plans at least one non-`AuroDocsSite` Release ticket, an `AuroDocsSite` Release ticket is planned too — **even if the `AuroDocsSite` area has no sprint tickets of its own** (in which case it simply has no area-ticket Predecessors). Beyond its own area tickets, the `AuroDocsSite` Release ticket is **Predecessor-linked to every other area's Release ticket** this sprint (so it gates on all of them), and its **Acceptance Criteria** carries a dependency-update checklist — one `@aurodesignsystem/<area>` item per other release — for the version bumps that must ship with it. Because those other Release tickets don't exist until submit, the cross-release Predecessor links are added in 3D after they're created (the `AuroDocsSite` story is created last for this reason). Since a zero-ticket `AuroDocsSite` area is invisible to the successor-link scan below, 3A separately queries for an existing this-sprint `auro-rcs` `AuroDocsSite` Release ticket and reuses it rather than creating a duplicate on a re-run. Unlike other reused tickets (whose fields are left untouched), a reused `AuroDocsSite` ticket **has its Acceptance Criteria refreshed** in 3D from the freshly-built draft, so its dependency checklist always reflects the current sprint's releases.
+
 Every Release ticket the skill creates is stamped with the tag **`auro-rcs`** (`System.Tags`). That tag is how the skill recognizes its *own* Release tickets when reconciling — it never treats an untagged or legacy "release"-titled work item as one of its Release tickets.
 
 Each planned **parent User Story** carries:
@@ -176,8 +178,8 @@ Each planned **parent User Story** carries:
 - **State:** `Blocked`.
 - **Target Date:** `Microsoft.VSTS.Scheduling.TargetDate` = the iteration's last day (`FINISH`).
 - **Tag:** `auro-rcs` (`System.Tags`) — the marker the skill uses to recognize its own Release tickets.
-- **Predecessor links:** one `System.LinkTypes.Dependency-Reverse` (**Predecessor**) relation to **every** ticket in that area sub-group, so the release gates on all of them.
-- **Description** and **Acceptance Criteria** as drafted below.
+- **Predecessor links:** one `System.LinkTypes.Dependency-Reverse` (**Predecessor**) relation to **every** ticket in that area sub-group, so the release gates on all of them. **For the `AuroDocsSite` story only,** an additional Predecessor relation to **every other area's Release ticket** this sprint — added in 3D once those tickets exist.
+- **Description** and **Acceptance Criteria** as drafted below. **For the `AuroDocsSite` story only,** the Acceptance Criteria is prefixed with a **dependency-update checklist**: one NPM-package checkbox per other release this sprint. Package names default to `@aurodesignsystem/<area>` but come from an area→package map (3A) that overrides exceptions — e.g. `WebCoreStyleSheets` → `@aurodesignsystem/webcorestylesheets`, `icons` → `@alaskaairux/icons`. Areas with **no published npm package** (a `nopkg` set in 3A — e.g. `auro-ai`, a spike/tooling area) are **omitted from the checklist** but still get a Release ticket and a cross-release Predecessor link. On a **reused** `AuroDocsSite` ticket this checklist is refreshed at submit (3D); on a newly created one it is written with the rest of the fields.
 
 **Large-text fields are written as Markdown, not HTML.** `System.Description` and `Microsoft.VSTS.Common.AcceptanceCriteria` default to HTML — which collapses the drafted `\n\n` line breaks, `**bold**`, and `` `code` `` into one unformatted run. So every payload that writes one of these fields also sends a companion op `{op:"add",path:"/multilineFieldsFormat/<ref>",value:"Markdown"}`, and the create/update calls use **`api-version=7.1`** (7.0 silently ignores `multilineFieldsFormat` and stores the content as HTML). ADO only applies the format op when the field's value actually changes, so any later reformat of an existing ticket must send a changed value alongside the op.
 
@@ -218,7 +220,35 @@ BEGIN{ pfx="E_Retain_Content\\Auro Design System"; fk=pfx"\\auro-formkit"; lfk=l
   if(g=="(root)") next
   print g"\t"id"\t"type"\t"state"\t"who"\t"title }' /tmp/rcs_rows.tsv | sort > /tmp/rcs_labeled.tsv
 
-AREAS=$(cut -f1 /tmp/rcs_labeled.tsv | sort -u)
+# Canonical area set (/tmp/rcs_areas.txt): the areas with sprint tickets, PLUS a forced "AuroDocsSite"
+# whenever any OTHER area is releasing this sprint — the docs site depends on every component, so it
+# always gets a Release ticket (even with zero AuroDocsSite tickets of its own, i.e. no area predecessors).
+# labeled.tsv is left untouched (ticket-only), so predecessor lists and the link scan are unaffected.
+DOCS="AuroDocsSite"
+cut -f1 /tmp/rcs_labeled.tsv | sort -u > /tmp/rcs_areas.txt
+if grep -qvxF "$DOCS" /tmp/rcs_areas.txt; then          # a non-AuroDocsSite area exists
+  grep -qxF "$DOCS" /tmp/rcs_areas.txt || echo "$DOCS" >> /tmp/rcs_areas.txt
+  sort -u -o /tmp/rcs_areas.txt /tmp/rcs_areas.txt
+fi
+OTHER_AREAS=$(grep -vxF "$DOCS" /tmp/rcs_areas.txt)      # every non-docs release this sprint (for the dep list)
+
+# Map each other area to its published NPM package for the AuroDocsSite dependency checklist.
+# Default is @aurodesignsystem/<area>; the `map[...]` overrides handle areas whose package name or
+# scope differs from the area label. `nopkg[...]` lists areas that have NO published npm package
+# (spikes/tooling the docs site doesn't depend on) — they still get a Release ticket and a
+# cross-release Predecessor link, but are omitted from the dependency checkbox list. Add a line to
+# `map` for a naming exception, or to `nopkg` for a non-published area.
+# The resulting package list is written once to /tmp/rcs_dep_pkgs.txt and reused wherever the dep
+# checklist is rendered (the AC draft, the readable draft, and the 3B change-set preview).
+printf '%s\n' "$OTHER_AREAS" | awk '
+  BEGIN{
+    map["WebCoreStyleSheets"]="@aurodesignsystem/webcorestylesheets"
+    map["icons"]="@alaskaairux/icons"
+    nopkg["auro-ai"]=1
+  }
+  NF && !($0 in nopkg){ print ( ($0 in map) ? map[$0] : "@aurodesignsystem/" $0 ) }' > /tmp/rcs_dep_pkgs.txt
+
+AREAS=$(cat /tmp/rcs_areas.txt)
 echo "Planning Release work items for $(echo "$AREAS" | grep -c .) areas (nothing written to ADO yet)."
 echo
 
@@ -243,6 +273,19 @@ Use this ticket as the go/no-go checkpoint for the \`$AREA\` release."
 
   AC="- [ ] **The release candidate has been re-tested** — the \`$AREA\` RC has been re-tested and verified to pass after all predecessor work merged.
 - [ ] **The release has been cut** — once all predecessor work items are closed and test validation is complete and passing, the release-candidate PR is merged into the \`main\` branch."
+
+  # AuroDocsSite only: prefix the AC with a dependency-update checklist (one @aurodesignsystem/<area> per
+  # other release this sprint) and note the cross-release gating in the description. The docs site bumps
+  # each released component's package to the version cut this iteration.
+  if [ "$AREA" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
+    DEP_ITEMS=$(awk 'NF{printf "  - [ ] `%s`\n", $0}' /tmp/rcs_dep_pkgs.txt)   # mapped package names
+    AC="- [ ] **Dependency updates implemented** — bump AuroDocsSite's dependencies to the versions released this sprint, aligning the docs site with every other Auro release cut this iteration:
+${DEP_ITEMS}
+${AC}"
+    DESC="$DESC
+
+Because the docs site depends on every Auro component, this release also gates on each of this sprint's other \`Release …\` tickets (linked as **Predecessors**) and its Acceptance Criteria lists the corresponding \`@aurodesignsystem/*\` dependency bumps that must ship with it."
+  fi
 
   CHILD_DESC="Create the release-notes document for the \`$AREA\` release ($ITER_NAME) and include it in the release.
 
@@ -311,6 +354,10 @@ Check both \`dependencies\` and \`devDependencies\` for this area to determine w
   printf '    State:          %s\n' "Blocked"
   printf '    Target Date:    %s\n' "$TARGET_DATE"
   printf '    Predecessors:   %s  ->  %s\n' "$PCOUNT" "$PREDLIST"
+  if [ "$AREA" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
+    printf '    + Predecessor links to every other area'"'"'s Release ticket (added at submit): %s\n' "$(printf '%s' "$OTHER_AREAS" | tr '\n' ' ')"
+    printf '    + AC dependency-update checklist: %s\n' "$(awk 'NF{printf "%s ", $0}' /tmp/rcs_dep_pkgs.txt)"
+  fi
   printf '  CHILD   Task        "Generate Release Notes"  (Parent -> "%s")\n' "$TITLE"
   printf '  CHILD   Task        "Update Dependencies"     (Parent -> "%s")\n' "$TITLE"
   printf '  payloads: /tmp/rcs_draft_%s_parent.json , /tmp/rcs_draft_%s_child_notes.json , /tmp/rcs_draft_%s_child_deps.json\n' "$SAFE" "$SAFE" "$SAFE"
@@ -384,18 +431,41 @@ If the scan found no links, skip the prompts — the files stay empty. Otherwise
 
 (Append with a literal tab, e.g. `printf '%s\t%s\n' "$AREA" "$RID" >> /tmp/rcs_reuse.tsv`.)
 
+**Reuse an existing `AuroDocsSite` Release ticket (read-only).** A forced `AuroDocsSite` area with no sprint tickets of its own never appears in the successor-link scan above, so on a re-run its existing ticket would be invisible and a **duplicate** would be created. If `AuroDocsSite` is in the area set and not already a reuse entry, query for an existing this-sprint `auro-rcs` `User Story` on the `AuroDocsSite` area path and, if one exists, reuse it:
+```bash
+ITER_PATH="<ITER_PATH>"   # from Step 1 (re-declared: fresh shell per block)
+BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
+DOCS="AuroDocsSite"; DOCS_AREA="E_Retain_Content\\Auro Design System\\$DOCS"
+if grep -qxF "$DOCS" /tmp/rcs_areas.txt && ! cut -f1 /tmp/rcs_reuse.tsv | grep -qxF "$DOCS"; then
+  ESC_ITER=$(printf '%s' "$ITER_PATH" | sed "s/'/''/g"); ESC_DOCS=$(printf '%s' "$DOCS_AREA" | sed "s/'/''/g")
+  Q="SELECT [System.Id] FROM WorkItems WHERE [System.IterationPath] = '$ESC_ITER' AND [System.AreaPath] = '$ESC_DOCS' AND [System.WorkItemType] = 'User Story' AND [System.Tags] CONTAINS 'auro-rcs' ORDER BY [System.Id]"
+  BODY=$(jq -cn --arg q "$Q" '{query:$q}')
+  DID=$(curl -sS -u ":$ADO_PAT" -X POST -H "Content-Type: application/json" --data-binary "$BODY" \
+    "$BASE/wiql?api-version=7.0" | jq -r '.workItems[0].id // empty')
+  if [ -n "$DID" ]; then
+    printf '%s\t%s\n' "$DOCS" "$DID" >> /tmp/rcs_reuse.tsv
+    echo "Existing this-sprint AuroDocsSite Release ticket #$DID found — will reuse it (no duplicate)."
+  else
+    echo "No existing this-sprint AuroDocsSite Release ticket — a new one will be created."
+  fi
+fi
+```
+(A reused `AuroDocsSite` ticket has its Acceptance Criteria refreshed at submit time — see 3D — so its dependency checklist is not left stale; other reused tickets' fields are untouched.)
+
 ### 3B — Present the planned change set
 
 Run this block to print exactly what the submit step would do (still no writes), then show it to the user:
 ```bash
 ITER_NAME="<ITER_NAME>"; FINISH="<FINISH>"   # from Step 1 (re-declared: fresh shell per block)
-TARGET_DATE="${FINISH}T00:00:00Z"; RCS_TAG="auro-rcs"
-AREAS=$(cut -f1 /tmp/rcs_labeled.tsv | sort -u)
+TARGET_DATE="${FINISH}T00:00:00Z"; RCS_TAG="auro-rcs"; DOCS="AuroDocsSite"
+AREAS=$(cat /tmp/rcs_areas.txt)
+OTHER_AREAS=$(grep -vxF "$DOCS" /tmp/rcs_areas.txt)
 echo "=================  PLANNED CHANGES  ================="
 echo; echo "Reuse existing this-sprint Release tickets (no new ticket created):"
 if [ -s /tmp/rcs_reuse.tsv ]; then
   while IFS=$'\t' read -r A RID; do [ -z "$A" ] && continue
     printf '  %s  ->  Release #%s   (add Predecessor links for this area'"'"'s tickets)\n' "$A" "$RID"
+    [ "$A" = "$DOCS" ] && [ -n "$OTHER_AREAS" ] && printf '      + Predecessor links to every other Release ticket this sprint, + refresh AC dependency-update checklist\n'
   done < /tmp/rcs_reuse.tsv
 else echo "  (none)"; fi
 
@@ -407,6 +477,10 @@ while IFS= read -r AREA; do [ -z "$AREA" ] && continue
   PC=$(jq '[.[]|select(.path=="/relations/-")]|length' "/tmp/rcs_draft_${SAFE}_parent.json")
   printf '  Release %s - %s   [User Story, Blocked, Target %s, tag %s]  Predecessors: %s  (+ Generate Release Notes, + Update Dependencies)\n' \
     "$AREA" "$ITER_NAME" "$TARGET_DATE" "$RCS_TAG" "$PC"
+  if [ "$AREA" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
+    printf '      + Predecessor links to every other Release ticket, + AC dependency-update checklist: %s\n' \
+      "$(awk 'NF{printf "%s ", $0}' /tmp/rcs_dep_pkgs.txt)"
+  fi
 done <<< "$AREAS"
 
 echo; echo "Move links to this sprint (remove old out-of-sprint link):"
@@ -428,10 +502,14 @@ Show the 3B summary and ask the user in plain words: **"Submit these changes to 
 This is the **only** phase that writes to ADO. Run this block; it creates tickets, wires up children, adds predecessor links, and removes moved links, recording results to `/tmp/rcs_applied.tsv` and failures to `/tmp/rcs_apply_fail.tsv`:
 ```bash
 ITER_NAME="<ITER_NAME>"   # from Step 1 (re-declared: fresh shell per block)
-AREAS=$(cut -f1 /tmp/rcs_labeled.tsv | sort -u)
+DOCS="AuroDocsSite"
+# Process areas with AuroDocsSite LAST, so every other Release ticket's id is known before we
+# Predecessor-link the docs release to them. Each area's resulting Release id is recorded to
+# /tmp/rcs_relids.tsv (area <TAB> releaseId) as it is created or reused.
+AREAS=$(grep -vxF "$DOCS" /tmp/rcs_areas.txt; grep -xF "$DOCS" /tmp/rcs_areas.txt)
 BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
 ORG_WI="https://itsals.visualstudio.com/_apis/wit/workItems"
-: > /tmp/rcs_applied.tsv; : > /tmp/rcs_apply_fail.tsv
+: > /tmp/rcs_applied.tsv; : > /tmp/rcs_apply_fail.tsv; : > /tmp/rcs_relids.tsv
 
 post_wi(){ # $1=url-encoded type  $2=payload-file  -> echoes new id (empty on failure; logs it)
   local resp code body
@@ -458,6 +536,18 @@ while IFS= read -r AREA; do [ -z "$AREA" ] && continue
       [ "$code" = "200" ] && printf 'LINK\t%s\t->\t%s\n' "$TID" "$RELID" >> /tmp/rcs_applied.tsv \
         || printf 'LINK ADD FAILED http=%s ticket=%s release=%s\n' "$code" "$TID" "$RELID" >> /tmp/rcs_apply_fail.tsv
     done
+    # AuroDocsSite only: refresh the Acceptance Criteria from the freshly-built draft so the dependency
+    # checklist reflects THIS sprint's releases (reuse otherwise leaves fields untouched). The AC field op
+    # plus its Markdown format op are lifted from the draft; 7.1 is required for multilineFieldsFormat.
+    if [ "$AREA" = "$DOCS" ]; then
+      ACOP=$(jq -c '[ .[] | select(.path=="/fields/Microsoft.VSTS.Common.AcceptanceCriteria"
+                                or .path=="/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria") ]' \
+             "/tmp/rcs_draft_${SAFE}_parent.json")
+      code=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH \
+        -H "Content-Type: application/json-patch+json" --data-binary "$ACOP" "$BASE/workitems/$RELID?api-version=7.1")
+      [ "$code" = "200" ] && printf 'ACUPDATE\t%s\tAcceptanceCriteria\n' "$RELID" >> /tmp/rcs_applied.tsv \
+        || printf 'AC UPDATE FAILED http=%s release=%s\n' "$code" "$RELID" >> /tmp/rcs_apply_fail.tsv
+    fi
   else
     # create the new parent story (payload already has fields + tag + predecessor links)
     RELID=$(post_wi "User%20Story" "/tmp/rcs_draft_${SAFE}_parent.json")
@@ -470,6 +560,25 @@ while IFS= read -r AREA; do [ -z "$AREA" ] && continue
         [ -n "$CID" ] && printf 'CREATE\tTask\t%s\t(child of %s)\n' "$CID" "$RELID" >> /tmp/rcs_applied.tsv
       done
     fi
+  fi
+
+  # record this area's Release id (used to Predecessor-link the AuroDocsSite release to the others)
+  [ -n "$RELID" ] && printf '%s\t%s\n' "$AREA" "$RELID" >> /tmp/rcs_relids.tsv
+
+  # AuroDocsSite only (processed last): gate the docs release on every OTHER area's Release ticket by
+  # adding a Predecessor link to each. Dedup against links already present so re-runs are idempotent.
+  if [ "$AREA" = "$DOCS" ] && [ -n "$RELID" ]; then
+    LINKED=$(curl -sS -u ":$ADO_PAT" "$BASE/workItems/$RELID?\$expand=relations&api-version=7.0" \
+      | jq -r '[.relations[]? | select(.rel=="System.LinkTypes.Dependency-Reverse") | (.url|sub(".*/[wW]ork[iI]tems/";""))][]')
+    awk -F'\t' -v d="$DOCS" '$1!=d{print $2}' /tmp/rcs_relids.tsv | while IFS= read -r OTHERID; do
+      [ -z "$OTHERID" ] && continue
+      printf '%s\n' "$LINKED" | grep -qxF "$OTHERID" && continue   # already linked
+      OP=$(jq -cn --arg url "$ORG_WI/$OTHERID" '[{op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Dependency-Reverse",url:$url,attributes:{comment:"AuroDocsSite dependency bump — aligns with this release"}}}]')
+      code=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH \
+        -H "Content-Type: application/json-patch+json" --data-binary "$OP" "$BASE/workitems/$RELID?api-version=7.0")
+      [ "$code" = "200" ] && printf 'RELLINK\t%s\t->\t%s\n' "$RELID" "$OTHERID" >> /tmp/rcs_applied.tsv \
+        || printf 'RELLINK ADD FAILED http=%s docs=%s release=%s\n' "$code" "$RELID" "$OTHERID" >> /tmp/rcs_apply_fail.tsv
+    done
   fi
 
   # Scenario A moves for this area: remove each ticket's old Successor link (the ticket is already a
@@ -502,6 +611,8 @@ if [ -s /tmp/rcs_applied.tsv ]; then
   awk -F'\t' '
     $1=="CREATE"{printf "  created %s #%s  %s\n",$2,$3,$4}
     $1=="LINK"  {printf "  linked ticket #%s -> Release #%s\n",$2,$4}
+    $1=="RELLINK"{printf "  linked AuroDocsSite Release #%s -> depends on Release #%s\n",$2,$4}
+    $1=="ACUPDATE"{printf "  refreshed %s on AuroDocsSite Release #%s\n",$3,$2}
     $1=="UNLINK"{printf "  unlinked ticket #%s from Release #%s\n",$2,$4}' /tmp/rcs_applied.tsv
 else echo "No changes were submitted."; fi
 [ -s /tmp/rcs_apply_fail.tsv ] && { echo; echo "Failures (review and re-run):"; cat /tmp/rcs_apply_fail.tsv; }

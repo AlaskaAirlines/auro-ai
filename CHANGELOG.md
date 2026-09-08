@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.15.0...v1.16.0) (2026-09-08)
+
+
+### Features
+
+* **ado:** add Severity picklist to bug create and edit flows ([e8eb104](https://github.com/AlaskaAirlines/auro-ai/commit/e8eb104b7215f8efd84e8238daf5acbbd383ca6d))
+
 # [1.15.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.14.0...v1.15.0) (2026-09-04)
 
 

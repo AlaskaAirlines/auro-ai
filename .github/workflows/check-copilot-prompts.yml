@@ -14,6 +14,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      - name: Validate coding standards
+        run: node scripts/validate-standards.mjs
       - name: Regenerate Copilot prompt files
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date

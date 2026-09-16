@@ -6,4 +6,8 @@ Rules in this file are numbered `CS-LIFE-001` upward, assigned in order, never r
 
 ## Rules
 
-_No rules yet._
+### CS-LIFE-001 — firstUpdated is one-shot — re-arm from connectedCallback
+
+Lit's `firstUpdated` runs once, ever. Any observer, listener, or timer attached there is dead after a disconnect/reconnect cycle, and the symptom surfaces only once the host is reparented or re-inserted — so it survives every test that renders the element and leaves it alone. Re-arm from `connectedCallback` gated on `hasUpdated`, which skips the first connect so `firstUpdated` still owns the initial attach. This has bitten `auro-select` twice.
+
+- **Sources:** AB#1511

@@ -12,15 +12,18 @@ Turbo's `^build` resolves through the package's own `package.json` `dependencies
 
 - **Sources:** AB#1575423
 - **Applies to:** any build orchestrated by Turbo where `^build` resolves through `package.json` dependencies
+- **Since:** 2026-09-16
 
 ### CS-BUILD-002 — Throw on UNRESOLVED_IMPORT in any Rollup config that publishes
 
 Rollup's default is to warn, treat the specifier as external, leave the bare `import` in the output, and exit 0. That is the right default when a downstream consumer will rebundle, and the wrong one for a library that publishes its `dist/` directly — it ships a malformed artifact behind a green build. Set `onwarn` to throw on `UNRESOLVED_IMPORT`, and name the real causes in the message so the next person is not guessing.
 
 - **Sources:** AB#1575423
+- **Since:** 2026-09-16
 
 ### CS-BUILD-003 — Certify the built artifact on disk, and gate the publish path on it
 
 Workspace tests certify the wrong thing: WTR loads `src/`, and framework smoke tests resolve bare specifiers against `node_modules` symlinks pointing back into the workspace, so a leaked specifier resolves cleanly in CI and fails only for a consumer installing from npm. Read the artifact off disk and check its imports against an allowlist derived from the bundler config. Put that check on the release workflow, not only the pull-request one — force-pushes, branch-protection bypasses, and direct-to-main flows skip the PR gate entirely.
 
 - **Sources:** AB#1575423
+- **Since:** 2026-09-16

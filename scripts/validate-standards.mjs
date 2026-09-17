@@ -5,10 +5,9 @@
 // prints a non-failing staleness report (§7). Invoked as:
 //   node scripts/validate-standards.mjs        (npm run validate:standards)
 //
-// Dependency-free and read-only. It runs as the first step of
-// check-copilot-prompts.yml, ahead of the two regenerate-and-diff gates —
-// it must never write to the working tree, or those gates would see its
-// output as drift.
+// Dependency-free and read-only. It runs ahead of the copilot drift gates in
+// check-copilot-prompts.yml — it must never write to the working tree, or
+// those gates would see its output as drift.
 //
 // ZERO RULES IS A VALID, PASSING STATE. Phase 1 PR-1 ships ten empty
 // reference files, so there is deliberately no minimum-count check here and
@@ -72,11 +71,15 @@ async function readIfPresent(path) {
  * Split a reference file into rule blocks, tracking which `##` section each
  * block sits under so `## Retired` entries (§3.5) can be exempted from the
  * field requirements while still holding their ID reserved.
+ *
+ * Fenced blocks are treated as body content, never as structure — a rule that
+ * documents the schema by example must not be able to reconfigure the parser.
  */
 function parseRules(source) {
   const rules = [];
   let section = null;
   let current = null;
+  let inFence = false;
   const flush = () => {
     if (current) rules.push(current);
     current = null;
@@ -84,6 +87,20 @@ function parseRules(source) {
 
   source.split('\n').forEach((raw, index) => {
     const line = raw.trimEnd();
+
+    // Headings and fields inside a fence are content, not structure. Without
+    // this the failure is fail-open, and silently so: a rule body containing a
+    // fenced `## Retired` flips `section` mid-file, every rule after it is
+    // treated as retired, and validateRule then exempts each one from the
+    // field checks — so the linter accepts a rule citing no `AB#` source and
+    // still exits 0. The fence is matched loosely because one indented under a
+    // list item is exactly as likely to appear in a rule body.
+    const fence = /^\s*(```|~~~)/.test(line);
+    if (fence) inFence = !inFence;
+    if (fence || inFence) {
+      if (current && line.trim()) current.body.push(line.trim());
+      return;
+    }
 
     const h3 = line.match(/^###\s+(.*)$/);
     if (h3) {
@@ -264,7 +281,13 @@ async function validateSkill() {
     fail('SKILL.md', 'sets disable-model-invocation — coding-standards must stay model-invocable');
   }
 
-  const referenced = new Set([...source.matchAll(/references\/([a-z0-9]+)\.md/g)].map((m) => m[1]));
+  // Match any plausible filename rather than just the lowercase-alphanumeric
+  // shape the current categories happen to have, so a route pointing at
+  // `references/foo-bar.md` or `references/FOO.md` is reported as unknown
+  // instead of being skipped as if the row were not there. The character class
+  // deliberately excludes `*`, so a prose mention of `references/*.md`
+  // describing the layout is not itself flagged as a missing category.
+  const referenced = new Set([...source.matchAll(/references\/([A-Za-z0-9_-]+)\.md/g)].map((m) => m[1]));
   for (const name of referenced) {
     if (!CATEGORIES.includes(name)) {
       fail('SKILL.md', `routing table points at references/${name}.md, which is not a known category`);

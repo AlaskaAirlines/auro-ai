@@ -14,9 +14,9 @@ A commit message citing post-mortem line numbers freezes those sections: the doc
 - **Learned:** ×3
 - **Since:** 2026-09-16
 
-### CS-TOOL-002 — Tooling is not a feature — prefix commits by what ships
+### CS-TOOL-002 — Prefix a commit by whether it reaches a consumer, not by its directory
 
-Files under `.claude/` — skills, commands, hooks, agents, settings — have no public API and no semver impact, so `feat`, `fix`, or `perf` on them triggers an unearned release. Use `chore`. Keep semver prefixes for code that actually ships, and keep documentation gates universal in the same breath: a missing post-mortem is a release blocker even when nothing reaches npm, and the fix for a gate that feels unwarranted is to satisfy it, never to add an exemption.
+Ask whether the change reaches a consumer. If it carries no public API and no semver impact, use `chore` — `feat`, `fix`, or `perf` would trigger an unearned release. Agent tooling under `.claude/` is the usual case, but apply the test and not the path: where the published artifact *is* a plugin or a skill, that same directory ships and `chore` would understate a real release. Keep documentation gates universal in the same breath: a missing post-mortem is a release blocker even when nothing reaches npm, and the fix for a gate that feels unwarranted is to satisfy it, never to add an exemption.
 
 - **Sources:** AB#1599649
 - **Since:** 2026-09-16

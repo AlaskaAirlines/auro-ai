@@ -6,8 +6,8 @@
 // devDependency, no config. Each case writes a fixture corpus to a temp
 // directory, runs the linter against it, and asserts on exit code and stderr.
 //
-// WHY THIS EXISTS. Four separate fail-open defects have been found in
-// validate-standards.mjs, every one by human review and none by CI:
+// WHY THIS EXISTS. Seven separate fail-open defects have been found in
+// validate-standards.mjs, every one by review and none by CI:
 //
 //   1. `section` stayed stale across a non-Rules `##`, so a `###` under a
 //      prose heading was validated as a rule.
@@ -17,8 +17,17 @@
 //      every later rule was exempted from the field checks.
 //   4. An unterminated fence swallowed the rest of the file, so later rules
 //      were never parsed at all.
+//   5. ADO_SOURCE_RE was case-sensitive, so `ab#1511` fell through to the
+//      repo form, was captured as a repository named `ab`, and skipped the
+//      7-digit work-item check that case 4's commit had just added.
+//   6. HTML comments were only honoured when deciding body content, so a
+//      commented-out `Sources` line satisfied the field check and a
+//      commented-out `## Retired` flipped section state — case 3's defect
+//      through the other markdown comment mechanism.
+//   7. An unterminated `<!--` swallowed the rest of the file — case 4 again,
+//      one character different.
 //
-// All four share a shape: the linter accepts bad input and exits 0. That is
+// All seven share a shape: the linter accepts bad input and exits 0. That is
 // the worst direction for a check that is the only automated safety net this
 // system has — a rule with no traceable source ships and nothing says so. The
 // cases below pin each one, so the next parser change cannot quietly reopen
@@ -202,6 +211,89 @@ const tests = {
         '- **Sources:** AB#1511', '', 'Body text.', '',
       ].join('\n'),
     }, 'not a 7-digit work item');
+  },
+
+  async 'a lowercase ab# is rejected, not captured as a repo named "ab"'() {
+    await expectFail('a lowercase ab# is rejected, not captured as a repo named "ab"', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A work item cited with a lowercase prefix', '',
+        '- **Sources:** ab#1511', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'not a 7-digit work item');
+  },
+
+  // --- defect 5: HTML comments were not treated as non-structure --------------
+  async 'a commented-out field does not register as a real field'() {
+    await expectFail('a commented-out field does not register as a real field', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A rule with the schema template left commented out', '',
+        'Body text.', '',
+        '<!--', '- **Sources:** AB#1234567', '- **Since:** 2026-09-18', '-->', '',
+      ].join('\n'),
+    }, 'is missing "Sources"');
+  },
+
+  async 'a commented-out "## Retired" does not change section state'() {
+    await expectFail('a commented-out "## Retired" does not change section state', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A rule with a retired block commented out', '',
+        '- **Sources:** AB#1636704', '',
+        '<!--', '## Retired', '', '### CS-API-900 — superseded', '-->', '',
+        '### CS-API-002 — Still an active rule, and cites no source', '',
+        'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  async 'an unterminated HTML comment is reported rather than swallowing the file'() {
+    await expectFail('an unterminated HTML comment is reported rather than swallowing the file', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A rule with a dropped comment close', '',
+        '- **Sources:** AB#1636704', '',
+        '<!-- TODO: revisit this wording', '',
+        '### CS-API-002 — Never parsed, and cites no source', '',
+        'Body text.', '',
+      ].join('\n'),
+    }, 'unterminated HTML comment');
+  },
+
+  async 'a commented-out fence marker does not open a fence'() {
+    await expectFail('a commented-out fence marker does not open a fence', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A rule whose example fence is commented out', '',
+        '- **Sources:** AB#1636704', '',
+        '<!-- ```js -->', '',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  async 'a fenced HTML comment is example text, not a comment'() {
+    await expectFail('a fenced HTML comment is example text, not a comment', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A rule documenting the Phase 4 scope header', '',
+        '- **Sources:** AB#1636704', '',
+        '```markdown', '<!-- scope: paths=src/**', '```', '',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  async 'a trailing inline comment does not break the line it annotates'() {
+    await expectPass('a trailing inline comment does not break the line it annotates', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Throw on unresolved imports <!-- reworded 2026-09-18 -->', '',
+        '- **Sources:** AB#1575423 <!-- verified against ADO -->', '',
+        'Body text.', '',
+      ].join('\n'),
+    });
   },
 
   async 'a repo reference is a valid source'() {

@@ -8,10 +8,10 @@ Rules in this file are numbered `CS-BUILD-001` upward, assigned in order, never 
 
 ### CS-BUILD-001 — Declare Turbo build deps explicitly when dependencies are hoisted
 
-Turbo's `^build` resolves through the package's own `package.json` `dependencies`. Hoisting those to the root leaves `^build` resolving to the empty set, so Turbo schedules a component in parallel with the siblings it imports; `nodeResolve` then follows the workspace symlink to a `dist/` that does not exist yet, returns `null`, and Rollup externalizes the import silently. The race is unstable, so the resulting bug reads as intermittent. Add an explicit `<name>#build` `dependsOn` block for every affected component — the hoist that caused this got seven right and missed one.
+Turbo's `^build` resolves through the dependencies a package declares in its own `package.json`. Hoisting those to the root leaves `^build` resolving to the empty set, so Turbo schedules a component in parallel with the siblings it imports; `nodeResolve` then follows the workspace symlink to a `dist/` that does not exist yet, returns `null`, and Rollup externalizes the import silently. The race is unstable, so the resulting bug reads as intermittent. Add an explicit `<name>#build` `dependsOn` block for every affected component — the hoist that caused this got seven right and missed one. Do not rely on a source import implying a Turbo edge: nothing checks that "X imports workspace package Y" means "Turbo knows X depends on Y."
 
 - **Sources:** AB#1575423
-- **Applies to:** any build orchestrated by Turbo where `^build` resolves through `package.json` dependencies
+- **Applies to:** any build orchestrated by Turbo
 - **Since:** 2026-09-16
 
 ### CS-BUILD-002 — Throw on UNRESOLVED_IMPORT in any Rollup config that publishes

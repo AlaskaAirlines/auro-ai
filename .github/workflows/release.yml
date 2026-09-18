@@ -34,6 +34,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      # CS-BUILD-003: gate the publish path, not only the pull-request one.
+      # Force-pushes, ruleset bypasses and direct-to-main flows skip the PR
+      # gate entirely — and the release bot above is itself a documented
+      # bypass — so a corpus that never passed CI could otherwise be
+      # published. Both scripts are dependency-free, hence ahead of `npm ci`.
+      - name: Validate coding standards
+        run: node scripts/validate-standards.mjs
+      - name: Test the coding-standards validator
+        run: node scripts/validate-standards.test.mjs
       - name: Install dependencies
         run: npm ci
       - name: Release

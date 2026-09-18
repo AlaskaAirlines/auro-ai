@@ -50,7 +50,11 @@ const FIELD_RE = /^-\s+\*\*([^:*]+):\*\*\s*(.*)$/;
 // durable handle is the PR number and no work item exists. Forcing those into
 // `AB#` produced citations that look valid and resolve to nothing, so the
 // second form is first-class rather than a workaround.
-const ADO_SOURCE_RE = /\bAB#(\d+)/g;
+// Matched case-insensitively: `ab#1511` is a shift-key slip, not a different
+// kind of citation. Matching only `AB#` let the lowercase form fall through to
+// REPO_SOURCE_RE, where it was captured as a repository named `ab` and skipped
+// the 7-digit check entirely — the very fail-open ADO_ID_DIGITS exists to close.
+const ADO_SOURCE_RE = /\bAB#(\d+)/gi;
 const REPO_SOURCE_RE = /\b([A-Za-z][A-Za-z0-9._-]*)#(\d+)/g;
 const ADO_ID_DIGITS = 7; // every real work item in this org is 7 digits
 const LEARNED_RE = /^×(\d+)$/;
@@ -73,16 +77,56 @@ async function readIfPresent(path) {
   }
 }
 
-/** Drop fenced code blocks, so examples inside them are never read as structure. */
-function stripFences(source) {
+/**
+ * Remove every complete `<!-- ... -->` span from one line, given whether a
+ * comment was already open when the line started. Returns the visible remainder
+ * and whether a comment is still open after it, so a caller can carry the state
+ * to the next line. Text after a `-->` is visible again on the same line.
+ */
+function stripComments(line, open) {
+  let visible = '';
+  let rest = line;
+
+  while (rest) {
+    if (open) {
+      const end = rest.indexOf('-->');
+      if (end === -1) return { visible, open: true };
+      rest = rest.slice(end + 3);
+      open = false;
+    } else {
+      const start = rest.indexOf('<!--');
+      if (start === -1) return { visible: visible + rest, open: false };
+      visible += rest.slice(0, start);
+      rest = rest.slice(start + 4);
+      open = true;
+    }
+  }
+
+  return { visible, open };
+}
+
+/**
+ * Drop fenced code blocks and HTML comments, so neither an example nor a
+ * commented-out line is ever read as structure. Fences are evaluated first: a
+ * `<!--` inside a fence is example text, not a comment.
+ */
+function stripFencesAndComments(source) {
   let inFence = false;
+  let inComment = false;
+
   return source
     .split('\n')
-    .filter((line) => {
-      const fence = /^\s*(```|~~~)/.test(line);
-      if (fence) inFence = !inFence;
-      return !fence && !inFence;
+    .map((line) => {
+      if (!inComment) {
+        const fence = /^\s*(```|~~~)/.test(line);
+        if (fence) inFence = !inFence;
+        if (fence || inFence) return null;
+      }
+      const stripped = stripComments(line, inComment);
+      inComment = stripped.open;
+      return stripped.visible;
     })
+    .filter((line) => line !== null)
     .join('\n');
 }
 
@@ -93,21 +137,23 @@ function stripFences(source) {
  * block sits under so `## Retired` entries (§3.5) can be exempted from the
  * field requirements while still holding their ID reserved.
  *
- * Fenced blocks are treated as body content, never as structure — a rule that
- * documents the schema by example must not be able to reconfigure the parser.
+ * Fenced blocks and HTML comments are treated as body content, never as
+ * structure — a rule that documents the schema by example, or one that leaves a
+ * template commented out, must not be able to reconfigure the parser.
  */
 function parseRules(source, file) {
   const rules = [];
   let section = null;
   let current = null;
   let inFence = false;
+  let inComment = false;
   const flush = () => {
     if (current) rules.push(current);
     current = null;
   };
 
   source.split('\n').forEach((raw, index) => {
-    const line = raw.trimEnd();
+    const rawLine = raw.trimEnd();
 
     // Headings and fields inside a fence are content, not structure. Without
     // this the failure is fail-open, and silently so: a rule body containing a
@@ -116,12 +162,28 @@ function parseRules(source, file) {
     // field checks — so the linter accepts a rule citing no `AB#` source and
     // still exits 0. The fence is matched loosely because one indented under a
     // list item is exactly as likely to appear in a rule body.
-    const fence = /^\s*(```|~~~)/.test(line);
-    if (fence) inFence = !inFence;
-    if (fence || inFence) {
-      if (current && line.trim()) current.body.push(line.trim());
-      return;
+    //
+    // Fences are evaluated before comments so a `<!--` inside a fenced markdown
+    // example is example text rather than a real comment opener.
+    if (!inComment) {
+      const fence = /^\s*(```|~~~)/.test(rawLine);
+      if (fence) inFence = !inFence;
+      if (fence || inFence) {
+        if (current && rawLine.trim()) current.body.push(rawLine.trim());
+        return;
+      }
     }
+
+    // A commented-out line is not structure either, and for the same reason: a
+    // schema template left inside `<!-- ... -->` used to satisfy the field
+    // checks it was only illustrating (a commented `Sources` line registered as
+    // a real source), and a commented `## Retired` flipped section state for
+    // the rest of the file. Both exited 0 — the same fail-open shape as the
+    // fenced cases above, reached through the other markdown comment mechanism.
+    const stripped = stripComments(rawLine, inComment);
+    inComment = stripped.open;
+    const line = stripped.visible.trimEnd();
+    if (!line.trim()) return;
 
     const h3 = line.match(/^###\s+(.*)$/);
     if (h3) {
@@ -150,7 +212,7 @@ function parseRules(source, file) {
       current.fields[field[1].trim().toLowerCase()] = field[2].trim();
       return;
     }
-    if (line.trim() && !line.trim().startsWith('<!--')) current.body.push(line.trim());
+    current.body.push(line.trim());
   });
 
   flush();
@@ -166,6 +228,12 @@ function parseRules(source, file) {
     fail(file, 'unterminated code fence — every rule after it was swallowed as body text and never validated');
   }
 
+  // Same failure, same reasoning, one character different: a `<!--` that is
+  // never closed hides every rule after it from the parser and still exits 0.
+  if (inComment) {
+    fail(file, 'unterminated HTML comment — every rule after it was swallowed and never validated');
+  }
+
   return rules;
 }
 
@@ -177,7 +245,7 @@ function uniqueSources(value) {
     found.set(`AB#${m[1]}`, { kind: 'ado', id: m[1], cite: `AB#${m[1]}` });
   }
   for (const m of text.matchAll(REPO_SOURCE_RE)) {
-    if (m[1] === 'AB') continue; // already captured as an ADO work item
+    if (m[1].toUpperCase() === 'AB') continue; // already captured as an ADO work item
     found.set(`${m[1]}#${m[2]}`, { kind: 'repo', repo: m[1], id: m[2], cite: `${m[1]}#${m[2]}` });
   }
   return [...found.values()];
@@ -344,8 +412,11 @@ async function validateSkill() {
   // Scanning the raw file would read fenced examples as real routes, the same
   // blind spot parseRules had: a usage example naming `references/<name>.md`
   // would either fail as an unknown category or mask a genuinely unreachable
-  // one. Strip fenced blocks first so only prose and table rows are scanned.
-  const scannable = stripFences(source);
+  // one. A commented-out route is the same problem in the other direction — it
+  // is not a live route and must not count as one, so the category it names is
+  // correctly reported unreachable. Strip fences and comments first so only
+  // prose and table rows are scanned.
+  const scannable = stripFencesAndComments(source);
   const referenced = new Set([...scannable.matchAll(/references\/([A-Za-z0-9_-]+)\.md/g)].map((m) => m[1]));
   for (const name of referenced) {
     if (!CATEGORIES.includes(name)) {

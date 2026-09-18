@@ -62,3 +62,7 @@ Paths are relative to this file.
 - If a rule conflicts with an explicit instruction from the engineer, follow the engineer and note in one line which rule you set aside and why.
 
 Each rule is one block: `### CS-<CAT>-<NNN> — <imperative title>`, a one-to-four-sentence body, then `Sources` (one or more `AB#`), optionally `Applies to` when the rule has a technical precondition, and `Learned: ×N` when more than one post-mortem taught it. A high `×N` means the team has made that mistake repeatedly — weight it accordingly.
+
+**Rules are never deleted and IDs are never reused.** To withdraw a rule, move it under a `## Retired` heading in the same file; it keeps its ID and stops being loaded. To fold one rule into another, replace its title with `merged into CS-<CAT>-<NNN>` — the ID stays reserved, and the target is checked for existence across every category file, following chains and rejecting cycles.
+
+The linter also caps a rule title at 80 characters, a category file at 25 active rules — split the category beyond that — and this file at 200 lines.

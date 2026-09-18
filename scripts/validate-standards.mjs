@@ -44,7 +44,15 @@ const HEADING_RE = /^###\s+(\S+)\s+—\s+(.+?)\s*$/;
 const TOMBSTONE_RE = /^merged into (CS-[A-Z0-9]+-\d{3})$/;
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;
 const FIELD_RE = /^-\s+\*\*([^:*]+):\*\*\s*(.*)$/;
-const SOURCE_RE = /AB#(\d+)/g;
+// A rule's provenance is either an Azure DevOps work item or a repository
+// reference. Not every lesson comes from a ticket: several pilot rules were
+// learned from AI code review on an auro-formkit pull request, where the
+// durable handle is the PR number and no work item exists. Forcing those into
+// `AB#` produced citations that look valid and resolve to nothing, so the
+// second form is first-class rather than a workaround.
+const ADO_SOURCE_RE = /\bAB#(\d+)/g;
+const REPO_SOURCE_RE = /\b([A-Za-z][A-Za-z0-9._-]*)#(\d+)/g;
+const ADO_ID_DIGITS = 7; // every real work item in this org is 7 digits
 const LEARNED_RE = /^×(\d+)$/;
 const SINCE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -65,6 +73,19 @@ async function readIfPresent(path) {
   }
 }
 
+/** Drop fenced code blocks, so examples inside them are never read as structure. */
+function stripFences(source) {
+  let inFence = false;
+  return source
+    .split('\n')
+    .filter((line) => {
+      const fence = /^\s*(```|~~~)/.test(line);
+      if (fence) inFence = !inFence;
+      return !fence && !inFence;
+    })
+    .join('\n');
+}
+
 // --- reference-file parsing --------------------------------------------------
 
 /**
@@ -75,7 +96,7 @@ async function readIfPresent(path) {
  * Fenced blocks are treated as body content, never as structure — a rule that
  * documents the schema by example must not be able to reconfigure the parser.
  */
-function parseRules(source) {
+function parseRules(source, file) {
   const rules = [];
   let section = null;
   let current = null;
@@ -133,12 +154,33 @@ function parseRules(source) {
   });
 
   flush();
+
+  // A fence that is never closed swallows the remainder of the file: every
+  // later `###`, `##` and field line is absorbed as body text, so those rules
+  // are not merely exempted from the field checks — they are never parsed at
+  // all, and the run still exits 0. That is the same fail-open the fence
+  // handling above exists to prevent, reached by a single dropped closing
+  // fence in exactly the document-by-example pattern fences were added for,
+  // so it has to be an error rather than a tolerated formatting slip.
+  if (inFence) {
+    fail(file, 'unterminated code fence — every rule after it was swallowed as body text and never validated');
+  }
+
   return rules;
 }
 
-/** Distinct `AB#` ticket numbers cited in a Sources value. */
+/** Distinct sources cited in a Sources value. */
 function uniqueSources(value) {
-  return [...new Set([...(value || '').matchAll(SOURCE_RE)].map((m) => m[1]))];
+  const text = value || '';
+  const found = new Map();
+  for (const m of text.matchAll(ADO_SOURCE_RE)) {
+    found.set(`AB#${m[1]}`, { kind: 'ado', id: m[1], cite: `AB#${m[1]}` });
+  }
+  for (const m of text.matchAll(REPO_SOURCE_RE)) {
+    if (m[1] === 'AB') continue; // already captured as an ADO work item
+    found.set(`${m[1]}#${m[2]}`, { kind: 'repo', repo: m[1], id: m[2], cite: `${m[1]}#${m[2]}` });
+  }
+  return [...found.values()];
 }
 
 /** Validate one rule block. Returns the parsed rule, or null if unusable. */
@@ -201,7 +243,19 @@ function validateRule(file, segment, rule, seenIds) {
   // ("any component", "all code"), which is the anti-platitude problem relocated
   // into a different field. Its presence is the signal.
   if (!rule.fields.sources) fail(where, `${id} is missing "Sources"`);
-  if (!sources.length) fail(where, `${id} has no AB# source — no traceability, no rule`);
+  if (!sources.length) {
+    fail(where, `${id} has no source — cite a work item (AB#1234567) or a repo reference (auro-formkit#1511); no traceability, no rule`);
+  }
+
+  // A short `AB#` is almost always a pull-request number that has been given
+  // an ADO prefix by mistake. It satisfies every syntactic check and resolves
+  // to nothing in Azure DevOps, so the rule reads as traceable while pointing
+  // at no record at all — the exact failure this field exists to prevent.
+  for (const source of sources) {
+    if (source.kind === 'ado' && source.id.length !== ADO_ID_DIGITS) {
+      fail(where, `${id} cites ${source.cite}, which is not a ${ADO_ID_DIGITS}-digit work item — if this is a pull request, cite it as <repo>#${source.id}`);
+    }
+  }
 
   const learned = rule.fields.learned;
   if (sources.length > 1) {
@@ -287,7 +341,12 @@ async function validateSkill() {
   // instead of being skipped as if the row were not there. The character class
   // deliberately excludes `*`, so a prose mention of `references/*.md`
   // describing the layout is not itself flagged as a missing category.
-  const referenced = new Set([...source.matchAll(/references\/([A-Za-z0-9_-]+)\.md/g)].map((m) => m[1]));
+  // Scanning the raw file would read fenced examples as real routes, the same
+  // blind spot parseRules had: a usage example naming `references/<name>.md`
+  // would either fail as an unknown category or mask a genuinely unreachable
+  // one. Strip fenced blocks first so only prose and table rows are scanned.
+  const scannable = stripFences(source);
+  const referenced = new Set([...scannable.matchAll(/references\/([A-Za-z0-9_-]+)\.md/g)].map((m) => m[1]));
   for (const name of referenced) {
     if (!CATEGORIES.includes(name)) {
       fail('SKILL.md', `routing table points at references/${name}.md, which is not a known category`);
@@ -333,7 +392,7 @@ async function main() {
       fail('SKILL.md', `routing table never points at ${file} — the category is unreachable`);
     }
 
-    const rules = parseRules(source)
+    const rules = parseRules(source, file)
       .map((rule) => validateRule(file, segment, rule, seenIds))
       .filter(Boolean);
 

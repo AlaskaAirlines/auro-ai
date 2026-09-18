@@ -40,8 +40,8 @@ Paths are relative to this file.
 | File | Open it when **any** of these is true |
 |---|---|
 | `references/a11y.md` | The change touches an ARIA attribute or a role; the component's accessible name, description, or state can change; validity, error, or expansion state is communicated to assistive technology; or you are about to add a role. A label or error-text change counts — the label *is* the accessible name. |
-| `references/form.md` | The change involves validation or validity state, form submission or `reset()`, a retained hidden native control, autofill or password-manager behavior, or a value set programmatically rather than typed. |
-| `references/intx.md` | The change handles keyboard or pointer events, modifier or chorded keys, moves or traps focus, or maintains a typeahead or selection buffer — including when the interaction is incidental to a validation or lifecycle change rather than the point of it. |
+| `references/form.md` | The change involves validation or validity state, form submission or `reset()`, a retained hidden native control, autofill or password-manager behavior, or a value set programmatically rather than typed — **including clearing a typeahead or selection buffer on a programmatic value change or `reset()`**, which lives here rather than in `intx.md`. |
+| `references/intx.md` | The change handles keyboard or pointer events, modifier or chorded keys, moves or traps focus, or maintains a typeahead or selection buffer — including when the interaction is incidental to a validation or lifecycle change rather than the point of it. **Buffer *clearing* rules live in `form.md`; open both when a buffer is involved.** |
 | `references/life.md` | The change adds or removes an observer, listener, or timer; uses `firstUpdated`, `connectedCallback`, `disconnectedCallback`, or `updated`; depends on a reactive property update; or the symptom appears only after the element is moved, re-rendered, or re-inserted. |
 | `references/style.md` | The change crosses the shadow boundary, adds or edits CSS, uses or adds a design token, or affects layout, spacing, or overflow — including styling added in service of an accessibility or interaction change. |
 | `references/api.md` | The change adds, renames, removes, or deprecates an attribute, property, event, slot, or CSS custom property; touches the custom-elements manifest or editor IntelliSense; or alters documented behavior a consumer relies on. |
@@ -61,7 +61,18 @@ Paths are relative to this file.
 - Where a rule changed a decision, cite its ID in one short clause. Where it merely confirmed what you were going to do, say nothing.
 - If a rule conflicts with an explicit instruction from the engineer, follow the engineer and note in one line which rule you set aside and why.
 
-Each rule is one block: `### CS-<CAT>-<NNN> — <imperative title>`, a one-to-four-sentence body, then `Sources` (one or more of `AB#<7 digits>` for an Azure DevOps work item, or `<repo>#<number>` for a repository reference — cite a pull request as `auro-formkit#1511`, never as `AB#1511`), optionally `Applies to` when the rule has a technical precondition, and `Learned: ×N` when more than one post-mortem taught it. A high `×N` means the team has made that mistake repeatedly — weight it accordingly.
+Each rule is one block: `### CS-<CAT>-<NNN> — <imperative title>`, a one-to-four-sentence body, then its fields. Every field is a list item in the exact form `- **Name:** value` — the leading `- `, the bold, and the colon *inside* the bold are all required, and `Sources: AB#123` or `- **Sources**: AB#123` will be read as body text rather than as a field.
+
+```markdown
+- **Sources:** AB#1636704, AB#1344690
+- **Applies to:** any build orchestrated by Turbo
+- **Learned:** ×2
+- **Since:** 2026-09-16
+```
+
+`Sources` is required and takes either of two forms, and one rule may mix them: `AB#1636704` for an Azure DevOps work item, always seven digits, or `auro-formkit#1511` for a pull request or issue. The second exists because not every standard comes from a ticket — several here were learned from AI code review on a pull request, where the PR number is the durable handle and no work item was ever opened. Writing one of those as `AB#1511` produces a citation that passes every check and resolves to nothing, so a short `AB#` is rejected.
+
+`Applies to` is optional and present only when the rule has a technical precondition. `Learned: ×N` is present when more than one source taught it, and must agree with the number of distinct sources — a high `×N` means the team has made that mistake repeatedly, so weight it accordingly. `Since` is the date the rule was authored, in `YYYY-MM-DD`.
 
 **Rules are never deleted and IDs are never reused.** To withdraw a rule, move it under a `## Retired` heading in the same file; it keeps its ID and stops being loaded. To fold one rule into another, replace its title with `merged into CS-<CAT>-<NNN>` — the ID stays reserved, and the target is checked for existence across every category file, following chains and rejecting cycles.
 

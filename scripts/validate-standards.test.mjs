@@ -49,6 +49,11 @@ const CATEGORIES = [
   'api', 'build', 'test', 'xbrw', 'tool',
 ];
 
+// A minimal routing table: one line per category, enough for the reachability
+// scan to resolve every reference file. Used by the SKILL.md-override cases,
+// which vary one thing at a time against this baseline.
+const ROUTES = CATEGORIES.map((name) => `| \`references/${name}.md\` | when it applies |`);
+
 const failures = [];
 const pass = (name) => console.log(`  ok    ${name}`);
 const failCase = (name, detail) => {
@@ -64,7 +69,7 @@ const failCase = (name, detail) => {
  * The real SKILL.md is copied in rather than stubbed, so a change to the
  * routing table cannot silently invalidate these fixtures.
  */
-async function lint(files) {
+async function lint(files, skill) {
   const dir = await mkdtemp(join(tmpdir(), 'validate-standards-'));
   try {
     const skillDir = join(dir, 'plugins/auro/skills/coding-standards');
@@ -72,7 +77,13 @@ async function lint(files) {
     await mkdir(join(dir, 'scripts'), { recursive: true });
 
     const { readFile, copyFile } = await import('node:fs/promises');
-    await copyFile(SKILL_SRC, join(skillDir, 'SKILL.md'));
+    // The real SKILL.md by default, so a routing-table change cannot silently
+    // invalidate these fixtures. `skill` overrides it for the cases that need
+    // to assert on SKILL.md itself — without the hook, the frontmatter guards
+    // were structurally untestable, including the `disable-model-invocation`
+    // ban the whole design rests on.
+    if (skill === undefined) await copyFile(SKILL_SRC, join(skillDir, 'SKILL.md'));
+    else await writeFile(join(skillDir, 'SKILL.md'), skill);
     await writeFile(join(dir, 'scripts/validate-standards.mjs'), await readFile(LINTER));
 
     for (const name of CATEGORIES) {
@@ -92,8 +103,8 @@ async function lint(files) {
 }
 
 /** Assert the linter rejected the corpus, and that it said why. */
-async function expectFail(name, files, expected) {
-  const { code, stderr } = await lint(files);
+async function expectFail(name, files, expected, skill) {
+  const { code, stderr } = await lint(files, skill);
   if (code === 0) return failCase(name, 'linter exited 0 — fail-open');
   if (expected && !stderr.includes(expected)) {
     return failCase(name, `exited ${code} but stderr lacked ${JSON.stringify(expected)}\n          got: ${stderr.trim().split('\n').join('\n          ')}`);
@@ -102,8 +113,8 @@ async function expectFail(name, files, expected) {
 }
 
 /** Assert the linter accepted the corpus. */
-async function expectPass(name, files) {
-  const { code, stderr } = await lint(files);
+async function expectPass(name, files, skill) {
+  const { code, stderr } = await lint(files, skill);
   if (code !== 0) return failCase(name, `linter exited ${code} on valid input\n          ${stderr.trim()}`);
   pass(name);
 }
@@ -149,13 +160,17 @@ const tests = {
   },
 
   async 'a fence indented under a list item is still a fence'() {
+    // The fence marker is indented; its *content* is not. An earlier version of
+    // this case indented the content too, which made it vacuous — the enclosed
+    // `## Retired` could never have flipped section state regardless of the
+    // fence, so the case passed with the guard removed.
     await expectFail('a fence indented under a list item is still a fence', {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Indented example', '',
         '- **Sources:** AB#1636704', '',
         '- Example:', '',
-        '  ```markdown', '  ## Retired', '  ```', '',
+        '  ```markdown', '## Retired', '  ```', '',
         '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
       ].join('\n'),
     }, 'no source');
@@ -262,27 +277,35 @@ const tests = {
   },
 
   async 'a commented-out fence marker does not open a fence'() {
+    // The marker must start its line inside a multi-line comment. An earlier
+    // version used an inline `<!-- ```js -->`, which the fence regex never
+    // matched anyway, so the case passed with comment tracking removed.
     await expectFail('a commented-out fence marker does not open a fence', {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — A rule whose example fence is commented out', '',
         '- **Sources:** AB#1636704', '',
-        '<!-- ```js -->', '',
+        '<!--', '```js', 'const x = 1;', '-->', '',
         '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
       ].join('\n'),
     }, 'no source');
   },
 
   async 'a fenced HTML comment is example text, not a comment'() {
-    await expectFail('a fenced HTML comment is example text, not a comment', {
+    // Asserted as a *pass*: if the fenced `<!--` were treated as a real comment
+    // opener it would never close, and the run would fail with "unterminated
+    // HTML comment". Asserting a failure message here made the case vacuous,
+    // since an unrelated sourceless rule satisfied it either way.
+    await expectPass('a fenced HTML comment is example text, not a comment', {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — A rule documenting the Phase 4 scope header', '',
         '- **Sources:** AB#1636704', '',
         '```markdown', '<!-- scope: paths=src/**', '```', '',
-        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+        '### CS-API-002 — Active, and properly sourced', '',
+        '- **Sources:** AB#1344690', '', 'Body text.', '',
       ].join('\n'),
-    }, 'no source');
+    });
   },
 
   async 'a trailing inline comment does not break the line it annotates'() {
@@ -310,6 +333,128 @@ const tests = {
     await expectFail('a rule with no source at all is rejected', {
       api: ['# CS-API', '', '## Rules', '', '### CS-API-001 — No provenance', '', 'Body text.', ''].join('\n'),
     }, 'no source');
+  },
+
+  // --- defect 8: an indented heading was invisible, not exempt -----------------
+  async 'an indented rule heading is still parsed and validated'() {
+    await expectFail('an indented rule heading is still parsed and validated', {
+      api: ['# CS-API', '', '## Rules', '', '  ### CS-API-001 — Indented, cites no source', '', '  Body text.', ''].join('\n'),
+    }, 'no source');
+  },
+
+  async 'a four-space-indented heading is a code block and stays inert'() {
+    await expectPass('a four-space-indented heading is a code block and stays inert', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Shows a rule heading by example', '',
+        '- **Sources:** AB#1636704', '',
+        'Like this:', '',
+        '    ### CS-API-900 — not a real rule', '',
+      ].join('\n'),
+    });
+  },
+
+  // --- defect 9: mismatched fence delimiters ----------------------------------
+  async 'a ~~~ line inside a ``` fence does not close it'() {
+    await expectFail('a ~~~ line inside a ``` fence does not close it', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Nests one fenced example inside another', '',
+        '- **Sources:** AB#1636704', '',
+        '```markdown', '~~~', '## Retired', '~~~', '```', '',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  async 'a ``` line inside a ~~~ fence does not close it'() {
+    await expectFail('a ``` line inside a ~~~ fence does not close it', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Wraps a backtick example in a tilde fence', '',
+        '- **Sources:** AB#1636704',
+        '',
+        '~~~markdown', '```', '- **Sources:** AB#1234567', '```', '~~~', '',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  // --- tombstone placement and casing -----------------------------------------
+  async 'a merge tombstone under "## Rules" is rejected'() {
+    await expectFail('a merge tombstone under "## Rules" is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — merged into CS-API-002', '',
+        '### CS-API-002 — A real rule', '', '- **Sources:** AB#1636704', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'sits under "## Rules"');
+  },
+
+  async 'a sentence-cased tombstone is still recognised as one'() {
+    await expectFail('a sentence-cased tombstone is still recognised as one', {
+      api: ['# CS-API', '', '## Retired', '', '### CS-API-001 — Merged into CS-API-999.', ''].join('\n'),
+    }, 'does not exist');
+  },
+
+  async 'a merge pointing at a retired rule is reported'() {
+    await expectFail('a merge pointing at a retired rule is reported', {
+      api: [
+        '# CS-API', '', '## Retired', '',
+        '### CS-API-001 — merged into CS-API-002', '',
+        '### CS-API-002 — Withdrawn, and not a tombstone', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'itself retired and never loaded');
+  },
+
+  async 'a merge chain ending at a live rule passes'() {
+    await expectPass('a merge chain ending at a live rule passes', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-003 — The live target', '', '- **Sources:** AB#1636704', '', 'Body text.', '',
+        '## Retired', '',
+        '### CS-API-001 — merged into CS-API-002', '',
+        '### CS-API-002 — merged into CS-API-003', '',
+      ].join('\n'),
+    });
+  },
+
+  // --- SKILL.md guards, reachable only via the `skill` override ----------------
+  async 'an unterminated fence in SKILL.md is reported, not silently scanned'() {
+    await expectFail('an unterminated fence in SKILL.md is reported, not silently scanned', {},
+      'unterminated code fence',
+      ['---', 'name: coding-standards', 'description: x', '---', '', ...ROUTES, '', '```markdown'].join('\n'));
+  },
+
+  async 'SKILL.md setting disable-model-invocation is rejected'() {
+    await expectFail('SKILL.md setting disable-model-invocation is rejected', {},
+      'disable-model-invocation',
+      ['---', 'name: coding-standards', 'description: x', 'disable-model-invocation: true', '---', '', ...ROUTES].join('\n'));
+  },
+
+  async 'SKILL.md with no frontmatter is rejected'() {
+    await expectFail('SKILL.md with no frontmatter is rejected', {},
+      'missing YAML frontmatter',
+      ['# coding-standards', '', ...ROUTES].join('\n'));
+  },
+
+  async 'a routing table that never reaches a category is reported'() {
+    await expectFail('a routing table that never reaches a category is reported', {},
+      'never points at references/tool.md',
+      ['---', 'name: coding-standards', 'description: x', '---', '', ...ROUTES.filter((r) => !r.includes('tool.md'))].join('\n'));
+  },
+
+  async 'a route pointing at an unknown category is reported'() {
+    await expectFail('a route pointing at an unknown category is reported', {},
+      'which is not a known category',
+      ['---', 'name: coding-standards', 'description: x', '---', '', ...ROUTES, '`references/nope.md`'].join('\n'));
+  },
+
+  async 'a SKILL.md over the line cap is reported'() {
+    await expectFail('a SKILL.md over the line cap is reported', {},
+      'max 200',
+      ['---', 'name: coding-standards', 'description: x', '---', '', ...ROUTES,
+        ...Array.from({ length: 200 }, (_, i) => `filler ${i}`)].join('\n'));
   },
 
   // --- the phase-1 invariant ----------------------------------------------------

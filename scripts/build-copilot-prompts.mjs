@@ -20,6 +20,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SKILLS_DIR = join(ROOT, 'plugins/auro/skills');
 const OUT_DIR = join(ROOT, 'copilot/prompts');
 
+// Skills with no Copilot equivalent. `coding-standards` is a routing table that
+// loads reference files on demand — Copilot cannot do that, so it gets the
+// path-scoped applyTo instruction files Phase 4 generates instead. Remove this
+// entry once that exists (Phase 4 step 4.6).
+const EXCLUDED_SKILLS = new Set(['coding-standards']);
+
 // --- frontmatter parsing -----------------------------------------------------
 
 /** Split a SKILL.md into its raw YAML frontmatter block and Markdown body. */
@@ -165,7 +171,7 @@ function renderPrompt(name, source) {
 
 async function main() {
   const entries = await readdir(SKILLS_DIR, { withFileTypes: true });
-  const skills = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  const skills = entries.filter((e) => e.isDirectory() && !EXCLUDED_SKILLS.has(e.name)).map((e) => e.name).sort();
 
   // Start from a clean output dir so removed skills don't leave stale prompts.
   await rm(OUT_DIR, { recursive: true, force: true });

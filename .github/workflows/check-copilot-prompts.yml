@@ -14,10 +14,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
+      - name: Validate coding standards
+        run: node scripts/validate-standards.mjs
+      - name: Test the coding-standards validator
+        run: node scripts/validate-standards.test.mjs
       - name: Regenerate Copilot prompt files
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date
         run: |
+          # `git diff` never reports an untracked file, so without this the gate
+          # catches deletions and modifications but not ADDITIONS — a builder
+          # emitting a brand-new prompt file would pass. `add -N` records
+          # intent-to-add so the new file shows up in the diff below.
+          git add -N copilot/prompts/
           if ! git diff --exit-code -- copilot/prompts/; then
             echo "::error::copilot/prompts/ is out of date. Run 'npm run build:copilot' and commit the result."
             exit 1
@@ -26,6 +35,9 @@ jobs:
         run: node scripts/build-copilot-agents.mjs
       - name: Fail if copilot/agents is out of date
         run: |
+          # See the note on the prompts gate above: without `add -N` this gate
+          # is fail-open for added files.
+          git add -N copilot/agents/
           if ! git diff --exit-code -- copilot/agents/; then
             echo "::error::copilot/agents/ is out of date. Run 'npm run build:copilot:agents' and commit the result."
             exit 1

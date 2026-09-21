@@ -6,8 +6,9 @@
 // devDependency, no config. Each case writes a fixture corpus to a temp
 // directory, runs the linter against it, and asserts on exit code and stderr.
 //
-// WHY THIS EXISTS. Seven separate fail-open defects have been found in
-// validate-standards.mjs, every one by review and none by CI:
+// WHY THIS EXISTS. Thirteen separate fail-open defects have been found in
+// validate-standards.mjs, every one by review and none by CI. The first seven,
+// which this suite was built to pin:
 //
 //   1. `section` stayed stale across a non-Rules `##`, so a `###` under a
 //      prose heading was validated as a rule.
@@ -27,11 +28,32 @@
 //   7. An unterminated `<!--` swallowed the rest of the file — case 4 again,
 //      one character different.
 //
-// All seven share a shape: the linter accepts bad input and exits 0. That is
-// the worst direction for a check that is the only automated safety net this
-// system has — a rule with no traceable source ships and nothing says so. The
-// cases below pin each one, so the next parser change cannot quietly reopen
-// them.
+// Six more were found after this suite existed, by review passes over the
+// commits that were each said to have closed the class:
+//
+//   8.  An indented `###` was not exempt from the checks but absent from
+//       them — the fence regex had been loosened to `^\s*` while the heading
+//       and field regexes stayed `^`-anchored.
+//   9.  A `~~~` line closed a ``` fence, because one boolean tracked both.
+//   10. A merge tombstone under `## Rules` short-circuited every field check.
+//   11. TOMBSTONE_RE was case-sensitive, so `Merged into ...` was not a
+//       tombstone and its target was never resolved.
+//   12. A merge could point at a rule that is itself retired.
+//   13. FENCE_RE still had no indent cap after 8 fixed the other half, so a
+//       four-space-indented fence pair swallowed an un-indented rule, and a
+//       lone indented pseudo-fence desynced the parity silently.
+//
+// All thirteen share a shape: the linter accepts bad input and exits 0. That
+// is the worst direction for a check that is the only automated safety net
+// this system has — a rule with no traceable source ships and nothing says so.
+// The cases below pin each one, so the next parser change cannot quietly
+// reopen them.
+//
+// Five cases in this file have themselves been vacuous — passing against a
+// linter with the guard deleted, because something else in the same fixture
+// satisfied the asserted message. When adding a case, delete the guard it is
+// named for and confirm this file reports that case failing. A case that
+// cannot fail is cited as coverage it does not provide.
 import { execFile } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -309,11 +331,17 @@ const tests = {
   },
 
   async 'a trailing inline comment does not break the line it annotates'() {
+    // The comment on the `Sources` line carries a second, distinct `AB#` so the
+    // case can tell whether stripping actually happened. Without it the test was
+    // vacuous: `HEADING_RE` swallows a trailing comment into the title (still
+    // under the 80-char cap) and `ADO_SOURCE_RE` substring-matches straight
+    // through trailing junk, so the run passed with the stripping removed. Now
+    // an unstripped comment yields two sources and no `Learned` field.
     await expectPass('a trailing inline comment does not break the line it annotates', {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Throw on unresolved imports <!-- reworded 2026-09-18 -->', '',
-        '- **Sources:** AB#1575423 <!-- verified against ADO -->', '',
+        '- **Sources:** AB#1575423 <!-- superseded AB#7654321, kept for history -->', '',
         'Body text.', '',
       ].join('\n'),
     });
@@ -354,6 +382,56 @@ const tests = {
     });
   },
 
+  async 'a four-space-indented fence is a code block and cannot swallow a rule'() {
+    // The same indent cap, applied to fences. Uncapped, this pair opened and
+    // closed a real fence, so CS-API-002 never reached validateRule at all —
+    // and the pair being balanced meant the unterminated-fence backstop stayed
+    // silent too. The run exited 0 with an unsourced rule served to the model.
+    await expectFail('a four-space-indented fence is a code block and cannot swallow a rule', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Shows a fenced example by example', '',
+        '- **Sources:** AB#1636704', '',
+        '    ```markdown',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+        '    ```', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  async 'a tab-indented fence is a code block and cannot swallow a rule'() {
+    // A tab counts as four columns in CommonMark, so this is an indented code
+    // block for the same reason four spaces is. Worth pinning separately: the
+    // cap is written in spaces, and `\s*` used to match a tab.
+    await expectFail('a tab-indented fence is a code block and cannot swallow a rule', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Shows a fenced example by example', '',
+        '- **Sources:** AB#1636704', '',
+        '\t```markdown',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+        '\t```', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  async 'an indented pseudo-fence does not desync the fence parity'() {
+    // The quieter half of the same defect: uncapped, the indented marker opened
+    // a fence that the next *real* opener then closed, so the `## Retired`
+    // inside the genuine example became live section state and exempted
+    // CS-API-002 from the field checks — with no symptom pointing at the cause.
+    await expectFail('an indented pseudo-fence does not desync the fence parity', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Mentions a fence marker inside an indented block', '',
+        '- **Sources:** AB#1636704', '',
+        '    ```', '',
+        '```markdown', '## Retired', '```', '',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
   // --- defect 9: mismatched fence delimiters ----------------------------------
   async 'a ~~~ line inside a ``` fence does not close it'() {
     await expectFail('a ~~~ line inside a ``` fence does not close it', {
@@ -368,13 +446,18 @@ const tests = {
   },
 
   async 'a ``` line inside a ~~~ fence does not close it'() {
+    // The enclosed payload has to be section state, not another `Sources` line.
+    // An earlier version wrapped `- **Sources:** AB#1234567`, which made the
+    // case vacuous: with the fence-character guard removed the exposed field
+    // merely overwrote a `sources` entry that was already valid, so stderr was
+    // byte-identical either way.
     await expectFail('a ``` line inside a ~~~ fence does not close it', {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Wraps a backtick example in a tilde fence', '',
         '- **Sources:** AB#1636704',
         '',
-        '~~~markdown', '```', '- **Sources:** AB#1234567', '```', '~~~', '',
+        '~~~markdown', '```', '## Retired', '```', '~~~', '',
         '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
       ].join('\n'),
     }, 'no source');

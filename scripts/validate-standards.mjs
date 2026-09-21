@@ -89,12 +89,29 @@ async function readIfPresent(path) {
   }
 }
 
-const FENCE_RE = /^\s*(`{3,}|~{3,})/;
-
-// CommonMark allows up to three spaces of indentation before a heading or a
-// list marker; at four or more the line is an indented code block and is inert
-// by the same reasoning as a fence.
+// CommonMark allows up to three spaces of indentation before a heading, a list
+// marker or a fence; at four or more the line is an indented code block and is
+// inert. Every structure pattern is capped at this same width — the cap is the
+// rule, not a per-pattern choice.
 const MAX_STRUCTURE_INDENT = 3;
+
+// The cap applies to fences too. `^\s*` accepted unbounded indentation while
+// every other structure match was capped at three, and the gap was a fail-open
+// in both directions: a four-space-indented fence pair swallowed an
+// un-indented `###` between them, so the rule rendered and was served to the
+// model but never reached validateRule — no source, ID, duplicate or category
+// check ran, and because the pair stayed balanced neither unterminated-fence
+// backstop fired, so the run exited 0. A lone indented pseudo-fence was worse:
+// it desynced parity so the next *real* opener read as a closer, exposing a
+// fenced `## Retired` as live structure with no symptom at all. Three spaces
+// still admits the fence indented under a list item that this looseness was
+// originally for.
+//
+// Spaces only, so a tab-indented fence does not open one — a tab is four
+// columns in CommonMark, making that line an indented code block for the same
+// reason four spaces is. A tab-indented *closer* therefore leaves the fence
+// open, which surfaces as the unterminated-fence error rather than silently.
+const FENCE_RE = new RegExp(`^ {0,${MAX_STRUCTURE_INDENT}}(\`{3,}|~{3,})`);
 
 /**
  * Advance fence state by one line. `open` is the currently open fence
@@ -215,8 +232,9 @@ function parseRules(source, file) {
     // fenced `## Retired` flips `section` mid-file, every rule after it is
     // treated as retired, and validateRule then exempts each one from the
     // field checks — so the linter accepts a rule citing no `AB#` source and
-    // still exits 0. The fence is matched loosely because one indented under a
-    // list item is exactly as likely to appear in a rule body.
+    // still exits 0. The fence match tolerates up to three spaces of indent —
+    // one indented under a list item is exactly as likely to appear in a rule
+    // body — but no more, for the reasons at FENCE_RE.
     //
     // Fences are evaluated before comments so a `<!--` inside a fenced markdown
     // example is example text rather than a real comment opener.
@@ -591,7 +609,12 @@ async function main() {
   if (errors.length) {
     for (const message of errors) console.error(`validate-standards: ${message}`);
     console.error(`validate-standards: ${errors.length} error(s)`);
-    process.exit(1);
+    // Set the code rather than calling process.exit, which tears the process
+    // down without waiting for a pipe-backed stderr to drain. Under CI the
+    // findings are exactly what gets truncated, leaving a red step whose log
+    // stops mid-error.
+    process.exitCode = 1;
+    return;
   }
 
   console.log('validate-standards: OK');
@@ -599,5 +622,5 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  process.exit(1);
+  process.exitCode = 1;
 });

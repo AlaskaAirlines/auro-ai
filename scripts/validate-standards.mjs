@@ -41,7 +41,13 @@ const MAX_TITLE_CHARS = 80;    // parent §3.2
 
 const ID_RE = /^CS-([A-Z0-9]+)-(\d{3})$/;
 const HEADING_RE = /^###\s+(\S+)\s+—\s+(.+?)\s*$/;
-const TOMBSTONE_RE = /^merged into (CS-[A-Z0-9]+-\d{3})$/;
+// Case-insensitive, and tolerant of a trailing period: `Merged into CS-X-001.`
+// is what an author actually types. Matching only the lowercase form meant a
+// sentence-cased tombstone was never recognised as one, so its target was never
+// resolved and a dangling merge pointer shipped at exit 0 — with no secondary
+// signal, because an unrecognised retired title is exempt from every field
+// check anyway.
+const TOMBSTONE_RE = /^merged into (CS-[A-Z0-9]+-\d{3})\.?$/i;
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;
 const FIELD_RE = /^-\s+\*\*([^:*]+):\*\*\s*(.*)$/;
 // A rule's provenance is either an Azure DevOps work item or a repository
@@ -67,6 +73,12 @@ const fail = (where, message) => errors.push(`${where}: ${message}`);
 // so they can only be resolved once every file has been parsed.
 const tombstones = [];
 
+// Rules sitting under `## Retired` that are not themselves tombstones. A merge
+// must land on a rule that is actually loaded, so resolving a chain needs to
+// know whether the ID it terminates at is retired — `seenIds` alone cannot say,
+// because it holds every ID regardless of section.
+const retiredIds = new Set();
+
 /** Read a file, returning null when it does not exist. */
 async function readIfPresent(path) {
   try {
@@ -75,6 +87,38 @@ async function readIfPresent(path) {
     if (err.code === 'ENOENT') return null;
     throw err;
   }
+}
+
+const FENCE_RE = /^\s*(`{3,}|~{3,})/;
+
+// CommonMark allows up to three spaces of indentation before a heading or a
+// list marker; at four or more the line is an indented code block and is inert
+// by the same reasoning as a fence.
+const MAX_STRUCTURE_INDENT = 3;
+
+/**
+ * Advance fence state by one line. `open` is the currently open fence
+ * descriptor (`{ char, len }`) or null. Returns the new state plus whether this
+ * line is itself a delimiter rather than fence content.
+ *
+ * CommonMark closes a fence only with the *same* character and a run at least
+ * as long as the opener. Tracking a single boolean instead let a `~~~` line
+ * inside a ``` block toggle the fence off mid-block, re-exposing example text
+ * as live structure — and because the toggle count stayed even, the
+ * unterminated-fence backstop never fired either. Nesting by alternating
+ * markers is the ordinary way to show a fenced example inside a fenced example,
+ * which is exactly the pattern this handling exists for.
+ */
+function fenceTransition(line, open) {
+  const match = line.match(FENCE_RE);
+  if (!match) return { open, delimiter: false };
+
+  const [char, len] = [match[1][0], match[1].length];
+  if (!open) return { open: { char, len }, delimiter: true };
+  if (char === open.char && len >= open.len) return { open: null, delimiter: true };
+
+  // A different marker inside an open fence is content, not a delimiter.
+  return { open, delimiter: false };
 }
 
 /**
@@ -110,17 +154,18 @@ function stripComments(line, open) {
  * commented-out line is ever read as structure. Fences are evaluated first: a
  * `<!--` inside a fence is example text, not a comment.
  */
-function stripFencesAndComments(source) {
-  let inFence = false;
+function stripFencesAndComments(source, file) {
+  let fence = null;
   let inComment = false;
 
-  return source
+  const text = source
     .split('\n')
     .map((line) => {
       if (!inComment) {
-        const fence = /^\s*(```|~~~)/.test(line);
-        if (fence) inFence = !inFence;
-        if (fence || inFence) return null;
+        const next = fenceTransition(line, fence);
+        const wasDelimiter = next.delimiter;
+        fence = next.open;
+        if (wasDelimiter || fence) return null;
       }
       const stripped = stripComments(line, inComment);
       inComment = stripped.open;
@@ -128,6 +173,16 @@ function stripFencesAndComments(source) {
     })
     .filter((line) => line !== null)
     .join('\n');
+
+  // `parseRules` reports these for a reference file; do the same here rather
+  // than letting the reachability scan quietly lose routing rows. The failure
+  // is already fail-closed — dropped rows surface as "category unreachable" —
+  // but that message sends the reader to the routing table instead of to the
+  // dropped backtick that actually caused it.
+  if (fence) fail(file, 'unterminated code fence — the routing table after it was not scanned');
+  if (inComment) fail(file, 'unterminated HTML comment — the routing table after it was not scanned');
+
+  return text;
 }
 
 // --- reference-file parsing --------------------------------------------------
@@ -145,7 +200,7 @@ function parseRules(source, file) {
   const rules = [];
   let section = null;
   let current = null;
-  let inFence = false;
+  let fence = null;
   let inComment = false;
   const flush = () => {
     if (current) rules.push(current);
@@ -166,9 +221,10 @@ function parseRules(source, file) {
     // Fences are evaluated before comments so a `<!--` inside a fenced markdown
     // example is example text rather than a real comment opener.
     if (!inComment) {
-      const fence = /^\s*(```|~~~)/.test(rawLine);
-      if (fence) inFence = !inFence;
-      if (fence || inFence) {
+      const next = fenceTransition(rawLine, fence);
+      const wasDelimiter = next.delimiter;
+      fence = next.open;
+      if (wasDelimiter || fence) {
         if (current && rawLine.trim()) current.body.push(rawLine.trim());
         return;
       }
@@ -182,8 +238,25 @@ function parseRules(source, file) {
     // fenced cases above, reached through the other markdown comment mechanism.
     const stripped = stripComments(rawLine, inComment);
     inComment = stripped.open;
-    const line = stripped.visible.trimEnd();
-    if (!line.trim()) return;
+    const visible = stripped.visible.trimEnd();
+    if (!visible.trim()) return;
+
+    // Structure was matched against the raw line while the fence regex had been
+    // loosened to `^\s*`, so any indented heading was not merely exempted from
+    // the checks — it was absent from them. One stray leading space and a rule
+    // escaped the source, ID, duplicate, title-length and category checks at
+    // once, while still rendering as a rule and being served to the model.
+    //
+    // CommonMark decides this by indent width: up to three spaces is still a
+    // heading, four or more is an indented code block and inert, which is the
+    // same reasoning fences already follow. Matching that keeps an indented
+    // example inert without letting an indented *rule* disappear.
+    const indent = visible.length - visible.trimStart().length;
+    if (indent > MAX_STRUCTURE_INDENT) {
+      if (current) current.body.push(visible.trim());
+      return;
+    }
+    const line = visible.trimStart();
 
     const h3 = line.match(/^###\s+(.*)$/);
     if (h3) {
@@ -224,7 +297,7 @@ function parseRules(source, file) {
   // handling above exists to prevent, reached by a single dropped closing
   // fence in exactly the document-by-example pattern fences were added for,
   // so it has to be an error rather than a tolerated formatting slip.
-  if (inFence) {
+  if (fence) {
     fail(file, 'unterminated code fence — every rule after it was swallowed as body text and never validated');
   }
 
@@ -288,7 +361,17 @@ function validateRule(file, segment, rule, seenIds) {
   // The target is resolved after every file is parsed — see resolveTombstones.
   const tombstone = title.match(TOMBSTONE_RE);
   if (tombstone) {
-    tombstones.push({ id, target: tombstone[1], where });
+    // The tombstone branch skips the body, Sources and title-length checks, so
+    // it must not be reachable from the section that is still loaded and
+    // served. Matching the title before reading the section let a bodyless,
+    // sourceless rule under `## Rules` short-circuit every field check while
+    // remaining live (SKILL.md: withdrawing a rule means moving it to
+    // `## Retired`).
+    if (rule.section !== 'retired') {
+      fail(where, `${id} is a merge tombstone but sits under "## Rules" — move it under "## Retired", or it stays loaded while skipping every field check`);
+      return null;
+    }
+    tombstones.push({ id, target: tombstone[1].toUpperCase(), where });
     return { id, retired: true, sources: [] };
   }
 
@@ -302,7 +385,10 @@ function validateRule(file, segment, rule, seenIds) {
 
   // Retired rules stay traceable but are not loaded, so they are exempt from
   // the field requirements that exist to make a rule actionable.
-  if (retired) return { id, retired: true, sources };
+  if (retired) {
+    retiredIds.add(id);
+    return { id, retired: true, sources };
+  }
 
   if (!rule.body.length) fail(where, `${id} has no body — state the rule and the failure it prevents`);
   // `Applies to` is deliberately OPTIONAL. Auro standards apply to all Auro code by
@@ -375,6 +461,17 @@ function resolveTombstones(seenIds) {
     }
     if (chain.has(next)) {
       fail(where, `${id} is merged into ${target}, which loops back to a tombstone`);
+      continue;
+    }
+
+    // The chain terminated on a real ID — but a merge exists so readers are
+    // sent somewhere useful, and a retired rule is never loaded. Landing on
+    // one satisfies the existence check while pointing at nothing the model
+    // will ever serve, which is the same shape as citing a work item that
+    // does not resolve.
+    if (retiredIds.has(next)) {
+      const via = next === target ? '' : ` (via ${target})`;
+      fail(where, `${id} is merged into ${next}${via}, which is itself retired and never loaded — point the merge at an active rule`);
     }
   }
 }
@@ -416,7 +513,7 @@ async function validateSkill() {
   // is not a live route and must not count as one, so the category it names is
   // correctly reported unreachable. Strip fences and comments first so only
   // prose and table rows are scanned.
-  const scannable = stripFencesAndComments(source);
+  const scannable = stripFencesAndComments(source, 'SKILL.md');
   const referenced = new Set([...scannable.matchAll(/references\/([A-Za-z0-9_-]+)\.md/g)].map((m) => m[1]));
   for (const name of referenced) {
     if (!CATEGORIES.includes(name)) {

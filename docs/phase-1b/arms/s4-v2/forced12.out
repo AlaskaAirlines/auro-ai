@@ -1,0 +1,71 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Routed to `references/a11y.md`, `form.md`, `life.md`, `api.md`.
+
+## What's wrong
+
+Two separate defects, both named in `CS-A11Y-001`:
+
+1. **Nothing ever exposes invalidity to AT.** There's no `aria-invalid` anywhere — the only signal is a visual `<p>`, and it renders only when `error` is set.
+2. **The state that *is* tracked is keyed on the wrong thing.** `updated()` branches on `changedProperties.has('error')`, but `error` is one *cause* of invalidity. A required-and-empty group goes `validity = "valueMissing"` with `error` untouched, so that branch never runs and the child mirroring is silently skipped too. `validity` is the authoritative state.
+
+So: derive one `isInvalid` predicate from `validity`, bind ARIA declaratively in `render()` on the element that carries the role (`CS-A11Y-001` — imperatively setting it on the host would leave it detached from the `role="radiogroup"` inside shadow DOM), and give the live region a message in the `valueMissing` case, where `this.error` is empty.
+
+## Updated code
+
+```js
+  static properties = {
+    required: { type: Boolean },
+    error:    { type: String },
+    validity: { type: String },
+  };
+
+  /** Single authoritative predicate — every ARIA and visual binding reads this. */
+  get isInvalid() {
+    return Boolean(this.validity) && this.validity !== 'valid';
+  }
+
+  /** valueMissing has no consumer-supplied message; the live region still needs text. */
+  get errorMessage() {
+    if (!this.isInvalid) return '';
+    return this.error || (this.validity === 'valueMissing' ? 'Please select an option.' : '');
+  }
+
+  updated(changedProperties) {
+    // Watch validity too — an error-only branch never fires on valueMissing.
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      this.items.forEach((el) => {
+        if (this.isInvalid) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+      });
+    }
+  }
+
+  render() {
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-invalid=${this.isInvalid ? 'true' : nothing}
+        aria-required=${this.required ? 'true' : nothing}
+        aria-describedby=${this.isInvalid ? 'error-message' : nothing}>
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        <p id="error-message" role="alert">${this.errorMessage}</p>
+      </fieldset>
+    `;
+  }
+```
+
+## Why each piece
+
+- **`aria-invalid` on the `<fieldset>`, not the host.** The `role="radiogroup"` lives there; AT associates state with the element carrying the role. `radiogroup` is on ARIA 1.2's supported-role list for `aria-invalid`, so this is valid under the deprecation of the global usage (`CS-A11Y-003`). Keep the explicit `role` — `<fieldset>`'s implicit role is `group`, which is not what this is.
+- **`nothing` rather than `"false"`.** `aria-invalid="false"` is a legitimate announced state; removing the attribute when valid is the cleaner signal, and `nothing` removes it.
+- **The live region is always in the DOM, emptied rather than removed.** Swapping the whole `<p>` in and out with `? :` means AT may never see the insertion — a live region generally has to be present and observed before its content changes to announce reliably. Rendering the element unconditionally and toggling only its text fixes that.
+- **`role="alert"` alone.** It already implies `aria-live="assertive"`; the explicit duplicate is redundant and some AT combinations double-announce.
+- **`aria-describedby`** attaches the message to the group so it's read on focus, not only at the moment it changes.
+
+Two things worth a look on your side:
+
+- **`updated()` now mirrors `error` onto children for `valueMissing` too**, since it reads `isInvalid`. That's the consistent behavior, but it's a visual change — if the children should only redden on a consumer-supplied message, revert that one expression to `this.error` and keep only the `changedProperties` widening.
+- **The `'Please select an option.'` fallback is placeholder copy.** Real Auro components take this from the validation layer rather than hardcoding it; wire it to your message source.
+
+`CS-A11Y-002` applies if this is a real component: the sibling group components built from the same template almost certainly carry this identical shape. Worth grepping for `changedProperties.has('error')` across them rather than waiting for the next report — and if you fix more than one, share the `isInvalid` predicate rather than re-expressing it per component.

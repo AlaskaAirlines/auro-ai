@@ -1,0 +1,40 @@
+Two changes make the invalid state perceivable to AT: expose `aria-invalid` on the `radiogroup` itself (reflecting `validity`, not just presence of `error`), and give the error text an `id` that's wired up via `aria-describedby` so it's discoverable outside the one-shot `aria-live` announcement.
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+
+  if (changedProperties.has('validity') || changedProperties.has('error')) {
+    const invalid = this.validity && this.validity !== 'valid';
+    this.items.forEach((el) => {
+      el.setAttribute('aria-invalid', invalid ? 'true' : 'false');
+    });
+  }
+}
+
+render() {
+  const invalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${invalid ? 'true' : 'false'}"
+      aria-describedby="${this.error ? 'group-error' : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="group-error" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Why both: `aria-invalid` on the `radiogroup` is what a screen reader announces on focus/entry (e.g. "invalid" in VoiceOver/NVDA), independent of whether the user happened to be listening when the `aria-live` region fired. `aria-describedby` → `group-error` ensures the error text is read out whenever the group is focused/re-visited, not just at the moment it first appears. The `aria-live="assertive"` region is still useful for the initial interruption when validation first fails.

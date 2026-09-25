@@ -1,0 +1,38 @@
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error') || changedProperties.has('validity')) {
+    const invalid = this.validity && this.validity !== 'valid';
+
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+
+    const fieldset = this.shadowRoot.querySelector('fieldset');
+    if (invalid) {
+      fieldset.setAttribute('aria-invalid', 'true');
+      fieldset.setAttribute('aria-describedby', 'error-message');
+    } else {
+      fieldset.removeAttribute('aria-invalid');
+      fieldset.removeAttribute('aria-describedby');
+    }
+  }
+}
+
+render() {
+  return html`
+    <fieldset role="radiogroup">
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="error-message" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Key points:
+- `aria-invalid="true"` on the `fieldset` (the element with `role="radiogroup"`) makes the invalid state discoverable on focus/navigation, not just at the moment the error first appears (a `role="alert"` region only fires once, on insertion — a screen reader user tabbing back into an already-invalid group later hears nothing without this).
+- `aria-describedby="error-message"` ties the visible error text to the group so it's read as part of the group's accessible description, and gives the `<p>` a stable `id` to point to.
+- Reacting to `validity` too (not just `error`) means `valueMissing` (required-but-unanswered) also gets flagged, since that state may not set `error` at all.

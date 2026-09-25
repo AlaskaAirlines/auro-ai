@@ -1,0 +1,53 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Read `references/a11y.md`, `form.md`, `life.md`, `api.md`. Two rules drove the shape of this fix.
+
+The root cause is that everything is keyed on `error`. A required-and-empty group has `validity === 'valueMissing'` with no consumer-supplied `error`, so `changedProperties.has('error')` never fires and nothing is exposed. Bind off authoritative validity, declaratively, on the element that carries the role (CS-A11Y-001).
+
+```js
+  /**
+   * Single authoritative predicate for "is this group invalid".
+   * @returns {Boolean}
+   */
+  get isInvalid() {
+    return Boolean(this.validity && this.validity !== 'valid');
+  }
+
+  updated(changedProperties) {
+    // Mirror invalidity onto each child. Keyed on validity, not `error`:
+    // `valueMissing` arrives with no consumer message at all.
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      this.items.forEach((el) => {
+        if (this.isInvalid) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+      });
+    }
+  }
+
+  render() {
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-invalid="${this.isInvalid ? 'true' : nothing}"
+        aria-describedby="${this.isInvalid ? 'radio-group-error' : nothing}">
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        ${this.isInvalid
+          ? html`<p id="radio-group-error" role="alert">
+              ${this.error || 'Please select an option.'}
+            </p>`
+          : nothing}
+      </fieldset>
+    `;
+  }
+}
+```
+
+What changed and why:
+
+- **`aria-invalid` on the `<fieldset>`, not the host.** The `role="radiogroup"` lives in shadow DOM; an attribute set imperatively on the custom-element host would never be associated with it by assistive tech. `radiogroup` is on ARIA 1.2's supported-role list for `aria-invalid`, and the explicit override is correct here — `<fieldset>`'s implicit `group` is not a radiogroup (CS-A11Y-003).
+- **`aria-invalid` rendered as `nothing` when valid**, so the attribute is absent rather than `"false"` — same signal, no stale attribute to reason about.
+- **The message renders for any invalidity**, with a fallback for `valueMissing`. Previously a required-empty group rendered no `<p>` at all, so there was nothing to announce and nothing to describe. `aria-describedby` ties it to the group so it's read on focus, not only at the moment it appears.
+- **Dropped `aria-live="assertive"`.** `role="alert"` already implies it; the pair is redundant and some combinations double-announce.
+- **`updated()` now also fires on `validity`** so children get the error styling in the `valueMissing` case too.
+
+Two follow-ups worth doing in the same pass: sibling components built from this template almost certainly carry the identical defect — check `auro-checkbox-group` for the same shape and copy this `isInvalid` predicate rather than re-expressing it (CS-A11Y-002). And a regression test should assert `aria-invalid="true"` on the `radiogroup` for a required-and-empty group with no `error` set — that's the case the original code silently missed.

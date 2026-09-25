@@ -1,0 +1,47 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Two files had rules that applied: `a11y.md` and `form.md`.
+
+The core bug is `CS-A11Y-001`: the invalid signal is keyed on `error` (one *cause* of invalidity) rather than the authoritative `validity`, and nothing is bound to the element that carries the role. A required-but-empty group (`valueMissing`) changes `validity` only — `changedProperties.has('error')` never runs, and even if it did, `role="radiogroup"` lives on the `<fieldset>` inside shadow DOM where a host-level attribute would never associate with it.
+
+```js
+/** Single authoritative predicate — not `error`, which is only one cause of invalidity. */
+get isInvalid() {
+  return this.validity !== undefined && this.validity !== 'valid';
+}
+
+updated(changedProperties) {
+  // Mirror onto children on either signal, not just `error`.
+  if (changedProperties.has('error') || changedProperties.has('validity')) {
+    this.items.forEach((el) => {
+      if (this.isInvalid) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-required="${this.required ? 'true' : nothing}"
+      aria-invalid="${this.isInvalid ? 'true' : nothing}"
+      aria-describedby="${this.error ? 'error-message' : nothing}">
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="error-message" role="alert">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+What changed and why:
+
+- **`get isInvalid()`** — one predicate, used by both `updated()` and `render()`. Per `CS-A11Y-002`, if you apply this to a sibling group component (checkbox-group), copy this *shape*, don't re-derive the predicate inline — that's exactly how the first pass of this fix shipped three different "is this invalid" expressions.
+- **`aria-invalid` bound declaratively in `render()`, on the `<fieldset>`** — the element that carries `role="radiogroup"`. `radiogroup` is on ARIA 1.2's supported-role list for `aria-invalid`, so the attribute is valid here (`CS-A11Y-003`). Keeping `role="radiogroup"` is correct: it's a deliberate override of `<fieldset>`'s implicit `group` role, not redundant.
+- **`aria-describedby`** links the message to the group, so the text is read as the group's description on focus — not only at the moment the live region fires.
+- **Dropped `aria-live="assertive"`** — `role="alert"` already implies it; the pair is redundant and some AT double-announces it.
+- **`nothing` instead of `"false"`** so the attributes are removed rather than set to a falsy-looking string.
+
+One thing outside what you asked for, flagged rather than changed: `this.items` isn't shown here. If it's a live query of slotted children, note that `updated()` won't re-run when the slot's assigned nodes change — a radio added after the invalid state is set won't get the `error` attribute. A `slotchange` handler that re-applies from `isInvalid` covers it.

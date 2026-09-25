@@ -1,0 +1,31 @@
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  const isInvalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${isInvalid ? 'true' : 'false'}"
+      aria-describedby="${this.error ? 'errorMessage' : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="errorMessage" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Key additions: `aria-invalid` on the `fieldset` driven by the authoritative `validity` state (not just presence of `error`, since `valueMissing` should also be flagged), and `aria-describedby` wiring the fieldset to the error message's `id` so assistive tech announces *why* it's invalid, not just that an alert fired.

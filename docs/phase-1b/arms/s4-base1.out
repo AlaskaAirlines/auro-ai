@@ -1,0 +1,31 @@
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  const isInvalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${isInvalid ? 'true' : 'false'}"
+      aria-describedby="${isInvalid ? 'group-error' : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="group-error" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Key change: `aria-invalid` is driven by `validity` (the authoritative field per the property comment), not just presence of `error` — so `valueMissing` (required-but-unanswered, no custom message) is announced too, not only `customError`. `aria-describedby` links the fieldset to the error message's `id` so screen readers announce the specific reason, not just "invalid."

@@ -1,0 +1,56 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Two things are missing: the group never exposes `aria-invalid`/`aria-required`, and the invalid state is driven off `error` alone — so a `valueMissing` validity (no consumer message) is silent to AT and never reaches the children.
+
+```js
+  // "valid" is the only non-invalid state; anything else means the group is invalid
+  get isInvalid() {
+    return Boolean(this.validity) && this.validity !== 'valid';
+  }
+
+  updated(changedProperties) {
+    // validity is authoritative, so react to it too -- `error` alone misses valueMissing
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      const invalid = this.isInvalid;
+
+      this.items.forEach((el) => {
+        // existing behaviour: mirror the error attribute onto each child
+        if (this.error) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+
+        // each radio is individually focusable, so it carries the state itself
+        if (invalid) el.setAttribute('aria-invalid', 'true');
+        else el.removeAttribute('aria-invalid');
+      });
+    }
+  }
+
+  render() {
+    const invalid = this.isInvalid;
+
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-required="${this.required ? 'true' : 'false'}"
+        aria-invalid="${invalid ? 'true' : 'false'}"
+        aria-describedby="${ifDefined(this.error ? 'error-message' : undefined)}">
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        ${this.error
+          ? html`<p id="error-message" role="alert">${this.error}</p>`
+          : nothing}
+      </fieldset>
+    `;
+  }
+```
+
+Add `import { ifDefined } from 'lit/directives/if-defined.js';`.
+
+What changed and why:
+
+- **`aria-invalid` on the `fieldset`** — the invalid state is now announced when the group is reached, and it's derived from `validity`, not `error`, so `valueMissing` counts.
+- **`aria-invalid` on each child** — radios are the focusable elements; a SR user arrowing between options after the initial group announcement otherwise gets nothing. Reads `validity`, so it no longer depends on a consumer-supplied `error` string.
+- **`aria-describedby` → the message** — associates the text with the group so it's read on focus, not only at the moment it appears.
+- **`updated()` now also keys on `validity`** — previously, `validity` flipping to `valueMissing` re-rendered but never touched the children.
+- **Dropped `aria-live="assertive"`** — `role="alert"` already implies it; the pair causes duplicate announcements in some SR/browser combinations.
+
+One gap this doesn't close, since it needs a product decision: when `validity === 'valueMissing'` and no `error` is set, the group reports `aria-invalid="true"` with no message explaining why. Either have `valueMissing` fall back to a default string ("Select an option") rendered in the same `<p>`, or require consumers to set `error` alongside it.

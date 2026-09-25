@@ -1,0 +1,56 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Loaded the standards. Two rules bear directly on this: **CS-A11Y-001** (bind ARIA validity declaratively off authoritative `validity`, on the element carrying the role) and **CS-A11Y-003** (the role must both be correct *and* support the attribute — `radiogroup` is on ARIA's supported-role list for `aria-invalid`, which is why the binding belongs on the `<fieldset role="radiogroup">` and not on the host).
+
+The core bug: `error` is only *one* cause of invalidity. A required-and-empty group is `valueMissing` with no `error` string, so today it exposes nothing at all — and the `changedProperties.has('error')` branch never runs when only `validity` moves.
+
+```js
+  // Single authoritative predicate — not `this.error` (CS-A11Y-001)
+  get isInvalid() {
+    return this.validity !== undefined && this.validity !== 'valid';
+  }
+
+  updated(changedProperties) {
+    // Track validity too, not just `error`: a `valueMissing` group changes
+    // validity without ever receiving a consumer message.
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      this.items.forEach((el) => {
+        if (this.isInvalid) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+      });
+    }
+  }
+
+  render() {
+    const describedBy = this.isInvalid && this.error ? 'error-message' : undefined;
+
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-invalid="${this.isInvalid ? 'true' : nothing}"
+        aria-required="${this.required ? 'true' : nothing}"
+        aria-describedby="${ifDefined(describedBy)}">
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        ${this.isInvalid && this.error
+          ? html`<p id="error-message" role="alert">${this.error}</p>`
+          : nothing}
+      </fieldset>
+    `;
+  }
+```
+
+What changed and why:
+
+- **`aria-invalid` on the `<fieldset>`, bound in `render()`** — per CS-A11Y-001, declarative and on the role-bearing element. Setting it imperatively on the host in `updated()` would leave AT unable to associate it with the `role="radiogroup"` inside shadow DOM.
+- **`get isInvalid()`** — one predicate, used by both `updated()` and `render()`. CS-A11Y-002 warns against the failure mode where each site grows its own slightly different "is this invalid" expression.
+- **`aria-describedby`** — the alert fires once on appearance; `aria-describedby` is what makes the message re-readable when a user navigates back to the group later.
+- **`aria-required`** — `required` was declared as a property but never surfaced. Announced up front, it prevents the invalid state from being the user's first hint that an answer was mandatory.
+- **Dropped `aria-live="assertive"`** — `role="alert"` already implies an assertive live region; the pair is redundant and some AT double-announces it.
+- **`nothing` rather than `"false"`** — `aria-invalid="false"` is valid but noisy; removing the attribute is the cleaner default state.
+
+Two things I couldn't verify from the snippet alone, worth checking on your side:
+
+1. **`this.items`** isn't defined here. If it's a slot query, the mirroring in `updated()` can run before children are assigned on first render — CS-LIFE-001's neighborhood. Worth confirming it's driven by a `slotchange` as well as by property changes.
+2. **Per-radio state.** This exposes invalidity at the *group* level. If each `auro-radio` also carries `aria-invalid`, the `error` attribute mirror above should be the only thing touching them — don't let both layers set ARIA independently.
+
+Per CS-A11Y-002, `auro-checkbox-group` is built from this same template and has historically carried the identical defect. Worth grepping for a `changedProperties.has('error')` branch there before you close this out.

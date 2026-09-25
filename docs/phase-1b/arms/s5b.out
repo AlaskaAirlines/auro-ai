@@ -1,0 +1,15 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+**AB#1533044** — *"multiselect values should be rendered in the trigger in the same order they appear in the option list"* (Bug, Sev 3, Approved Backlog, area `auro-formkit\auro-select`, tag `Effort - Low`).
+
+**The core fix already landed on `dev`** — as a side effect of AB#1602086 (`d93d0cf4ef` *fix(menu): distinguish menu options that share a value*), not under this ticket.
+
+`components/menu/src/auro-menu.js:949` now has `_sortSelectedByDomOrder()`, called from both `handleSelectState` (:861) and `handleDeselectState` (:892). It sorts `optionSelected` in place by each option's index in `this.items`, then rebuilds `_selectedKey` and `value` from that order. So `currentLabel` (:323) — still a plain `.map().join(', ')` — reads in list order because the array it maps is already sorted. Selecting Option 2 then Option 1 yields "Option 1, Option 2".
+
+Note it went *further* than the ticket's "safe minimal fix": the ticket suggested ordering only the displayed label and leaving the array alone. The actual implementation reorders `optionSelected` and the serialized `value`, so the emitted `input` value is in list order too. That's the ticket's "if the array order is intentionally changed too, call it out" branch — worth noting in the ticket since it's a behavior change beyond the label.
+
+**What's still open against the acceptance checklist:**
+
+1. `components/menu/test/auro-menu.test.js:3264` covers *stored* order ("stores multi-select selections in DOM order, not click order"), but nothing asserts the **rendered trigger text** in auro-select for the out-of-order multi-select case. The existing select trigger-text tests (:1221, :1297) are single-select / duplicate-value identity.
+2. `components/select/test/MANUAL_TESTING.md` has a Multi-select section (:80) but no smoke step for trigger ordering.
+
+Want me to close those two gaps — add the select-level trigger-label order test plus the MANUAL_TESTING.md step — on a branch off `dev`? Or if you'd rather, I can first run the menu/select WTR suites to confirm the behavior is green as-is before writing anything.

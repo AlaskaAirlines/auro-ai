@@ -1,0 +1,90 @@
+diff --git a/components/radio/src/auro-radio-group.js b/components/radio/src/auro-radio-group.js
+index 2d52005fa..f8995ca31 100644
+--- a/components/radio/src/auro-radio-group.js
++++ b/components/radio/src/auro-radio-group.js
+@@ -251,6 +251,7 @@ export class AuroRadioGroup extends LitElement {
+   connectedCallback() {
+     super.connectedCallback();
+     this.handleItems();
++    this.syncLegendState();
+     this.addEventListener('toggleSelected', this.handleToggleSelected);
+     this.addEventListener('keydown', this.handleKeyDown);
+     this.addEventListener('resetRadio', this.resetRadio);
+@@ -261,6 +262,10 @@ export class AuroRadioGroup extends LitElement {
+   firstUpdated() {
+     // Add the tag name as an attribute if it is different than the component name
+     this.runtimeUtils.handleComponentTagRename(this, 'auro-radio-group');
++
++    // The first connectedCallback runs before the shadow root has rendered, so the
++    // slot does not exist yet to be read. Derive the initial state here instead.
++    this.syncLegendState();
+   }
+ 
+   /**
+@@ -453,17 +458,29 @@ export class AuroRadioGroup extends LitElement {
+   }
+ 
+   /**
+-   * Method for handling legend slot changes.
++   * Method for deriving `hasLegend` from the current legend slot assignment.
++   * Has to be re-applied from `connectedCallback()` as well, because moving the host
++   * in the DOM re-runs the connect lifecycle without changing the slot assignment,
++   * so no `slotchange` fires to refresh this state.
+    * @private
+    * @returns {void}
+    */
+-  handleLegendSlotChange() {
+-    const slot = this.shadowRoot.querySelector('slot[name="legend"]');
++  syncLegendState() {
++    const slot = this.shadowRoot?.querySelector('slot[name="legend"]');
+     if (slot) {
+       this.hasLegend = slot.assignedNodes().length > 0;
+     }
+   }
+ 
++  /**
++   * Method for handling legend slot changes.
++   * @private
++   * @returns {void}
++   */
++  handleLegendSlotChange() {
++    this.syncLegendState();
++  }
++
+   /**
+    * Method for initializing the tab index of the checked radio input.
+    * @private
+diff --git a/components/radio/test/auro-radio-group.test.js b/components/radio/test/auro-radio-group.test.js
+index bc5a40aad..0dfbce1a8 100644
+--- a/components/radio/test/auro-radio-group.test.js
++++ b/components/radio/test/auro-radio-group.test.js
+@@ -881,6 +881,29 @@ function runFullTest(mobileView) {
+ 
+         expect(el.hasLegend).to.be.true;
+       });
++
++      it('should keep the legend visible after the element is moved in the DOM', async () => {
++        const el = await fixture(html`
++          <auro-radio-group required>
++            <span slot="legend">Pick one</span>
++            <auro-radio value="one" name="test">One</auro-radio>
++          </auro-radio-group>
++        `);
++
++        expect(el.hasLegend).to.be.true;
++
++        const newParent = document.createElement('div');
++        document.body.appendChild(newParent);
++        newParent.appendChild(el);
++
++        await elementUpdated(el);
++        await new Promise((resolve) => setTimeout(resolve, 0));
++
++        expect(el.hasLegend).to.be.true;
++        expect(el.shadowRoot.querySelector('legend').classList.contains('hidden')).to.be.false;
++
++        newParent.remove();
++      });
+     });
+ 
+     describe('optionalLabel', () => {

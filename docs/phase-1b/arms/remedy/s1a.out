@@ -1,0 +1,14 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Done. `auro-select` now exposes `aria-invalid` to assistive tech when validation fails.
+
+**The placement matters here.** `auro-select`'s `role="combobox"` doesn't live on the select host — it's on the `#trigger` div inside `auro-dropdown`'s shadow root (`auro-dropdown.js:1349`). Setting `aria-invalid` on the host would have left the role and the state on different elements, with nothing associating them (CS-A11Y-001). So the attribute is bound declaratively in the dropdown's `render()`, directly beside `role`:
+
+- `components/dropdown/src/auro-dropdown.js` — new private `get triggerInvalid()` plus an `aria-invalid` binding next to `role`/`aria-expanded`/`aria-haspopup`. It's suppressed when `triggerContentFocusable` is set (combobox/datepicker put `auro-input` in the trigger, and that input already carries its own `aria-invalid`) and when the role is `button`, which doesn't support the attribute (CS-A11Y-003). Select already mirrors its validity onto the dropdown's `error` property, both declaratively and in `performUpdate()`, so no new plumbing was needed.
+
+- `components/select/src/auro-select.js` — added `get isInvalid()` (`validity && validity !== 'valid'`) and routed the four inlined copies of that predicate through it: the three layout renders' `?error` bindings, `renderHtmlHelpText()`, and `performUpdate()`. It's keyed on `validity`, not the `error` attribute, so `valueMissing` on a required-and-empty select is covered; the shape matches `auro-radio-group`'s existing getter rather than inventing a third expression (CS-A11Y-002).
+
+**Tests** — four in `components/dropdown/test` (present with error + a supporting role, removed when error clears, absent for `button`, absent when the slotted content owns the role) and four in `components/select/test` (`valueMissing`, `error` attribute → `customError`, cleared on selection, absent before validation runs). I also strengthened the existing "should not set aria-invalid when blur is suppressed by noValidate" test, which was asserting on the host and would have passed no matter what the trigger did.
+
+Select 585 passed, dropdown 370, combobox and datepicker (954) still green; `useAccessibleIt`'s axe check runs on every one of those. Source lint clean.
+
+Sibling audit: `auro-radio-group` and `auro-checkbox-group` already have this; combobox and datepicker inherit it from `auro-input`. Not committed — let me know if you want a branch and commit.

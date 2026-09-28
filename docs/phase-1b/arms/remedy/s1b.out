@@ -1,0 +1,31 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+I dug into the radio source but **could not run the reproduction** — WTR can't bind a port under the sandbox (`EPERM 0.0.0.0:7731`), and the unsandboxed retry was declined. So what follows is static analysis, not a confirmed diagnosis.
+
+## What I ruled out
+
+The team's standing rule for this exact symptom is `CS-LIFE-001` (observer attached in `firstUpdated`, dead after a disconnect/reconnect — the one that bit `auro-select` twice). **`auro-radio-group` does not have that shape:**
+
+- `firstUpdated()` (`components/radio/src/auro-radio-group.js:261`) only calls `handleComponentTagRename`.
+- The legend wiring is declarative — `@slotchange=${this.handleLegendSlotChange}` lives in `render()` (`:599`), so it's re-bound on every render and survives a reparent.
+- Group listeners are added in `connectedCallback` (`:251`) on `this`, with stable prototype-method references, so they re-arm on move and don't duplicate.
+- No `MutationObserver`/`ResizeObserver` anywhere in `components/radio/src`, `components/helptext/src`, or `packages/form-validation/src`.
+
+`auro-radio.label` is properly declared reactive (`auro-radio.js:127`), so that path is fine too.
+
+## One real defect I did find (adjacent, not the reported one)
+
+`render()` interpolates `${this.errorMessage}` at `auro-radio-group.js:612`, but **`errorMessage` is not a declared reactive property** on the group. Only `counter-group`, `dropdown`, and `base-input` declare it. It currently works by accident: `validity` *is* reactive and usually changes in the same tick. When the message changes while `validity` stays put, the help text goes stale — the same "two things usually change together" trap as `CS-A11Y-001`. Per `CS-A11Y-002`, `checkbox-group` needs the same audit.
+
+That's the help text, not the legend, so I don't think it's your bug.
+
+## What I need to close this out
+
+I wrote a repro harness at `components/radio/test/zz-repro.test.js` (scratch — delete it after) covering four candidate mechanisms: legend text edits after a move, `hasLegend` tracking after a move, `required` toggling after a move, and `auro-radio.label` reactivity. Run it with:
+
+```
+cd components/radio && npx wtr --config "../../packages/config/src/web-test-runner.config.mjs" --port 7731 "test/zz-repro.test.js"
+```
+
+That needs to run outside the sandbox, or with `sandbox.network.allowLocalBinding: true` in your settings (applies without a restart; `/sandbox` manages it).
+
+Two things would also let me skip the guessing: which "label" you mean — the `legend` slot text, the help text, or the accessible name reported by a screen reader — and how the element is being moved (framework re-render, `appendChild`, drag reorder). Those point at different code paths, and right now I can't distinguish them.

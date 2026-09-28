@@ -1,0 +1,36 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Implemented AB#1494457 on `dev`. Ticket: *auro-datepicker: `stacked` attribute has no effect — declared but not implemented*.
+
+## What I found
+
+The ticket's diagnosis is correct — `stacked` was a reflected boolean with no consumer. One wrinkle: your local **build artifacts** (`src/styles/classic/style.css`, `style-css.js` — untracked, gitignored) already contained a `[stacked]` rule set that does not exist in any tracked SCSS or any branch. Stale output from some earlier local experiment. It's now overwritten by a real build.
+
+## Changes
+
+**`components/datepicker/src/styles/classic/style.scss`** — new `:host([layout*='classic'][range][stacked])` block:
+- `.inputSection` → `flex-direction: column; align-items: stretch`
+- `.inputContainer` flex reset to `0 0 auto` (undoes the equal split *and* the From-half calendar-icon width compensation, which is meaningless once the halves aren't side by side)
+- `.inputDivider` flips from a 1px-wide vertical rule to a 1px-tall horizontal one
+- `.dateTo` drops its `margin-left` and gets its own `accent-left` calendar icon back, so both rows are aligned identically
+
+Scoped to `[range]` + classic: a single input has nothing to stack, and snowflake shows a display value rather than the two inputs.
+
+**`src/auro-datepicker.js`** — replaced the terse "stacked style" JSDoc with the actual contract (range + classic only); `docs/api.md` regenerated.
+
+**`test/auro-datepicker.test.js`** — 4 new tests (× 2 viewports × 5 timezone runs): row without `stacked`, column with it, `.dateFrom`/`.dateTo` bounding rects prove the inputs actually render one above the other and aren't clipped, and `stacked` on a single-input datepicker is a no-op.
+
+**`test/MANUAL_TESTING.md`** — a `stacked` smoke step, plus a Depth entry covering the range/classic scoping and shape/size interaction.
+
+## Verification
+
+- `npm run test --workspace=components/datepicker` — **962 passed, 0 failed**.
+- `build:sass`/`bundler`/`types` pass. `build:docs` fails on a pre-existing `MODULE_NOT_FOUND` in `markdown-magic` inside `auro-library`, unrelated to this change — so `README.md` was not regenerated. `docs/api.md` did update.
+- Chromatic already snapshots `apiExamples/stacked.html` via `individual-api-examples.stories.ts`, so visual regression coverage lands automatically.
+- Component `lint` is `echo "restore linter rules"`; running `stylelint` manually surfaces violations, but every one my block produces is already produced by the existing rules in the same file.
+
+## Two things for you
+
+1. **Design sign-off is still open.** The ticket flags it and there's no Figma. The judgment calls I made — horizontal divider retained, per-row calendar icons, rows sized to content rather than equal height — are reasonable readings, not approved ones. Worth a look before release.
+2. **Something reverted my edits mid-session.** All three files were restored to HEAD simultaneously (identical mtimes, clean tree) while I was working. No hooks in `.claude/`, and I ran no git write commands. I re-applied everything and re-verified, but if you have a watcher or another session on this repo, that's the likely culprit.
+
+Nothing committed. Per the branch policy this is a fix, so it goes to `dev` via a branch — say the word and I'll branch, commit, and open the PR.

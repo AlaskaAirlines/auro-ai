@@ -1,0 +1,30 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+I couldn't reproduce this on `dev` — every label path in `auro-radio-group` survives a DOM move. Here's what I checked and where I think the real bug is.
+
+## What I tested (WTR, `components/radio`, scratch test since removed)
+
+After re-parenting the group into a new container (and after a detach → reattach cycle):
+
+| Scenario | Result |
+|---|---|
+| Mutate `textContent` of the slotted `[slot="legend"]` node | live, projects fine |
+| Remove the legend node → `hasLegend` false, `legend.hidden` applied | correct |
+| Re-add a legend node after the move | correct |
+| Add a legend for the first time *after* the move (required group) | correct |
+| Set `radio.label` property on a child `auro-radio` | re-renders fine |
+
+The reason radio-group is immune is structural: its legend is pure slot projection, and both `slotchange` handlers are bound declaratively inside `render()` (`auro-radio-group.js:599,602`), so they live on the shadow DOM and are unaffected by the host moving. It has no `MutationObserver` and no `disconnectedCallback` to go stale.
+
+## Where this bug shape *is* real in the repo
+
+1. **`auro-select`** — `_observeLabelChanges()` (`components/select/src/auro-select.js:707`) is exactly the "label stops updating" defect, and it's the source of CS-LIFE-001 (`firstUpdated` is one-shot; re-arm from `connectedCallback` gated on `hasUpdated`). That one has bitten twice. If the element in your repro is actually a select, or a group nested in one, that's the path.
+
+2. **`auro-form`** — still-live analogue: `disconnectedCallback` (`components/form/src/auro-form.js:889`) disconnects `this.mutationObservers` and clears the array, but those observers are only ever created in `onSlotChange` (`:959`). `slotchange` does **not** fire when the form host is moved, so after a re-parent the form permanently stops tracking form elements nested inside wrapper nodes. `_attributeObserver` is fine — it's re-`observe`d in `connectedCallback`. A radio-group inside a moved `auro-form` would go stale in ways that look like "it stopped updating."
+
+## What would help
+
+- Which "label" — the `legend` slot, an `auro-radio`'s `label`, or the help/error text?
+- Is the group inside `auro-form` or `auro-select`, and is the *group* being moved or an ancestor?
+- Framework and formkit version — a React/Svelte keyed re-render that re-parents an ancestor is the usual trigger, and it's the ancestor's observer that dies, not the group's.
+
+Give me a repro and I'll write the regression test first (CS-TEST-001 — assert the precondition and the wiring, no vacuous guards) and then fix it; if it turns out to be the `auro-form` gap above, I can fix that now under CS-LIFE-001.

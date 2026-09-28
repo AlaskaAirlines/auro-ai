@@ -1,0 +1,26 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+I read the code but **could not run a repro** — the `npx wtr` call was denied, so nothing below is verified by execution. Also: I created `components/radio/test/repro.test.js` and the sandbox then refused to let me `rm` it. Please delete it (`rm components/radio/test/repro.test.js`) — it's an untracked scratch file.
+
+## What the code actually shows
+
+`auro-radio-group` has **no label-sync mechanism at all**. The legend is a plain pass-through slot (`auro-radio-group.js:598-601`):
+
+```js
+<legend class="${classMap(legendClasses)}">
+  <slot name="legend" @slotchange=${this.handleLegendSlotChange}></slot>
+```
+
+Because it's a pass-through, the legend *text* renders live — editing `textContent` on the slotted node can't go stale, move or no move. The only derived state is `hasLegend`, computed solely inside the `slotchange` handler (`auro-radio-group.js:460-465`), which drives the `hidden` class when `required` is set.
+
+That matters because `auro-select` was given real label plumbing for this exact class of bug — `_syncLabelText()` plus `_observeLabelChanges()` with a retargeting `MutationObserver` (`auro-select.js:681-727`), re-armed from `connectedCallback` gated on `hasUpdated` (`auro-select.js:1293-1305`) and torn down in `disconnectedCallback`. That's `CS-LIFE-001` in practice. `auro-radio-group` has none of that shape, and neither does `auro-checkbox-group` — its legend slot at `auro-checkbox-group.js:475` doesn't even have a `slotchange` handler.
+
+So I can't tell you `CS-LIFE-001` is the cause here, because radio-group has no `firstUpdated`-attached observer to go dead — `firstUpdated` only calls `handleComponentTagRename` (`auro-radio-group.js:261-264`), and the listeners in `connectedCallback` re-attach on every connect with deduped prototype references.
+
+## What I need to pin it down
+
+Two questions, because they lead to completely different fixes:
+
+1. **Which "label"?** The visible legend text, or the accessible name a screen reader announces? A stale accessible name with correct visible text points somewhere entirely different from a legend that visually stops changing — and per `CS-A11Y-002` a stale accessible name is a real defect, not cosmetic.
+2. **What's the mutation?** Editing `textContent` of the existing `[slot="legend"]` node, or replacing/removing the legend element? Only the second can touch `hasLegend`, and `hasLegend` only has a visible effect when `required` is set.
+
+If you can give me the move + mutation sequence (or just confirm `required` is on the group), I'll write the failing test first and fix from there.

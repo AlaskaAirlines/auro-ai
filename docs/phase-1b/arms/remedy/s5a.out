@@ -1,0 +1,27 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Implemented. Ticket AB#1494457: `stacked` on `auro-datepicker` was a documented, reflected boolean that nothing consumed.
+
+**What changed**
+
+`components/datepicker/src/styles/classic/style.scss` — new `:host([layout*='classic'][range][stacked])` block:
+- `.inputSection` switches to `flex-direction: column`
+- releases `max-height` on the dropdown's trigger `::part(wrapper)` — the shape classes cap it at one row height, so without this the second input was clipped out of view entirely
+- resets the two `.inputContainer` flex rules (equal halves + the calendar-icon basis compensation) to `flex: 0 0 auto` — in a column those constrain *height*
+- `.inputDivider` becomes a horizontal rule
+- `.dateTo` drops its `margin-left` and regains its own `accent-left` calendar icon, so both rows read as complete date fields and their dates line up
+
+Scoped to `range` + `classic`: a single-input datepicker is already one row, and `snowflake` is a compact single-line trigger by design. Block is last in the file on purpose — some rules tie in specificity with the side-by-side rules they override.
+
+`src/auro-datepicker.js` — the property's JSDoc now states the real contract; `docs/api.md` regenerated from it.
+
+`apiExamples/stacked.html` — added the missing `toLabel` so both stacked rows are labeled. Storybook globs `apiExamples/*.html`, so Chromatic already snapshots this against `range.html` for the VRT coverage the ticket asks for.
+
+`test/auro-datepicker.test.js` — four tests in the existing `stacked` describe, asserting real geometry rather than a class name (CS-TEST-001): stacked range puts `.dateTo` below `.dateFrom` at the same left edge and within the dropdown trigger's box (the clipping check); non-stacked range stays side-by-side; single-input and `snowflake` are unaffected.
+
+`test/MANUAL_TESTING.md` — `stacked` smoke step added.
+
+**Verification:** 962 WTR tests pass across all five timezone runs' config. I also confirmed the new tests bite — neutering `[stacked]` in the built CSS fails exactly the two stacking tests (desktop + small viewport), then rebuilt.
+
+**Two things to flag before release:**
+1. No Figma exists for this. Two calls are mine: the To row shows its own calendar icon (so the rows align), and the divider becomes a full-width horizontal rule. The ticket's own checklist requires Design sign-off on the visible layout.
+2. I did not commit — say the word and I'll commit to `dev` (per the branch policy, this is a `fix`, not a v6 breaker).

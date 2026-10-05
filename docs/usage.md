@@ -15,7 +15,7 @@ for skills. Use the marketplace flow below instead.
 | Skill | Invocation | What it does |
 | ----- | ---------- | ------------ |
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
-| `code-review` | `/auro:code-review <PR #>` · `/auro:code-review local` | Adversarial multi-model review of a GitHub PR (posts comments) or the current branch (chat output) |
+| `code-review` | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` | Adversarial multi-model review of a GitHub PR (previews findings, then posts them with `post`) or the current branch (chat output) |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
@@ -126,9 +126,19 @@ you're warned first — rewriting it needs a force-push (the skill never pushes)
 ### `/auro:code-review`
 
 ```shell
-/auro:code-review 1572    # review GitHub PR #1572 and post inline + summary comments
-/auro:code-review local   # review the current branch against a chosen base, output in chat
+/auro:code-review 1572             # review GitHub PR #1572 and preview the findings in chat
+/auro:code-review 1572 xhigh       # same, forcing the review effort (low|medium|high|xhigh|max)
+/auro:code-review 1572 post        # post the saved findings to PR #1572 (inline + summary comments)
+/auro:code-review local            # review the current branch against the repo's default branch, output in chat
+/auro:code-review local release-6.0 high   # review against a specific base branch at a forced effort
 ```
+
+The skill runs in an isolated forked context and never asks questions. Without an effort
+argument it picks a level from the diff (usually `medium`) and says which it used. A PR
+review never writes to GitHub on its own: it saves its findings to
+`/tmp/code-review-<PR>-<head-sha>.json`, and a separate `post` run publishes that file.
+`post` refuses if the PR's head has changed since the preview, so you never post findings
+for code that is no longer on the PR.
 
 ### `/auro:release-notes`
 

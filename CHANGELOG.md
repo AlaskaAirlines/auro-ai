@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.16.0...v1.17.0) (2026-10-05)
+
+
+### Features
+
+* **create-rcs:** add repo mode for single-repo release candidates ([6c7bc2c](https://github.com/AlaskaAirlines/auro-ai/commit/6c7bc2c67264be2f0c953b25e4a0105802c680e6)), closes [#52](https://github.com/AlaskaAirlines/auro-ai/issues/52)
+
 # [1.16.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.15.0...v1.16.0) (2026-09-08)
 
 

@@ -62,6 +62,12 @@ const FIELD_RE = /^-\s+\*\*([^:*]+):\*\*\s*(.*)$/;
 // the 7-digit check entirely — the very fail-open ADO_ID_DIGITS exists to close.
 const ADO_SOURCE_RE = /\bAB#(\d+)/gi;
 const REPO_SOURCE_RE = /\b([A-Za-z][A-Za-z0-9._-]*)#(\d+)/g;
+// The two patterns above find citations anywhere in the value, so on their own
+// they accept `AB#1234567junk` or `auro-formkit#1511extra` by extracting the
+// valid-looking prefix. Every comma- or space-separated token must therefore be
+// exactly one citation, checked against this anchored form.
+const SOURCE_TOKEN_RE = /^[A-Za-z][A-Za-z0-9._-]*#\d+$/;
+const SOURCE_SEPARATOR_RE = /[\s,]+/;
 const ADO_ID_DIGITS = 7; // every real work item in this org is 7 digits
 const LEARNED_RE = /^×(\d+)$/;
 const SINCE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -125,6 +131,12 @@ const FENCE_RE = new RegExp(`^ {0,${MAX_STRUCTURE_INDENT}}(\`{3,}|~{3,})`);
  * unterminated-fence backstop never fired either. Nesting by alternating
  * markers is the ordinary way to show a fenced example inside a fenced example,
  * which is exactly the pattern this handling exists for.
+ *
+ * A closer must also carry nothing but whitespace after its run. Only an opener
+ * takes an info string, so a ```js line inside an open ``` block is content.
+ * Reading it as a closer flipped parity the same way the `~~~` case did: the
+ * block's real closer then opened a new fence, and whatever the example had
+ * fenced off — a `## Retired`, a field — was read as live structure.
  */
 function fenceTransition(line, open) {
   const match = line.match(FENCE_RE);
@@ -132,7 +144,8 @@ function fenceTransition(line, open) {
 
   const [char, len] = [match[1][0], match[1].length];
   if (!open) return { open: { char, len }, delimiter: true };
-  if (char === open.char && len >= open.len) return { open: null, delimiter: true };
+  const bare = !line.slice(match[0].length).trim();
+  if (char === open.char && len >= open.len && bare) return { open: null, delimiter: true };
 
   // A different marker inside an open fence is content, not a delimiter.
   return { open, delimiter: false };
@@ -300,7 +313,14 @@ function parseRules(source, file) {
 
     const field = line.match(FIELD_RE);
     if (field) {
-      current.fields[field[1].trim().toLowerCase()] = field[2].trim();
+      // A repeated field used to overwrite the first, so a second `Sources`
+      // line silently discarded the rule's original provenance while the
+      // replacement still satisfied the source check.
+      const name = field[1].trim().toLowerCase();
+      if (name in current.fields) {
+        fail(`${file}:${index + 1}`, `"${current.text}" repeats the "${field[1].trim()}" field — give every value on the one line, or the second replaces the first`);
+      }
+      current.fields[name] = field[2].trim();
       return;
     }
     current.body.push(line.trim());
@@ -417,6 +437,11 @@ function validateRule(file, segment, rule, seenIds) {
   if (!rule.fields.sources) fail(where, `${id} is missing "Sources"`);
   if (!sources.length) {
     fail(where, `${id} has no source — cite a work item (AB#1234567) or a repo reference (auro-formkit#1511); no traceability, no rule`);
+  }
+  for (const token of (rule.fields.sources || '').split(SOURCE_SEPARATOR_RE).filter(Boolean)) {
+    if (!SOURCE_TOKEN_RE.test(token)) {
+      fail(where, `${id} has malformed source "${token}" — each comma-separated entry must be exactly AB#1234567 or <repo>#<number>`);
+    }
   }
 
   // A short `AB#` is almost always a pull-request number that has been given

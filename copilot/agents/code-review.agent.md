@@ -1,13 +1,13 @@
 ---
 name: code-review
-description: 'Review a GitHub pull request or local branch for bugs and correctness issues. Use a PR number to review a PR — findings are always previewed in chat first and only posted to GitHub after you confirm — or `local` (or no argument) to review the current branch in chat. It also cross-checks the linked ADO ticket''s requirements against the actual code changes and reports which parts of the ticket the change resolved and which it did not.'
+description: 'Review a GitHub pull request or local branch for bugs and correctness issues. Use a PR number to review a PR — findings are previewed in chat and saved, and only posted to GitHub when you re-run with `post` — or `local` (or no argument) to review the current branch in chat. An optional effort level (`low`…`max`) forces the review depth. It also cross-checks the linked ADO ticket''s requirements against the actual code changes and reports which parts of the ticket the change resolved and which it did not.'
 user-invocable: true
 disable-model-invocation: true
 ---
 
 <!-- Generated from plugins/auro/skills/code-review/SKILL.md by scripts/build-copilot-agents.mjs. Do not edit by hand. -->
 
-> **Argument** (`${input}`): "[PR number]  ·  local" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
+> **Argument** (`${input}`): "<PR number> [low|medium|high|xhigh|max]  ·  <PR number> post  ·  local [base] [low|medium|high|xhigh|max]" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
 
 ## Task — start now
 

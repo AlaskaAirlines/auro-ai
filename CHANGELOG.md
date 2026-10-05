@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.18.0...v1.18.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **code-review:** remove unnecessary context field from SKILL.md ([5fa876b](https://github.com/AlaskaAirlines/auro-ai/commit/5fa876bc5d560e6094c1aa7a23ab5bf32537f6e6))
+
 # [1.18.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.17.0...v1.18.0) (2026-10-05)
 
 

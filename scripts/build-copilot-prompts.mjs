@@ -12,7 +12,12 @@
 // for Claude-only features (sub-agent `Task` fan-out, multi-model `context: fork`,
 // the structured `AskUserQuestion` tool, or per-command Bash allowlists). Those
 // features degrade gracefully and are called out in a compatibility note.
-import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+//
+// A skill may bundle helper scripts in plugins/auro/skills/<name>/scripts/. Those are
+// copied to copilot/prompts/<name>/scripts/, and the skill's `${CLAUDE_SKILL_DIR}`
+// references are rewritten to the documented install location next to the prompt
+// file (.github/prompts/<name>).
+import { readdir, readFile, writeFile, mkdir, rm, cp, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -99,10 +104,24 @@ const CAVEATS = {
     'Requires the GitHub CLI (`gh`); Azure DevOps context needs an ADO PAT in your environment. The terminal will ask to approve each command.',
   'sprint-report':
     'Requires an Azure DevOps PAT in your environment and shell tools (`curl`, `jq`); the terminal will ask to approve each command.',
+  'create-rcs':
+    'Requires an Azure DevOps PAT in your environment and shell tools (`bash`, `curl`, `jq`); repo mode also needs the GitHub CLI (`gh`). The terminal will ask to approve each command.',
 };
 
+/** Where a skill's bundled scripts live once installed alongside its prompt file. */
+const installDir = (name) => `.github/prompts/${name}`;
+
+/** True if the skill ships a scripts/ folder. */
+async function hasScripts(name) {
+  try {
+    return (await stat(join(SKILLS_DIR, name, 'scripts'))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /** Build the leading banner + compatibility block prepended to each prompt body. */
-function buildPreamble(name, fields) {
+function buildPreamble(name, fields, scripts) {
   const lines = [
     `<!-- Generated from plugins/auro/skills/${name}/SKILL.md by scripts/build-copilot-prompts.mjs. Do not edit by hand. -->`,
     '',
@@ -126,15 +145,24 @@ function buildPreamble(name, fields) {
     lines.push('> **Copilot compatibility:** ' + noteParts.join(' '), '');
   }
 
+  if (scripts) {
+    lines.push(
+      `> **Bundled scripts:** this prompt runs scripts from \`${installDir(name)}/scripts/\`. Install the \`copilot/prompts/${name}/\` folder next to the prompt file (\`cp -R /path/to/auro-ai/copilot/prompts/${name} .github/prompts/\`). If you keep the prompt somewhere else, replace \`${installDir(name)}\` below with the folder you copied.`,
+      '',
+    );
+  }
+
   return lines.join('\n');
 }
 
 // --- body transformation -----------------------------------------------------
 
-function transformBody(body) {
+function transformBody(name, body) {
   // Claude exposes the invocation argument as `$ARGUMENTS`; Copilot uses the
-  // `${input:...}` variable syntax and prompts for it on invocation.
-  return body.replace(/\$ARGUMENTS/g, '${input:args}');
+  // `${input:...}` variable syntax and prompts for it on invocation. Claude also
+  // resolves `${CLAUDE_SKILL_DIR}` to the skill's folder; Copilot has no
+  // equivalent, so point it at the installed copy instead.
+  return body.replace(/\$ARGUMENTS/g, '${input:args}').replace(/\$\{CLAUDE_SKILL_DIR\}/g, installDir(name));
 }
 
 // --- emit --------------------------------------------------------------------
@@ -144,7 +172,7 @@ function yamlString(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-function renderPrompt(name, source) {
+function renderPrompt(name, source, scripts) {
   const { frontmatter, body } = splitFrontmatter(source, name);
   const fields = parseFrontmatter(frontmatter);
   const tools = mapTools(fields['allowed-tools']);
@@ -157,8 +185,8 @@ function renderPrompt(name, source) {
     '---',
   ].join('\n');
 
-  const preamble = buildPreamble(name, fields).trimEnd();
-  const transformedBody = transformBody(body).replace(/^\n+/, '');
+  const preamble = buildPreamble(name, fields, scripts).trimEnd();
+  const transformedBody = transformBody(name, body).replace(/^\n+/, '');
 
   return `${fm}\n\n${preamble}\n\n${transformedBody.trimEnd()}\n`;
 }
@@ -173,9 +201,14 @@ async function main() {
 
   for (const name of skills) {
     const source = await readFile(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
-    const out = renderPrompt(name, source);
+    const scripts = await hasScripts(name);
+    const out = renderPrompt(name, source, scripts);
     await writeFile(join(OUT_DIR, `${name}.prompt.md`), out);
     console.log(`build-copilot-prompts: wrote copilot/prompts/${name}.prompt.md`);
+    if (scripts) {
+      await cp(join(SKILLS_DIR, name, 'scripts'), join(OUT_DIR, name, 'scripts'), { recursive: true });
+      console.log(`build-copilot-prompts: copied copilot/prompts/${name}/scripts/`);
+    }
   }
 
   console.log(`build-copilot-prompts: generated ${skills.length} prompt file(s)`);

@@ -18,7 +18,10 @@ jobs:
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date
         run: |
-          if ! git diff --exit-code -- copilot/prompts/; then
+          # status (not diff) so new untracked files, e.g. a newly bundled skill script, also fail
+          if [ -n "$(git status --porcelain -- copilot/prompts/)" ]; then
+            git status --porcelain -- copilot/prompts/
+            git diff -- copilot/prompts/
             echo "::error::copilot/prompts/ is out of date. Run 'npm run build:copilot' and commit the result."
             exit 1
           fi
@@ -26,7 +29,10 @@ jobs:
         run: node scripts/build-copilot-agents.mjs
       - name: Fail if copilot/agents is out of date
         run: |
-          if ! git diff --exit-code -- copilot/agents/; then
+          # status (not diff) so new untracked files, e.g. a newly bundled skill script, also fail
+          if [ -n "$(git status --porcelain -- copilot/agents/)" ]; then
+            git status --porcelain -- copilot/agents/
+            git diff -- copilot/agents/
             echo "::error::copilot/agents/ is out of date. Run 'npm run build:copilot:agents' and commit the result."
             exit 1
           fi

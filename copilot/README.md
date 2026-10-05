@@ -4,7 +4,7 @@ This folder holds the Auro workflow skills packaged as **GitHub Copilot prompt
 files** (`.prompt.md`) — the Copilot analog of the Claude Code skills in
 [`../plugins/auro/skills/`](../plugins/auro/skills/). Each is invoked as a slash
 command in Copilot Chat (VS Code / Visual Studio / JetBrains): `/commit`, `/pr`,
-`/code-review`, `/release-notes`, `/ado`, `/post-mortem`, `/sprint-report`.
+`/code-review`, `/release-notes`, `/ado`, `/post-mortem`, `/sprint-report`, `/create-rcs`.
 
 > **Generated — do not edit by hand.** These files are produced from the `SKILL.md`
 > sources by [`../scripts/build-copilot-prompts.mjs`](../scripts/build-copilot-prompts.mjs)
@@ -16,7 +16,8 @@ command in Copilot Chat (VS Code / Visual Studio / JetBrains): `/commit`, `/pr`,
 Copilot has no plugin marketplace, so you install these one of two ways:
 
 - **Per repo (shared with your team):** copy the files into that repo's
-  `.github/prompts/` and commit them.
+  `.github/prompts/` and commit them. A skill that bundles helper scripts (currently
+  `create-rcs`) also has a `<name>/` folder here — copy it alongside its prompt file.
 - **User level (all your repos):** add this folder as a user prompt-files location.
 
 Full instructions, the per-skill invocation table, and the Claude → Copilot

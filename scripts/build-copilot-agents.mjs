@@ -88,14 +88,29 @@ function argumentBanner(fields) {
   return `> **Argument** (\`\${input}\`)${hint} — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.`;
 }
 
-/** Inline shape: the whole workflow embedded, with `$ARGUMENTS` → `${input}`. */
+/** Where a skill's folder (and any bundled scripts) lives in an `auro-ai` checkout. */
+const checkoutSkillDir = (name) => `$AURO_AI_HOME/plugins/auro/skills/${name}`;
+
+/** Skills that reference `${CLAUDE_SKILL_DIR}` run bundled scripts, which the CLI
+ *  can only reach through a local checkout. */
+function scriptsBanner(name, body) {
+  if (!body.includes('${CLAUDE_SKILL_DIR}')) return null;
+  return `> **Bundled scripts:** this workflow runs scripts from your local \`auro-ai\` checkout at \`${checkoutSkillDir(name)}/scripts/\`. Set \`AURO_AI_HOME\` to the checkout path before invoking it; if it is unset, ask the user for the path.`;
+}
+
+/** Inline shape: the whole workflow embedded, with `$ARGUMENTS` → `${input}` and
+ *  `${CLAUDE_SKILL_DIR}` → the skill's folder in the checkout. */
 function renderInlineBody(name, fields, body) {
-  const transformed = body.replace(/\$ARGUMENTS/g, '${input}').replace(/^\n+/, '');
-  return [GENERATED_NOTE(name), '', argumentBanner(fields), '', transformed.trimEnd()].join('\n');
+  const transformed = body
+    .replace(/\$ARGUMENTS/g, '${input}')
+    .replace(/\$\{CLAUDE_SKILL_DIR\}/g, checkoutSkillDir(name))
+    .replace(/^\n+/, '');
+  const banners = [argumentBanner(fields), scriptsBanner(name, body)].filter(Boolean);
+  return [GENERATED_NOTE(name), '', banners.join('\n>\n'), '', transformed.trimEnd()].join('\n');
 }
 
 /** Bootstrap shape: too large to inline — read the SKILL.md from a checkout. */
-function renderBootstrapBody(name, fields) {
+function renderBootstrapBody(name, fields, body) {
   return [
     GENERATED_NOTE(name),
     '',
@@ -107,7 +122,9 @@ function renderBootstrapBody(name, fields) {
     '',
     '1. Determine the path to your local `auro-ai` checkout — prefer the `AURO_AI_HOME` environment variable; if it is unset, ask the user for the path.',
     `2. Read \`"$AURO_AI_HOME/plugins/auro/skills/${name}/SKILL.md"\` in full (e.g. \`cat\` it via your shell tool, or open it with your read tool).`,
-    '3. Execute that workflow exactly, in order. Treat every `$ARGUMENTS` reference in it as `${input}` — the argument you were invoked with. Where a step says to prompt the user, ask inline in chat.',
+    `3. Execute that workflow exactly, in order. Treat every \`$ARGUMENTS\` reference in it as \`\${input}\` — the argument you were invoked with${
+      body.includes('${CLAUDE_SKILL_DIR}') ? ` — and every \`\${CLAUDE_SKILL_DIR}\` as \`${checkoutSkillDir(name)}\`` : ''
+    }. Where a step says to prompt the user, ask inline in chat.`,
     '',
     'Do not summarize, reorder, or skip steps — follow the file as written.',
   ].join('\n');
@@ -122,7 +139,7 @@ function renderAgent(name, source) {
   if (inline.length <= AGENT_CHAR_LIMIT) {
     return { out: inline, shape: 'inline', size: inline.length };
   }
-  const bootstrap = `${fm}\n\n${renderBootstrapBody(name, fields)}\n`;
+  const bootstrap = `${fm}\n\n${renderBootstrapBody(name, fields, body)}\n`;
   return { out: bootstrap, shape: 'bootstrap', size: inline.length };
 }
 

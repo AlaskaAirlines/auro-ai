@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.17.0...v1.18.0) (2026-10-05)
+
+
+### Features
+
+* **create-rcs:** move workflow into bundled rcs.sh so steps auto-approve ([3fb6026](https://github.com/AlaskaAirlines/auro-ai/commit/3fb60269d550a635d842749606d1f453fcb88a44))
+
 # [1.17.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.16.0...v1.17.0) (2026-10-05)
 
 

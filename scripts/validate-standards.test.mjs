@@ -6,7 +6,7 @@
 // devDependency, no config. Each case writes a fixture corpus to a temp
 // directory, runs the linter against it, and asserts on exit code and stderr.
 //
-// WHY THIS EXISTS. Thirteen separate fail-open defects have been found in
+// WHY THIS EXISTS. Sixteen separate fail-open defects have been found in
 // validate-standards.mjs, every one by review and none by CI. The first seven,
 // which this suite was built to pin:
 //
@@ -43,7 +43,16 @@
 //       four-space-indented fence pair swallowed an un-indented rule, and a
 //       lone indented pseudo-fence desynced the parity silently.
 //
-// All thirteen share a shape: the linter accepts bad input and exits 0. That
+// Three more were found by AI review on the re-opened pull requests:
+//
+//   14. A closing fence ignored trailing text, so a ```js line inside an open
+//       ``` block closed it — 9's parity flip through the info string.
+//   15. Sources were extracted, not validated, so `AB#1636704junk` and
+//       `auro-formkit#1511extra` passed as their valid-looking prefixes.
+//   16. A repeated field overwrote the first, so a second `Sources` line
+//       silently discarded the rule's original provenance.
+//
+// All sixteen share a shape: the linter accepts bad input and exits 0. That
 // is the worst direction for a check that is the only automated safety net
 // this system has — a rule with no traceable source ships and nothing says so.
 // The cases below pin each one, so the next parser change cannot quietly
@@ -461,6 +470,65 @@ const tests = {
         '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
       ].join('\n'),
     }, 'no source');
+  },
+
+  // --- defect 14: a closer with an info string closed the fence ----------------
+  async 'a ```js line inside a ``` fence does not close it'() {
+    // Two info-string lines, so parity stays even with the guard removed: the
+    // first closes the outer fence, the second reopens one, and the real closer
+    // shuts it. Only the enclosed `## Retired` differs, and it exempts
+    // CS-API-002 from the source check.
+    await expectFail('a ```js line inside a ``` fence does not close it', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Shows a fenced example inside a fenced example', '',
+        '- **Sources:** AB#1636704', '',
+        '```markdown', '```js', '## Retired', '```js', '```', '',
+        '### CS-API-002 — Active, cites no source', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'no source');
+  },
+
+  // --- defect 15: a citation with trailing junk passed ------------------------
+  async 'a work item with trailing text is rejected'() {
+    await expectFail('a work item with trailing text is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A citation with a suffix typo', '',
+        '- **Sources:** AB#1636704junk', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'malformed source "AB#1636704junk"');
+  },
+
+  async 'a repo reference with trailing text is rejected'() {
+    await expectFail('a repo reference with trailing text is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — A repo citation with a suffix typo', '',
+        '- **Sources:** auro-formkit#1511extra', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'malformed source "auro-formkit#1511extra"');
+  },
+
+  async 'mixed comma-separated sources pass'() {
+    await expectPass('mixed comma-separated sources pass', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Learned from a ticket and a pull request', '',
+        '- **Sources:** AB#1636704, auro-formkit#1511', '- **Learned:** ×2', '', 'Body text.', '',
+      ].join('\n'),
+    });
+  },
+
+  // --- defect 16: a repeated field overwrote the first ------------------------
+  async 'a second Sources line is rejected, not allowed to replace the first'() {
+    await expectFail('a second Sources line is rejected, not allowed to replace the first', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Provenance split across two lines', '',
+        '- **Sources:** AB#1636704', '- **Sources:** AB#1344690', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'repeats the "Sources" field');
   },
 
   // --- tombstone placement and casing -----------------------------------------

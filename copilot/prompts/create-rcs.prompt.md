@@ -8,132 +8,62 @@ tools: ['runCommands']
 
 > **Argument** (`${input:args}`): "[npm package, e.g. @aurodesignsystem/auro-button]"
 
+> **Copilot compatibility:** Requires an Azure DevOps PAT in your environment and shell tools (`bash`, `curl`, `jq`); repo mode also needs the GitHub CLI (`gh`). The terminal will ask to approve each command.
+
+> **Bundled scripts:** this prompt runs scripts from `.github/prompts/create-rcs/scripts/`. Install the `copilot/prompts/create-rcs/` folder next to the prompt file (`cp -R /path/to/auro-ai/copilot/prompts/create-rcs .github/prompts/`). If you keep the prompt somewhere else, replace `.github/prompts/create-rcs` below with the folder you copied.
+
 ## Task — start now
 
 Build the RCS by running the steps below **in order**. Step 0 reads the optional repo argument and picks the mode: **sprint mode** (no argument — gather the sprint's tickets by area) or **repo mode** (an npm package — gather one repo's unreleased and in-flight tickets). Step 1 prompts the user to pick an iteration (defaulting to the current sprint) — ask, wait for the reply, and resolve it before continuing. **Steps 1–2 and the planning phase of Step 3 are strictly read-only** against Azure DevOps (org `itsals`, project `E_Retain_Content`). Step 3 then **plans** every change — new Release work items plus any link add/removes from reconciliation — shows the user the full change set, and **writes to Azure DevOps only after the user confirms at the submit gate**, at which point it creates work items and adds/removes links. **Send no `POST`/`PATCH` before that gate.**
 
-**Azure DevOps access (PAT).** Every ADO REST call authenticates with a **Personal Access Token** in the `ADO_PAT` environment variable via HTTP Basic auth with an **empty username**: `curl -u ":$ADO_PAT"`.
-- **Before the first ADO call,** verify the token is present: `` [ -n "$ADO_PAT" ] ``. If it's empty, stop and tell the user: *"No Azure DevOps token found. Create a PAT at https://itsals.visualstudio.com/_usersSettings/tokens with **Work Items (Read & Write)** scope (Read is enough for Steps 1–2 and Step 3's planning phase; Write is required only when you confirm submission), then `export ADO_PAT=<token>` in your shell and re-run."*
-- **Detect auth failures, don't mistake them for empty results.** ADO answers an unauthenticated/insufficient request with its sign-in **HTML page** (HTTP 203, or a body starting with `<!DOCTYPE` / containing `Azure DevOps Services | Sign In`) or a 302/401. If any call returns a status other than `200`, or the body isn't the expected JSON, treat it as an **auth failure** — the PAT is missing, expired, or lacks scope — and show the same PAT guidance above. Never report it as an empty sprint or invent `az login` commands.
-- **Never** print the PAT, echo `$ADO_PAT`, or write it to a file — always reference it as the `$ADO_PAT` variable in the command.
+**How to run each step.** All of the shell work lives in the bundled script `.github/prompts/create-rcs/scripts/rcs.sh`; each step below is one call to it. Run every command **exactly as written** — one `rcs.sh` call per Bash invocation, the path unquoted, and nothing added: no `cd`, no `VAR=value` prefix, no `&&`/`;` chains, no pipes or redirects. The skill's permission rule approves only that exact command shape, so anything extra needs manual approval (and in auto mode may be blocked). Put user-supplied text in **single quotes** (escape an embedded `'` as `'\''`). Steps hand state to each other through `/tmp/rcs_*` files, so there are no variables to carry between calls. Never write ad-hoc `curl` calls against Azure DevOps — if a step needs something the script doesn't do, stop and tell the user.
 
-**GitHub access (repo mode only).** Repo mode reads the repo's branches and commits through the `gh` CLI (read-only `gh api` GETs). If `gh auth status` fails, stop and tell the user: *"Repo mode needs the GitHub CLI signed in — run `gh auth login`, then re-run."*
+**Azure DevOps access (PAT).** Every ADO REST call authenticates with a **Personal Access Token** in the `ADO_PAT` environment variable via HTTP Basic auth with an **empty username** (the script does this; it never prints the token).
+- **Missing token.** Any command that calls ADO prints `ADO_PAT_MISSING` and stops if `ADO_PAT` is empty. Then tell the user: *"No Azure DevOps token found. Create a PAT at https://itsals.visualstudio.com/_usersSettings/tokens with **Work Items (Read & Write)** scope (Read is enough for Steps 1–2 and Step 3's planning phase; Write is required only when you confirm submission), then `export ADO_PAT=<token>` in your shell and re-run."*
+- **Auth failures aren't empty results.** ADO answers an unauthenticated/insufficient request with its sign-in **HTML page** (HTTP 203) or a 302/401. The script turns any non-`200` on its query calls into `ADO_AUTH_FAILURE — … HTTP <code>`. Treat that (or any output that's plainly HTML instead of data) as an **auth failure** — the PAT is missing, expired, or lacks scope — and show the same PAT guidance above. Never report it as an empty sprint or invent `az login` commands.
+- **Never** print the PAT, echo `$ADO_PAT`, or write it to a file.
+
+**GitHub access (repo mode only).** Repo mode reads the repo's branches and commits through the `gh` CLI (read-only `gh api` GETs). If the script prints `GH_AUTH_MISSING`, stop and tell the user: *"Repo mode needs the GitHub CLI signed in — run `gh auth login`, then re-run."*
 
 ---
 
 ## Step 0 — Choose the mode (optional repo argument)
 
 `${input:args}` = the text after `/create-rcs`, trimmed.
-- **Empty → sprint mode.** Run only the first line of the block below (`rm -f /tmp/rcs_repo.tsv`, so a stale repo-mode marker from an earlier run can't leak in), then go to Step 1.
-- **Non-empty → repo mode.** It names the repo by npm package: `@scope/name` (e.g. `@aurodesignsystem/auro-button`), or a bare `name`, which means `@aurodesignsystem/<name>`. Resolve it with the block below. It looks up the package's GitHub repo in the npm registry, falling back to `AlaskaAirlines/<name>` if the registry has no repository URL. It then checks that the repo and its `dev` and `main` branches exist, and matches the repo to its ADO area under `E_Retain_Content\Auro Design System`. To match, it compares the GitHub repo name and then the package's base name, case-insensitively, against the area names, so `Icons` → `icons` and `AuroDesignTokens` match without a map.
-
-```bash
-rm -f /tmp/rcs_repo.tsv   # repo-mode marker; absent = sprint mode
-REPO_ARG="<${input:args}, trimmed>"
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-gh auth status >/dev/null 2>&1 && echo "GH_OK" || echo "GH_AUTH_MISSING"   # GH_AUTH_MISSING -> stop (see GitHub access)
-
-case "$REPO_ARG" in
-  @*/*) PKG="$REPO_ARG" ;;
-  *)    PKG="@aurodesignsystem/$REPO_ARG" ;;
-esac
-
-# npm registry -> GitHub owner/repo. `.repository` is an object or a bare string; an unpublished
-# package returns {"error":"Not found"}, which leaves PUBLISHED=no (no dependency-checklist entry later).
-REG=$(curl -sS "https://registry.npmjs.org/$PKG")
-PUBLISHED=$(printf '%s' "$REG" | jq -r 'if .name then "yes" else "no" end')
-GH_REPO=$(printf '%s' "$REG" | jq -r '(.repository | if type=="object" then .url else . end) // empty' \
-  | grep -oE 'github\.com[:/][^/]+/[^/#]+' | sed -E 's#^github\.com[:/]##; s#\.git$##')
-[ -z "$GH_REPO" ] && GH_REPO="AlaskaAirlines/${PKG##*/}"
-
-# Confirm the repo (canonical owner/name casing) and both branches exist.
-GH_REPO=$(gh api "repos/$GH_REPO" --jq .full_name 2>/dev/null) || GH_REPO=""
-echo "package: $PKG  (published on npm: $PUBLISHED)   repo: ${GH_REPO:-NOT_FOUND}"
-if [ -n "$GH_REPO" ]; then
-  for B in dev main; do
-    gh api "repos/$GH_REPO/branches/$B" --jq .name >/dev/null 2>&1 && echo "branch $B: ok" || echo "branch $B: MISSING"
-  done
-fi
-
-# ADO area: a direct child of "Auro Design System" matching the repo name, else the package base name.
-HTTP=$(curl -sS -u ":$ADO_PAT" -o /tmp/rcs_areas_tree.json -w "%{http_code}" \
-  "$BASE/classificationnodes/Areas?\$depth=2&api-version=7.0")
-echo "areas HTTP: $HTTP"   # must be 200
-REPO_AREA=$(jq -r --arg a "${GH_REPO#*/}" --arg b "${PKG##*/}" '
-  [ .children[]? | select(.name=="Auro Design System") | .children[]?.name ] as $areas
-  | first( ($a, $b) as $q | $areas[] | select(ascii_downcase == ($q | ascii_downcase)) ) // empty' /tmp/rcs_areas_tree.json)
-echo "ADO area: ${REPO_AREA:-NO_MATCH}"
-```
+- **Empty → sprint mode.** Run `.github/prompts/create-rcs/scripts/rcs.sh mode` (it prints `SPRINT_MODE` and clears any stale repo-mode marker from an earlier run), then go to Step 1.
+- **Non-empty → repo mode.** It names the repo by npm package: `@scope/name` (e.g. `@aurodesignsystem/auro-button`), or a bare `name`, which means `@aurodesignsystem/<name>`. Run:
+  ```bash
+  .github/prompts/create-rcs/scripts/rcs.sh mode '<the argument>'
+  ```
+  It looks up the package's GitHub repo in the npm registry, falling back to `AlaskaAirlines/<name>` if the registry has no repository URL. It then checks that the repo and its `dev` and `main` branches exist, and matches the repo to its ADO area under `E_Retain_Content\Auro Design System`. To match, it compares the GitHub repo name and then the package's base name, case-insensitively, against the area names, so `Icons` → `icons` and `AuroDesignTokens` match without a map.
 
 Handle the results:
-- **`repo: NOT_FOUND`**: tell the user no GitHub repo could be found for that package and ask them to check the name. Stop.
-- **Either branch `MISSING`**: tell the user `<GH_REPO>` has no `dev` (or `main`) branch, so there is nothing to compare. Stop.
-- **`ADO area: NO_MATCH`**: list the area names (`jq -r '.children[]? | select(.name=="Auro Design System") | .children[]?.name' /tmp/rcs_areas_tree.json | sort -f`) and ask which one the repo releases under. Use their pick as `REPO_AREA`.
+- **`GH_AUTH_MISSING`**: stop (see GitHub access).
+- **`REPO_NOT_FOUND`**: tell the user no GitHub repo could be found for that package and ask them to check the name. Stop.
+- **`BRANCH_MISSING`**: tell the user `<repo>` has no `dev` (or `main`) branch — the `branch …: MISSING` line says which — so there is nothing to compare. Stop.
+- **`ADO area: NO_MATCH`**: the script lists the area names under Auro Design System. Ask which one the repo releases under, then run `.github/prompts/create-rcs/scripts/rcs.sh repo-area '<their pick>'`. (`NO_SUCH_AREA` means the pick isn't on the list — show the list again and re-ask.)
 
-Once all three resolve, write the repo-mode marker. Later steps read it, since each block runs in a fresh shell:
-```bash
-printf '%s\t%s\t%s\t%s\n' "<PKG>" "<GH_REPO>" "<REPO_AREA>" "<PUBLISHED>" > /tmp/rcs_repo.tsv
-```
-Tell the user, e.g. **"Repo mode: `<PKG>` → `<GH_REPO>` (ADO area `<REPO_AREA>`). I'll gather tickets referenced by commits on `dev` that aren't on `main`, plus `<REPO_AREA>` tickets currently Committed/Blocked/Active/Ready For Acceptance."** Then go to Step 1. In repo mode the chosen iteration only sets the Release ticket's Iteration Path and Target Date. It does **not** filter which tickets are gathered.
+`REPO_MODE_OK` means the repo-mode marker is written (`/tmp/rcs_repo.tsv`: package, GitHub repo, ADO area, published-on-npm). Tell the user, e.g. **"Repo mode: `<PKG>` → `<GH_REPO>` (ADO area `<REPO_AREA>`). I'll gather tickets referenced by commits on `dev` that aren't on `main`, plus `<REPO_AREA>` tickets currently Committed/Blocked/Active/Ready For Acceptance."** Then go to Step 1. In repo mode the chosen iteration only sets the Release ticket's Iteration Path and Target Date. It does **not** filter which tickets are gathered.
 
 ---
 
 ## Step 1 — Choose the iteration (sprint), defaulting to current
 
-Fetch the project's iterations, present the active sprints, and ask the user which one to summarize — defaulting to the current sprint if they don't pick one. Run this block (it writes two helper files: the numbered pick-list and the full set for name lookups):
-
+Fetch the project's iterations and present the active sprints:
 ```bash
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-HTTP=$(curl -sS -u ":$ADO_PAT" -o /tmp/rcs_iters.json -w "%{http_code}" \
-  "$BASE/classificationnodes/Iterations?\$depth=10&api-version=7.0")
-echo "iterations HTTP: $HTTP"   # must be 200 — anything else is an auth failure (see access rules)
-TODAY=$(date -u +%Y-%m-%d)
-
-# All dated iterations (name, dates, node path) -> used to resolve a name the user types.
-jq '[ [ .. | objects | select(.attributes?.startDate != null) ]
-      | .[] | {name, start: .attributes.startDate[:10], finish: .attributes.finishDate[:10], path} ]' \
-  /tmp/rcs_iters.json > /tmp/rcs_iter_all.json
-
-# Presented pick-list: top-level sprints only (exclude the Archive / Content Migration folders),
-# most recent first. Number N in the printed list maps to element N-1 here.
-jq '[ .children[] | select(.attributes?.startDate != null)
-      | {name, start: .attributes.startDate[:10], finish: .attributes.finishDate[:10], path} ]
-    | sort_by(.start) | reverse' \
-  /tmp/rcs_iters.json > /tmp/rcs_iter_list.json
-
-echo "=== Iterations (most recent first) ==="
-jq -r --arg today "$TODAY" '
-  (map(select(.start <= $today and $today <= .finish)) | .[0].start) as $curstart
-  | to_entries[]
-  | "\(.key+1)) \(.value.name)   [\(.value.start) → \(.value.finish)]"
-    + (if (.value.start <= $today and $today <= .value.finish) then "   ← current" else "" end)
-' /tmp/rcs_iter_list.json
+.github/prompts/create-rcs/scripts/rcs.sh iterations
 ```
+It prints a numbered list, most recent first, with the sprint containing today marked `← current`. (The list is top-level sprints only; the Archive / Content Migration folders are left out but still resolvable by name.)
 
 Present that numbered list to the user and ask: **"Which iteration should I summarize? Reply with a number from the list, a sprint name, or `current` — the default is the current sprint, so reply `current` (or just confirm) to use it. Older sprints not shown (the Archive) can be selected by name."**
 
-**Resolve their reply** to a single iteration and capture its `ITER_NAME`, `ITER_PATH` (the Iteration Path used to filter work items), `START`, and `FINISH`:
-- **An empty reply, or `current`** → the list entry whose range contains today (the one marked `← current`). If today falls in no iteration, say so and ask them to pick from the list.
-- **A number `N`** → element `N-1` of `/tmp/rcs_iter_list.json`.
-- **A name (or partial name)** → match case-insensitively against the full set (which includes archived sprints):
-  ```bash
-  SEL="<what the user typed>"
-  jq -r --arg q "$SEL" '[ .[] | select(.name | ascii_downcase | contains($q | ascii_downcase)) ]
-    | if length==0 then "NO_MATCH"
-      elif length==1 then (.[0] | "\(.name)\t\(.start)\t\(.finish)\t\(.path)")
-      else "MULTI: " + ([ .[].name ] | join(" | ")) end' /tmp/rcs_iter_all.json
-  ```
-  `NO_MATCH` → tell them and re-ask. `MULTI:` → show the matches and ask them to narrow it. A single match → use it.
-
-**Iteration names contain spaces** (e.g. `Sprint 17.26 08.12-08.25`), so the resolution output is **tab-separated** — never whitespace-split it. Read fields directly with jq (e.g. `jq -r '.[N-1].name'`, `.[N-1].path`, etc.).
-
-**Derive `ITER_PATH` from the iteration's classification-node `path`.** The node `path` looks like `\E_Retain_Content\Iteration\<name>` (or nested `…\Iteration\<parent>\<child>`), but the queryable **Iteration Path** field drops the leading backslash and the `Iteration` classification segment — e.g. `\E_Retain_Content\Iteration\Sprint 17.26 08.12-08.25` → `E_Retain_Content\Sprint 17.26 08.12-08.25`. Convert it:
+**Resolve their reply** by passing it through verbatim (pass `current` for an empty reply or a plain confirmation):
 ```bash
-NODE_PATH="<the resolved iteration's .path>"
-ITER_PATH=$(printf '%s' "$NODE_PATH" | sed -e 's#^\\##' -e 's#\\Iteration\\#\\#')
-echo "ITER_PATH: $ITER_PATH"
+.github/prompts/create-rcs/scripts/rcs.sh iter-select '<what the user replied>'
 ```
-Set `ITER_NAME`, `ITER_PATH`, `START`, and `FINISH` before continuing. Never guess the path — it must come from the selected iteration's node.
+- **A number `N`** → entry `N` of the list. **A name (or partial name)** → matched case-insensitively against every dated iteration, archive included. **`current`** → the entry whose range contains today.
+- **`NO_MATCH`** → tell them and re-ask. **`MULTI: …`** → show the matches and ask them to narrow it. **`NO_CURRENT`** → today falls in no iteration; ask them to pick from the list. **`OUT_OF_RANGE`** → the number isn't on the list; re-ask.
+- On success it prints `ITERATION`, `DATES`, and `ITER_PATH`, and saves them to `/tmp/rcs_iter.tsv` for the later steps. `ITER_PATH` is the queryable Iteration Path, derived from the iteration's classification-node path (the leading backslash and the `Iteration` segment dropped, e.g. `\E_Retain_Content\Iteration\Sprint 17.26 08.12-08.25` → `E_Retain_Content\Sprint 17.26 08.12-08.25`). Never guess it.
 
 Tell the user which sprint you resolved, e.g. **"Summarizing **`<ITER_NAME>`** (`<START>` → `<FINISH>`) — gathering every work item assigned to that iteration."** In repo mode say instead: **"The `<REPO_AREA>` Release ticket will go in **`<ITER_NAME>`** (`<START>` → `<FINISH>`)."**
 
@@ -141,88 +71,21 @@ Tell the user which sprint you resolved, e.g. **"Summarizing **`<ITER_NAME>`** (
 
 ## Step 2 — Gather the iteration's work items, grouped by Area Path
 
-**Repo mode skips this step and runs Step 2R instead.**
+**Repo mode skips this step and runs Step 2R instead.** (The same command runs both; it picks by the Step 0 marker.)
 
-A WIQL query returns only work item **IDs**, so this runs in two stages: query for the IDs of the items whose Iteration Path is `ITER_PATH`, then batch-fetch each item's fields and group them by Area Path. The query is **scoped to items under `E_Retain_Content\Auro Design System`** (so bare-root ComMod/Content work sharing the sprint is excluded), **excludes the `Test Case`, `Test Plan`, `Test Suite`, `Epic`, `Feature`, `Initiative`, `Design Story`, and `Task` work item types**, is **limited to items whose State is one of `Committed`, `Blocked`, `Active`, `Ready For Acceptance`, `Resolved`, or `Closed`** (so `New`, `Approved`, `Design`, `Rejected`, `Removed`, and `Done` items are left out), and **excludes anything tagged `auro-rcs`**. The last two filters keep the skill's own output out of the gather on a re-run — the Release User Stories it creates are tagged `auro-rcs` and land on this sprint's path in State Blocked, and their child `Generate Release Notes` / `Update Dependencies` items are Tasks — so without them a second run would gather its own Release tickets and re-link them as predecessors. Run it with `ITER_PATH` from Step 1:
+A WIQL query returns only work item **IDs**, so this runs in two stages: query for the IDs of the items whose Iteration Path is `ITER_PATH`, then batch-fetch each item's fields and group them by Area Path. The query is **scoped to items under `E_Retain_Content\Auro Design System`** (so bare-root ComMod/Content work sharing the sprint is excluded), **excludes the `Test Case`, `Test Plan`, `Test Suite`, `Epic`, `Feature`, `Initiative`, `Design Story`, and `Task` work item types**, is **limited to items whose State is one of `Committed`, `Blocked`, `Active`, `Ready For Acceptance`, `Resolved`, or `Closed`** (so `New`, `Approved`, `Design`, `Rejected`, `Removed`, and `Done` items are left out), and **excludes anything tagged `auro-rcs`**. The last two filters keep the skill's own output out of the gather on a re-run — the Release User Stories it creates are tagged `auro-rcs` and land on this sprint's path in State Blocked, and their child `Generate Release Notes` / `Update Dependencies` items are Tasks — so without them a second run would gather its own Release tickets and re-link them as predecessors.
 
 ```bash
-ITER_PATH="<ITER_PATH>"   # from the chosen iteration
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-
-# 1. WIQL: the work items whose Iteration Path is this sprint (flat -> id references only), scoped to
-#    items UNDER "E_Retain_Content\Auro Design System" (excludes bare-root ComMod/Content work),
-#    excluding the Test Case/Test Plan/Test Suite/Epic/Feature/Initiative/Design Story/Task work item types, and
-#    limited to items whose State is one of Committed/Blocked/Active/Ready For Acceptance/Resolved/Closed
-#    (so New/Approved/Design/Rejected/Removed/Done items are left out). The Task exclusion plus the
-#    `NOT CONTAINS 'auro-rcs'` clause keep this skill's OWN output out of the gather on a re-run: the
-#    Release User Stories it creates are tagged `auro-rcs` (and are Blocked, an included State, on this
-#    sprint's path), and their `Generate Release Notes` / `Update Dependencies` children are Tasks — without
-#    these two filters a second run would pick up its own Release tickets and link them as predecessors.
-#    Single-quotes in the path are ADO-escaped by doubling them.
-ESC_PATH=$(printf '%s' "$ITER_PATH" | sed "s/'/''/g")
-QUERY="SELECT [System.Id] FROM WorkItems WHERE [System.IterationPath] = '$ESC_PATH' AND [System.AreaPath] UNDER 'E_Retain_Content\\Auro Design System' AND [System.WorkItemType] NOT IN ('Test Case','Test Plan','Test Suite','Epic','Feature','Initiative','Design Story','Task') AND [System.State] IN ('Committed','Blocked','Active','Ready For Acceptance','Resolved','Closed') AND [System.Tags] NOT CONTAINS 'auro-rcs' ORDER BY [System.Id]"
-BODY=$(jq -cn --arg q "$QUERY" '{query:$q}')
-HTTP=$(curl -sS -u ":$ADO_PAT" -o /tmp/rcs_wiql.json -w "%{http_code}" \
-  -X POST -H "Content-Type: application/json" --data-binary "$BODY" \
-  "$BASE/wiql?api-version=7.0")
-echo "query HTTP: $HTTP"   # must be 200
-
-# 2. Batch-fetch id + title + type + state + assignee + area path in chunks of 200 ->
-#    "id<TAB>type<TAB>state<TAB>assignee<TAB>area<TAB>title"
-#    (assignee display name or "Unassigned"; title has embedded tabs/newlines squashed to spaces).
-: > /tmp/rcs_rows.tsv
-IDS_JSON=$(jq -c '[.workItems[].id]' /tmp/rcs_wiql.json)
-TOTAL=$(jq 'length' <<<"$IDS_JSON")
-echo "work items in iteration: $TOTAL"
-for S in $(seq 0 200 $((TOTAL>0 ? TOTAL-1 : 0))); do
-  [ "$TOTAL" -eq 0 ] && break
-  CHUNK=$(jq -c --argjson s "$S" '{ids: .[$s:$s+200], fields:["System.WorkItemType","System.State","System.AssignedTo","System.AreaPath","System.Title"]}' <<<"$IDS_JSON")
-  curl -sS -u ":$ADO_PAT" -X POST -H "Content-Type: application/json" --data-binary "$CHUNK" \
-    "$BASE/workitemsbatch?api-version=7.0" \
-  | jq -r '.value[] | "\(.id)\t\(.fields["System.WorkItemType"])\t\(.fields["System.State"])\t\(.fields["System.AssignedTo"].displayName // "Unassigned")\t\(.fields["System.AreaPath"])\t\((.fields["System.Title"] // "") | gsub("[\t\n\r]"; " "))"' >> /tmp/rcs_rows.tsv
-done
-echo "fetched rows: $(wc -l </tmp/rcs_rows.tsv | tr -d ' ') of $TOTAL"
-
-# 3. Split into TWO top-level groups, then group by Area Path within the second:
-#    Group 1 (ROOT)  — tickets filed directly on the "E_Retain_Content\Auro Design System" node.
-#    Group 2 (OTHER) — every other ticket, still sub-grouped by Area Path. Any area at or under
-#                      "E_Retain_Content\Auro Design System\auro-formkit" collapses to a single
-#                      "auro-formkit" sub-group; other areas have the constant prefix trimmed for readability.
-#    The output brackets each top-level group with "@@@ GROUP 1: Root ... @@@" / "@@@ GROUP 2: By area ... @@@"
-#    banners; within each, "=== <sub-group>  (<count>) ===" blocks list rows sorted by id. Sub-groups in
-#    Group 2 are alphabetical.
-awk -F'\t' '
-BEGIN{ fk="E_Retain_Content\\Auro Design System\\auro-formkit"; lfk=length(fk)
-       pfx="E_Retain_Content\\Auro Design System"; lp=length(pfx) }
-{
-  id=$1; type=$2; state=$3; who=$4; area=$5; title=$6
-  # collapse anything at or under the auro-formkit area into one "auro-formkit" group
-  if(area==fk || substr(area,1,lfk+1)==fk"\\"){ g="auro-formkit" }
-  else if(substr(area,1,lp)==pfx){ g=substr(area,lp+1); if(g=="") g="(root)"; else if(substr(g,1,1)=="\\") g=substr(g,2) }
-  else g=area
-  key=g
-  grp[key]=1; cnt[key]++
-  rows[key]=rows[key] sprintf("%s\t%s\t%s\t%s\t%s\n", id, type, state, who, title)
-}
-END{
-  # ---- Group 1: root tickets (the "(root)" sub-group only) ----
-  print "@@@ GROUP 1: Root — Auro Design System  (" (cnt["(root)"]+0) ") @@@"
-  if("(root)" in grp){ print "=== (root)  (" cnt["(root)"] ") ==="; printf "%s", rows["(root)"] }
-  # ---- Group 2: everything else, alphabetical by area sub-group ----
-  n=0; ocount=0
-  for(k in grp){ if(k=="(root)") continue; keys[++n]=k; ocount+=cnt[k] }
-  for(i=1;i<=n;i++) for(j=i+1;j<=n;j++) if(keys[j]<keys[i]){x=keys[i];keys[i]=keys[j];keys[j]=x}
-  print "@@@ GROUP 2: By area  (" ocount ") @@@"
-  for(i=1;i<=n;i++){ k=keys[i]; print "=== " k "  (" cnt[k] ") ==="; printf "%s", rows[k] }
-}' /tmp/rcs_rows.tsv > /tmp/rcs_grouped.txt
-cat /tmp/rcs_grouped.txt
+.github/prompts/create-rcs/scripts/rcs.sh gather
 ```
+
+It writes the rows to `/tmp/rcs_rows.tsv` (`id  type  state  assignee  area  title`) and prints them split into two top-level groups. Any area at or under `E_Retain_Content\Auro Design System\auro-formkit` collapses to a single `auro-formkit` sub-group; other areas have the constant prefix trimmed.
 
 **Render the grouped list for the user.** Present it as **two top-level groups**, in the order the output emits them:
 1. **`@@@ GROUP 1: Root … @@@`** — the tickets filed directly on the Auro Design System node. If there are none, say so and skip the section.
 2. **`@@@ GROUP 2: By area … @@@`** — all other tickets, kept sub-grouped by area (each `=== <sub-group>  (<count>) ===` block, alphabetical, `auro-formkit` collapsed).
 
-For each `=== <sub-group>  (<count>) ===` block, print a heading and a compact table of its work items with columns **ID · Type · State · Assigned To · Title**. Lead with a one-line summary of the total item count and how it splits across the two groups. If the query returned zero items, tell the user the iteration has no eligible work items assigned to it. Then continue to Step 3.
+For each `=== <sub-group>  (<count>) ===` block, print a heading and a compact table of its work items with columns **ID · Type · State · Assigned To · Title**. Lead with a one-line summary of the total item count and how it splits across the two groups. If `fetched rows` is lower than the `work items in iteration` count, warn that some items couldn't be fetched. If the query returned zero items, tell the user the iteration has no eligible work items assigned to it. Then continue to Step 3.
 
 ---
 
@@ -234,89 +97,15 @@ Repo mode collects two sets of tickets and merges them:
 
 Both sets use the same exclusions as Step 2: no `Test Case`/`Test Plan`/`Test Suite`/`Epic`/`Feature`/`Initiative`/`Design Story`/`Task` items, and nothing tagged `auro-rcs`. Unreleased tickets have **no State filter**, because code on `dev` ships whatever state its ticket is in. They are also kept whatever area they're filed under. Commit-referenced tickets that get excluded, or that can't be fetched, are **listed, not silently dropped**.
 
-The block writes `/tmp/rcs_rows.tsv` in Step 2's exact format, but with **every row's area set to the repo's area**, so Step 3 plans one Release ticket for the repo. The ticket's real area is kept in `/tmp/rcs_repo_view.tsv` for display.
-
 ```bash
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-IFS=$'\t' read -r PKG GH_REPO REPO_AREA PUBLISHED < /tmp/rcs_repo.tsv
-PFX='E_Retain_Content\Auro Design System'
-AREA_PATH="$PFX\\$REPO_AREA"
-EXCL='["Test Case","Test Plan","Test Suite","Epic","Feature","Initiative","Design Story","Task"]'
-
-# 1. Commits on dev not on main (paged). Each commit is emitted as an "@@COMMIT <sha>" marker line
-#    followed by its full message, so AB# refs in bodies are caught and attributed to a short sha.
-gh api --paginate "repos/$GH_REPO/compare/main...dev?per_page=100" \
-  --jq '.commits[] | "@@COMMIT \(.sha)\n\(.commit.message)"' > /tmp/rcs_repo_msgs.txt
-AHEAD=$(gh api "repos/$GH_REPO/compare/main...dev?per_page=1" --jq .ahead_by)
-NCOMMITS=$(grep -c '^@@COMMIT ' /tmp/rcs_repo_msgs.txt)
-echo "commits on dev not on main: $NCOMMITS fetched (GitHub reports $AHEAD ahead)"
-
-# "<id>\t<sha7>" per reference, plus the subjects of commits that reference no ticket at all.
-awk '/^@@COMMIT /{sha=substr($2,1,7); next}
-     { s=$0; while (match(s, /AB#[0-9]+/)) { print substr(s, RSTART+3, RLENGTH-3) "\t" sha; s=substr(s, RSTART+RLENGTH) } }' \
-  /tmp/rcs_repo_msgs.txt | sort -u > /tmp/rcs_repo_commit_refs.tsv
-awk '/^@@COMMIT /{ if (sha!="" && !ref) print sha "  " subj; sha=substr($2,1,7); subj=""; ref=0; next }
-     subj=="" { subj=$0 }  /AB#[0-9]+/ { ref=1 }
-     END{ if (sha!="" && !ref) print sha "  " subj }' /tmp/rcs_repo_msgs.txt > /tmp/rcs_repo_unref.txt
-cut -f1 /tmp/rcs_repo_commit_refs.tsv | sort -un > /tmp/rcs_repo_commit_ids.txt
-echo "tickets referenced by those commits: $(grep -c . /tmp/rcs_repo_commit_ids.txt)   commits with no AB# reference: $(grep -c . /tmp/rcs_repo_unref.txt)"
-
-# 2. In-flight tickets under the repo's area, any iteration.
-ESC_AREA=$(printf '%s' "$AREA_PATH" | sed "s/'/''/g")
-QUERY="SELECT [System.Id] FROM WorkItems WHERE [System.AreaPath] UNDER '$ESC_AREA' AND [System.WorkItemType] NOT IN ('Test Case','Test Plan','Test Suite','Epic','Feature','Initiative','Design Story','Task') AND [System.State] IN ('Committed','Blocked','Active','Ready For Acceptance') AND [System.Tags] NOT CONTAINS 'auro-rcs' ORDER BY [System.Id]"
-BODY=$(jq -cn --arg q "$QUERY" '{query:$q}')
-HTTP=$(curl -sS -u ":$ADO_PAT" -o /tmp/rcs_wiql.json -w "%{http_code}" \
-  -X POST -H "Content-Type: application/json" --data-binary "$BODY" "$BASE/wiql?api-version=7.0")
-echo "in-flight query HTTP: $HTTP"   # must be 200
-jq -r '.workItems[].id' /tmp/rcs_wiql.json | sort -un > /tmp/rcs_repo_inflight_ids.txt
-echo "in-flight tickets in $REPO_AREA: $(grep -c . /tmp/rcs_repo_inflight_ids.txt)"
-
-# 3. Union, with where each id came from -> "<id>\t<commit|in-flight|commit+in-flight>"
-sort -un /tmp/rcs_repo_commit_ids.txt /tmp/rcs_repo_inflight_ids.txt | awk '
-  BEGIN{ while ((getline l < "/tmp/rcs_repo_commit_ids.txt") > 0) c[l]=1
-         while ((getline l < "/tmp/rcs_repo_inflight_ids.txt") > 0) f[l]=1 }
-  NF{ print $1 "\t" ((c[$1] && f[$1]) ? "commit+in-flight" : (c[$1] ? "commit" : "in-flight")) }' > /tmp/rcs_repo_src.tsv
-
-# 4. Batch-fetch every id (errorPolicy=omit: a deleted/inaccessible id comes back null instead of failing
-#    the whole batch) -> "<verdict>\t<id>\t<type>\t<state>\t<who>\t<area>\t<title>", verdict KEEP or SKIP:<why>.
-: > /tmp/rcs_repo_fetched.tsv
-IDS_JSON=$(cut -f1 /tmp/rcs_repo_src.tsv | jq -R 'select(length>0)|tonumber' | jq -sc '.')
-TOTAL=$(jq 'length' <<<"$IDS_JSON")
-for S in $(seq 0 200 $((TOTAL>0 ? TOTAL-1 : 0))); do
-  [ "$TOTAL" -eq 0 ] && break
-  CHUNK=$(jq -c --argjson s "$S" '{ids: .[$s:$s+200], errorPolicy:"omit", fields:["System.WorkItemType","System.State","System.AssignedTo","System.AreaPath","System.Title","System.Tags"]}' <<<"$IDS_JSON")
-  curl -sS -u ":$ADO_PAT" -X POST -H "Content-Type: application/json" --data-binary "$CHUNK" \
-    "$BASE/workitemsbatch?api-version=7.0" \
-  | jq -r --argjson ex "$EXCL" '.value[] | select(. != null)
-      | .fields as $f | $f["System.WorkItemType"] as $t
-      | ([ ($f["System.Tags"] // "") | split(";")[] | gsub("^ +| +$";"") ] | index("auro-rcs")) as $rcs
-      | (if $rcs != null then "SKIP:tagged auro-rcs" elif ($ex | index($t)) != null then "SKIP:excluded type" else "KEEP" end) as $v
-      | "\($v)\t\(.id)\t\($t)\t\($f["System.State"])\t\($f["System.AssignedTo"].displayName // "Unassigned")\t\($f["System.AreaPath"])\t\(($f["System.Title"] // "") | gsub("[\t\n\r]"; " "))"' \
-    >> /tmp/rcs_repo_fetched.tsv
-done
-cut -f2 /tmp/rcs_repo_fetched.tsv | sort -un > /tmp/rcs_repo_found_ids.txt
-
-# 5. Kept rows -> rcs_rows.tsv with the area forced to the repo's area (via ENVIRON: awk -v would mangle the
-#    backslashes). The display copy keeps the real area and adds the source column.
-RA="$AREA_PATH" awk -F'\t' 'BEGIN{ ra=ENVIRON["RA"] } $1=="KEEP"{ print $2"\t"$3"\t"$4"\t"$5"\t"ra"\t"$7 }' \
-  /tmp/rcs_repo_fetched.tsv > /tmp/rcs_rows.tsv
-awk -F'\t' 'BEGIN{ while ((getline l < "/tmp/rcs_repo_src.tsv") > 0) { split(l, a, "\t"); src[a[1]]=a[2] } }
-  $1=="KEEP"{ print $2"\t"src[$2]"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7 }' /tmp/rcs_repo_fetched.tsv | sort -n > /tmp/rcs_repo_view.tsv
-
-# 6. Skipped: excluded/tagged tickets, plus commit-referenced ids that came back missing.
-awk -F'\t' '$1!="KEEP"{ sub(/^SKIP:/, "", $1); print $2"\t"$1"\t"$3"\t"$7 }' /tmp/rcs_repo_fetched.tsv > /tmp/rcs_repo_skipped.tsv
-grep -vxF -f /tmp/rcs_repo_found_ids.txt /tmp/rcs_repo_commit_ids.txt | awk 'NF{ print $1"\tnot found or no access\t\t" }' >> /tmp/rcs_repo_skipped.tsv
-
-echo "tickets to release: $(grep -c . /tmp/rcs_rows.tsv)   skipped: $(grep -c . /tmp/rcs_repo_skipped.tsv)"
-echo "--- id / source / type / state / assigned / real area / title ---"; cat /tmp/rcs_repo_view.tsv
-echo "--- commit references (id / sha) ---"; cat /tmp/rcs_repo_commit_refs.tsv
-echo "--- skipped (id / reason / type / title) ---"; cat /tmp/rcs_repo_skipped.tsv
-echo "--- commits with no AB# reference ---"; cat /tmp/rcs_repo_unref.txt
+.github/prompts/create-rcs/scripts/rcs.sh gather
 ```
+
+It writes `/tmp/rcs_rows.tsv` in Step 2's exact format, but with **every row's area set to the repo's area**, so Step 3 plans one Release ticket for the repo. Its output has four sections: the tickets to release (`id / source / type / state / assigned / real area / title`, where source is `commit`, `in-flight`, or `commit+in-flight`), the commit references (`id / sha`), the skipped tickets (`id / reason / type / title`), and the commits with no `AB#` reference.
 
 If the fetched commit count is lower than GitHub's `ahead` count, warn the user that some commits weren't read, so the ticket list may be incomplete.
 
-**Render it for the user.** Start with one summary line: `<NCOMMITS>` commits on `dev` not on `main`, how many tickets they reference, how many in-flight tickets there are, and the total being released. Then show one table, **ID · Source · Type · State · Assigned To · Title**. Add an **Area** column only when a ticket's real area differs from `<REPO_AREA>`, so tickets filed elsewhere are easy to spot. After the table, list:
+**Render it for the user.** Start with one summary line: the number of commits on `dev` not on `main`, how many tickets they reference, how many in-flight tickets there are, and the total being released. Then show one table, **ID · Source · Type · State · Assigned To · Title**. Add an **Area** column only when a ticket's real area differs from `<REPO_AREA>`, so tickets filed elsewhere are easy to spot. After the table, list:
 - the **skipped** tickets and why;
 - the **commits with no `AB#` reference** (short sha and subject), since those changes ship without a ticket in this RC.
 
@@ -346,338 +135,43 @@ Each planned **parent User Story** carries:
 - **Target Date:** `Microsoft.VSTS.Scheduling.TargetDate` = the iteration's last day (`FINISH`).
 - **Tag:** `auro-rcs` (`System.Tags`) — the marker the skill uses to recognize its own Release tickets.
 - **Predecessor links:** one `System.LinkTypes.Dependency-Reverse` (**Predecessor**) relation to **every** ticket in that area sub-group, so the release gates on all of them. **For the `AuroDocsSite` story only,** an additional Predecessor relation to **every other area's Release ticket** this sprint — added in 3D once those tickets exist.
-- **Description** and **Acceptance Criteria** as drafted below. **For the `AuroDocsSite` story only,** the Acceptance Criteria is prefixed with a **dependency-update checklist**: one NPM-package checkbox per other release this sprint. Package names default to `@aurodesignsystem/<area>` but come from an area→package map (3A) that overrides exceptions — e.g. `WebCoreStyleSheets` → `@aurodesignsystem/webcorestylesheets`, `icons` → `@alaskaairux/icons`. Areas with **no published npm package** (a `nopkg` set in 3A — e.g. `auro-ai`, a spike/tooling area) are **omitted from the checklist** but still get a Release ticket and a cross-release Predecessor link. On a **reused** `AuroDocsSite` ticket this checklist is refreshed at submit (3D); on a newly created one it is written with the rest of the fields.
+- **Description** and **Acceptance Criteria** as drafted in 3A. **For the `AuroDocsSite` story only,** the Acceptance Criteria is prefixed with a **dependency-update checklist**: one NPM-package checkbox per other release this sprint. Package names default to `@aurodesignsystem/<area>` but come from an area→package map in the script that overrides exceptions — e.g. `WebCoreStyleSheets` → `@aurodesignsystem/webcorestylesheets`, `icons` → `@alaskaairux/icons`. Areas with **no published npm package** (a `nopkg` set in the script — e.g. `auro-ai`, a spike/tooling area) are **omitted from the checklist** but still get a Release ticket and a cross-release Predecessor link. On a **reused** `AuroDocsSite` ticket this checklist is refreshed at submit (3D); on a newly created one it is written with the rest of the fields.
 
-**Large-text fields are written as Markdown, not HTML.** `System.Description` and `Microsoft.VSTS.Common.AcceptanceCriteria` default to HTML — which collapses the drafted `\n\n` line breaks, `**bold**`, and `` `code` `` into one unformatted run. So every payload that writes one of these fields also sends a companion op `{op:"add",path:"/multilineFieldsFormat/<ref>",value:"Markdown"}`, and the create/update calls use **`api-version=7.1`** (7.0 silently ignores `multilineFieldsFormat` and stores the content as HTML). ADO only applies the format op when the field's value actually changes, so any later reformat of an existing ticket must send a changed value alongside the op.
+**Large-text fields are written as Markdown, not HTML.** `System.Description` and `Microsoft.VSTS.Common.AcceptanceCriteria` default to HTML — which collapses the drafted line breaks, `**bold**`, and `` `code` `` into one unformatted run. So every payload that writes one of these fields also sends a companion `multilineFieldsFormat` op set to `Markdown`, and the create/update calls use **`api-version=7.1`** (7.0 silently ignores `multilineFieldsFormat` and stores the content as HTML). ADO only applies the format op when the field's value actually changes, so any later reformat of an existing ticket must send a changed value alongside the op.
 
-Each **child Task** (`Generate Release Notes`, `Update Dependencies`) carries the same Area Path / Iteration Path and its Markdown description below (with its own `multilineFieldsFormat` op). During planning (3A) the child payloads are written without a parent link; at submit time (3D) the parent story is created first, then each Task is created with a `System.LinkTypes.Hierarchy-Reverse` (**Parent**) link to the new story's id.
-
-**Validate the parent State first (per this run's rule).** Fetch the allowed States for `User Story` and confirm `Blocked` is among them:
-```bash
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-curl -sS -u ":$ADO_PAT" "$BASE/workItemTypes/User%20Story/states?api-version=7.0" \
-  | jq -r '.value[]?.name' > /tmp/rcs_us_states.txt
-grep -qx "Blocked" /tmp/rcs_us_states.txt && echo "STATE_OK" || echo "STATE_INVALID"
-```
-If it prints `STATE_INVALID`, **stop** and ask the user which State to use for the Release stories instead of `Blocked`; otherwise continue with `Blocked`.
+Each **child Task** (`Generate Release Notes`, `Update Dependencies`) carries the same Area Path / Iteration Path and its own Markdown description. During planning (3A) the child payloads are written without a parent link; at submit time (3D) the parent story is created first, then each Task is created with a `System.LinkTypes.Hierarchy-Reverse` (**Parent**) link to the new story's id.
 
 ### 3A — Build the drafts and scan existing links (read-only)
 
-**Build the drafts.** Run this block (it re-labels the fetched rows into area sub-groups, then writes JSON-patch payloads per area under `/tmp/rcs_draft_*` — a parent User Story plus two child Tasks (Generate Release Notes, Update Dependencies) — and prints a readable draft for each). It writes nothing to ADO. It expects `ITER_NAME`, `ITER_PATH`, and `FINISH` from Step 1 and `/tmp/rcs_rows.tsv` from Step 2:
-
+**Build the drafts.**
 ```bash
-ITER_NAME="<ITER_NAME>"; ITER_PATH="<ITER_PATH>"; FINISH="<FINISH>"   # from Step 1 (FINISH = iteration's last day, YYYY-MM-DD)
-TARGET_DATE="${FINISH}T00:00:00Z"   # Release story Target Date = last day of the iteration
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-ORG_WI="https://itsals.visualstudio.com/_apis/wit/workItems"   # work-item URL stem for relation links
-PFX='E_Retain_Content\Auro Design System'
-RCS_TAG="auro-rcs"                             # tag stamped on every Release ticket this skill creates
-setopt local_options no_nomatch 2>/dev/null   # zsh: don't abort on an empty glob (bash ignores this line)
-rm -f /tmp/rcs_draft_*.json 2>/dev/null        # clear any prior drafts
-PKG=""; GH_REPO=""; REPO_AREA=""; PUBLISHED=""   # repo mode only (Step 0 marker); empty in sprint mode
-[ -s /tmp/rcs_repo.tsv ] && IFS=$'\t' read -r PKG GH_REPO REPO_AREA PUBLISHED < /tmp/rcs_repo.tsv
-
-# Re-label each fetched row into its area sub-group (same rules as Step 2), skipping (root).
-# Emits: "<label>\t<id>\t<type>\t<state>\t<who>\t<title>". The prefix is hardcoded INSIDE the awk
-# program (never passed via -v: awk would mangle the backslashes as escape sequences).
-awk -F'\t' '
-BEGIN{ pfx="E_Retain_Content\\Auro Design System"; fk=pfx"\\auro-formkit"; lfk=length(fk); lp=length(pfx) }
-{ id=$1;type=$2;state=$3;who=$4;area=$5;title=$6
-  if(area==fk || substr(area,1,lfk+1)==fk"\\") g="auro-formkit"
-  else if(substr(area,1,lp)==pfx){ g=substr(area,lp+1); if(g==""){next} else if(substr(g,1,1)=="\\")g=substr(g,2) }
-  else g=area
-  if(g=="(root)") next
-  print g"\t"id"\t"type"\t"state"\t"who"\t"title }' /tmp/rcs_rows.tsv | sort > /tmp/rcs_labeled.tsv
-
-# Canonical area set (/tmp/rcs_areas.txt): the areas with sprint tickets, PLUS a forced "AuroDocsSite"
-# whenever any OTHER area is releasing this sprint — the docs site depends on every component, so it
-# always gets a Release ticket (even with zero AuroDocsSite tickets of its own, i.e. no area predecessors).
-# labeled.tsv is left untouched (ticket-only), so predecessor lists and the link scan are unaffected.
-DOCS="AuroDocsSite"
-cut -f1 /tmp/rcs_labeled.tsv | sort -u > /tmp/rcs_areas.txt
-if grep -qvxF "$DOCS" /tmp/rcs_areas.txt; then          # a non-AuroDocsSite area exists
-  grep -qxF "$DOCS" /tmp/rcs_areas.txt || echo "$DOCS" >> /tmp/rcs_areas.txt
-  sort -u -o /tmp/rcs_areas.txt /tmp/rcs_areas.txt
-fi
-OTHER_AREAS=$(grep -vxF "$DOCS" /tmp/rcs_areas.txt)      # every non-docs release this sprint (for the dep list)
-
-# Map each other area to its published NPM package for the AuroDocsSite dependency checklist.
-# Default is @aurodesignsystem/<area>; the `map[...]` overrides handle areas whose package name or
-# scope differs from the area label. `nopkg[...]` lists areas that have NO published npm package
-# (spikes/tooling the docs site doesn't depend on) — they still get a Release ticket and a
-# cross-release Predecessor link, but are omitted from the dependency checkbox list. Add a line to
-# `map` for a naming exception, or to `nopkg` for a non-published area.
-# The resulting package list is written once to /tmp/rcs_dep_pkgs.txt and reused wherever the dep
-# checklist is rendered (the AC draft, the readable draft, and the 3B change-set preview).
-# Repo mode: the only other release is the repo itself, and its real package name is already known.
-if [ -n "$REPO_AREA" ]; then
-  if [ -n "$OTHER_AREAS" ] && [ "$PUBLISHED" = "yes" ]; then printf '%s\n' "$PKG"; fi > /tmp/rcs_dep_pkgs.txt
-else
-  printf '%s\n' "$OTHER_AREAS" | awk '
-    BEGIN{
-      map["WebCoreStyleSheets"]="@aurodesignsystem/webcorestylesheets"
-      map["icons"]="@alaskaairux/icons"
-      nopkg["auro-ai"]=1
-    }
-    NF && !($0 in nopkg){ print ( ($0 in map) ? map[$0] : "@aurodesignsystem/" $0 ) }' > /tmp/rcs_dep_pkgs.txt
-fi
-
-AREAS=$(cat /tmp/rcs_areas.txt)
-echo "Planning Release work items for $(echo "$AREAS" | grep -c .) areas (nothing written to ADO yet)."
-echo
-
-while IFS= read -r AREA; do
-  [ -z "$AREA" ] && continue
-  SAFE=$(printf '%s' "$AREA" | tr '\\/ ' '___')
-  AREA_PATH="$PFX\\$AREA"
-  TITLE="Release $AREA - $ITER_NAME"
-
-  # predecessor ids for this area
-  IDS=$(awk -F'\t' -v a="$AREA" '$1==a{print $2}' /tmp/rcs_labeled.tsv)
-
-  PRED_LINE="Every work item completed for \`$AREA\` this iteration is linked as a **Predecessor** of this item — those are the changes bundled into this release."
-  if [ -n "$REPO_AREA" ] && [ "$AREA" = "$REPO_AREA" ]; then
-    PRED_LINE="Every work item referenced (\`AB#<id>\`) by a commit on \`$GH_REPO\`'s \`dev\` branch that is not yet on \`main\`, plus every \`$AREA\` work item currently Committed, Blocked, Active, or Ready For Acceptance, is linked as a **Predecessor** of this item — those are the changes bundled into this release."
-  fi
-
-  DESC="**Release coordination for \`$AREA\` — $ITER_NAME.**
-
-This work item manages the release flow for the \`$AREA\` area of the Auro Design System. It is the single gate for cutting and shipping the \`$AREA\` release candidate (RC) this iteration.
-
-- $PRED_LINE
-- This item stays **Blocked** until all predecessor work is complete.
-- Its child tasks prepare the release: **Generate Release Notes** produces the release-notes document that ships with the release, and **Update Dependencies** reviews and updates the NPM dependencies for the area.
-
-Use this ticket as the go/no-go checkpoint for the \`$AREA\` release."
-
-  AC="- [ ] **The release candidate has been re-tested** — the \`$AREA\` RC has been re-tested and verified to pass after all predecessor work merged.
-- [ ] **The release has been cut** — once all predecessor work items are closed and test validation is complete and passing, the release-candidate PR is merged into the \`main\` branch."
-
-  # AuroDocsSite only: prefix the AC with a dependency-update checklist (one @aurodesignsystem/<area> per
-  # other release this sprint) and note the cross-release gating in the description. The docs site bumps
-  # each released component's package to the version cut this iteration.
-  if [ "$AREA" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
-    DEP_ITEMS=$(awk 'NF{printf "  - [ ] `%s`\n", $0}' /tmp/rcs_dep_pkgs.txt)   # mapped package names
-    AC="- [ ] **Dependency updates implemented** — bump AuroDocsSite's dependencies to the versions released this sprint, aligning the docs site with every other Auro release cut this iteration:
-${DEP_ITEMS}
-${AC}"
-    DESC="$DESC
-
-Because the docs site depends on every Auro component, this release also gates on each of this sprint's other \`Release …\` tickets (linked as **Predecessors**) and its Acceptance Criteria lists the corresponding \`@aurodesignsystem/*\` dependency bumps that must ship with it."
-  fi
-
-  CHILD_DESC="Create the release-notes document for the \`$AREA\` release ($ITER_NAME) and include it in the release.
-
-The release notes must:
-- Summarize every work item shipped in this release (all Predecessors of *$TITLE*) — new features, bug fixes, and any breaking changes.
-- Be reviewed for accuracy and completeness.
-- Be attached to / linked from the release so it ships with the \`$AREA\` release candidate."
-
-  CHILD2_DESC="Review and update the NPM dependencies for the \`$AREA\` release ($ITER_NAME).
-
-Check both \`dependencies\` and \`devDependencies\` for this area to determine whether any updates should be made, and execute on them where appropriate:
-- Identify outdated packages (e.g. via \`npm outdated\`) across \`dependencies\` and \`devDependencies\`.
-- Determine which updates are appropriate for this release — prioritizing security and bug-fix updates, and evaluating major-version bumps for breaking changes.
-- Apply the appropriate updates, refresh the lockfile, and verify the build and tests still pass.
-- Note any updates intentionally deferred so they can be revisited in a future release."
-
-  # predecessor relation ops -> JSON array. Pass values via --arg (never interpolate backslash-laden
-  # shell vars into the jq program text — jq would choke on "\A", "\D", etc.).
-  PREDS=$(printf '%s\n' "$IDS" | jq -R --arg stem "$ORG_WI" --arg area "$AREA" '
-    select(length>0) | {op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Dependency-Reverse",url:($stem+"/"+.),attributes:{comment:("RC predecessor — bundled into the "+$area+" release")}}}' | jq -s '.')
-
-  # parent User Story JSON-patch payload (planned, not yet submitted). Target Date = last day of the
-  # iteration; tagged auro-rcs so the skill can recognize its own Release tickets later.
-  jq -n --arg title "$TITLE" --arg area "$AREA_PATH" --arg iter "$ITER_PATH" \
-        --arg desc "$DESC" --arg ac "$AC" --arg target "$TARGET_DATE" --arg tag "$RCS_TAG" --argjson preds "$PREDS" '
-    [ {op:"add",path:"/fields/System.Title",value:$title},
-      {op:"add",path:"/fields/System.AreaPath",value:$area},
-      {op:"add",path:"/fields/System.IterationPath",value:$iter},
-      {op:"add",path:"/fields/System.State",value:"Blocked"},
-      {op:"add",path:"/fields/Microsoft.VSTS.Scheduling.TargetDate",value:$target},
-      {op:"add",path:"/fields/System.Tags",value:$tag},
-      {op:"add",path:"/fields/System.Description",value:$desc},
-      {op:"add",path:"/fields/Microsoft.VSTS.Common.AcceptanceCriteria",value:$ac},
-      {op:"add",path:"/multilineFieldsFormat/System.Description",value:"Markdown"},
-      {op:"add",path:"/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria",value:"Markdown"} ] + $preds
-  ' > "/tmp/rcs_draft_${SAFE}_parent.json"
-
-  # child Task JSON-patch payloads (NOT submitted; Parent link added at submit time once the story exists)
-  jq -n --arg title "Generate Release Notes" --arg area "$AREA_PATH" --arg iter "$ITER_PATH" \
-        --arg desc "$CHILD_DESC" '
-    [ {op:"add",path:"/fields/System.Title",value:$title},
-      {op:"add",path:"/fields/System.AreaPath",value:$area},
-      {op:"add",path:"/fields/System.IterationPath",value:$iter},
-      {op:"add",path:"/fields/System.Description",value:$desc},
-      {op:"add",path:"/multilineFieldsFormat/System.Description",value:"Markdown"} ]
-  ' > "/tmp/rcs_draft_${SAFE}_child_notes.json"
-
-  jq -n --arg title "Update Dependencies" --arg area "$AREA_PATH" --arg iter "$ITER_PATH" \
-        --arg desc "$CHILD2_DESC" '
-    [ {op:"add",path:"/fields/System.Title",value:$title},
-      {op:"add",path:"/fields/System.AreaPath",value:$area},
-      {op:"add",path:"/fields/System.IterationPath",value:$iter},
-      {op:"add",path:"/fields/System.Description",value:$desc},
-      {op:"add",path:"/multilineFieldsFormat/System.Description",value:"Markdown"} ]
-  ' > "/tmp/rcs_draft_${SAFE}_child_deps.json"
-
-  # readable draft — use printf '%s' so backslashes in area/iteration paths
-  # (e.g. \auro-*) are printed literally and not eaten as echo escapes (\a = bell)
-  PCOUNT=$(printf '%s\n' "$IDS" | grep -c .)
-  PREDLIST=$(printf '%s' "$IDS" | tr '\n' ' ')   # one space-separated line (zsh doesn't word-split unquoted $IDS)
-  printf '%s\n' "──────────────────────────────────────────────"
-  printf 'AREA: %s\n' "$AREA"
-  printf '  PARENT  User Story  "%s"\n' "$TITLE"
-  printf '    Area Path:      %s\n' "$AREA_PATH"
-  printf '    Iteration:      %s\n' "$ITER_PATH"
-  printf '    State:          %s\n' "Blocked"
-  printf '    Target Date:    %s\n' "$TARGET_DATE"
-  printf '    Predecessors:   %s  ->  %s\n' "$PCOUNT" "$PREDLIST"
-  if [ "$AREA" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
-    printf '    + Predecessor links to every other area'"'"'s Release ticket (added at submit): %s\n' "$(printf '%s' "$OTHER_AREAS" | tr '\n' ' ')"
-    printf '    + AC dependency-update checklist: %s\n' "$(awk 'NF{printf "%s ", $0}' /tmp/rcs_dep_pkgs.txt)"
-  fi
-  printf '  CHILD   Task        "Generate Release Notes"  (Parent -> "%s")\n' "$TITLE"
-  printf '  CHILD   Task        "Update Dependencies"     (Parent -> "%s")\n' "$TITLE"
-  printf '  payloads: /tmp/rcs_draft_%s_parent.json , /tmp/rcs_draft_%s_child_notes.json , /tmp/rcs_draft_%s_child_deps.json\n' "$SAFE" "$SAFE" "$SAFE"
-  printf '\n'
-done <<< "$AREAS"
-
-echo "Draft payloads written under /tmp/rcs_draft_*.json (nothing submitted yet)."
+.github/prompts/create-rcs/scripts/rcs.sh plan
 ```
+It first checks that `Blocked` is an allowed `User Story` State. On **`STATE_INVALID`** it lists the valid States and stops: ask the user which State to use for the Release stories, then re-run as `.github/prompts/create-rcs/scripts/rcs.sh plan '<their State>'`. Otherwise it re-labels the fetched rows into area sub-groups (`/tmp/rcs_labeled.tsv`), works out the area set (forcing `AuroDocsSite` in, per above) and the docs dependency package list, writes the JSON-patch payloads per area under `/tmp/rcs_draft_*` — a parent User Story plus the two child Tasks — and prints a readable draft for each. It writes nothing to ADO. Show the user the drafts.
 
-**Scan for existing Release links (read-only).** Run this block. For every ticket in the sprint it finds any link to one of the skill's own Release tickets (tag `auro-rcs`) and classifies it `this` (same iteration) or `other`. Results go to `/tmp/rcs_links.tsv` (`area  ticketId  releaseId  releaseIter  class  releaseTitle`). A ticket sits on the **Successor** side (`System.LinkTypes.Dependency-Forward`) of the link the skill creates, so that is what the scan follows:
-
+**Scan for existing Release links (read-only).**
 ```bash
-ITER_PATH="<ITER_PATH>"   # from Step 1 (re-declared: each block runs in a fresh shell)
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-RCS_TAG="auro-rcs"
-: > /tmp/rcs_succ.tsv; : > /tmp/rcs_releases.tsv; : > /tmp/rcs_links.tsv
-
-# 1) every sprint ticket's Successor (Dependency-Forward) targets -> "ticketId <TAB> candidateReleaseId"
-ALL_IDS=$(cut -f2 /tmp/rcs_labeled.tsv | sort -un)
-ID_ARR=$(printf '%s\n' "$ALL_IDS" | jq -R 'select(length>0)|tonumber' | jq -sc '.')
-CNT=$(jq 'length' <<<"$ID_ARR")
-for S in $(seq 0 200 $((CNT>0 ? CNT-1 : 0))); do
-  [ "$CNT" -eq 0 ] && break
-  CHUNK=$(jq -c --argjson s "$S" '{ids:.[$s:$s+200],"$expand":"relations"}' <<<"$ID_ARR")
-  curl -sS -u ":$ADO_PAT" -X POST -H "Content-Type: application/json" --data-binary "$CHUNK" \
-    "$BASE/workitemsbatch?api-version=7.0" \
-  | jq -r '.value[] | .id as $t | (.relations[]? | select(.rel=="System.LinkTypes.Dependency-Forward")
-           | "\($t)\t\(.url | sub(".*/[wW]ork[iI]tems/";""))")' >> /tmp/rcs_succ.tsv
-done
-
-# 2) of those link targets, keep only the ones tagged auro-rcs; classify by iteration
-CAND=$(cut -f2 /tmp/rcs_succ.tsv | sort -un)
-if [ -n "$CAND" ]; then
-  CAND_ARR=$(printf '%s\n' "$CAND" | jq -R 'select(length>0)|tonumber' | jq -sc '.')
-  CC=$(jq 'length' <<<"$CAND_ARR")
-  for S in $(seq 0 200 $((CC-1))); do
-    RCH=$(jq -c --argjson s "$S" '{ids:.[$s:$s+200],fields:["System.Tags","System.IterationPath","System.Title"]}' <<<"$CAND_ARR")
-    curl -sS -u ":$ADO_PAT" -X POST -H "Content-Type: application/json" --data-binary "$RCH" \
-      "$BASE/workitemsbatch?api-version=7.0" \
-    | jq -r --arg tag "$RCS_TAG" --arg iter "$ITER_PATH" '
-        .value[] | (.fields["System.Tags"] // "") as $tags
-        | select([ $tags | split(";") | .[] | gsub("^ +| +$";"") ] | index($tag))
-        | "\(.id)\t\(.fields["System.IterationPath"])\t\(if .fields["System.IterationPath"]==$iter then "this" else "other" end)\t\(.fields["System.Title"])"' \
-      >> /tmp/rcs_releases.tsv
-  done
-fi
-
-# 3) join ticket->release with the area label and the tagged-release classification
-awk -F'\t' -v LBL=/tmp/rcs_labeled.tsv -v REL=/tmp/rcs_releases.tsv '
-BEGIN{
-  while((getline l < LBL)>0){ split(l,a,"\t"); area[a[2]]=a[1] }
-  while((getline r < REL)>0){ split(r,b,"\t"); rc[b[1]]=b[3]; ri[b[1]]=b[2]; rt[b[1]]=b[4] }
-}
-{ t=$1; rid=$2; if(rid in rc) print area[t]"\t"t"\t"rid"\t"ri[rid]"\t"rc[rid]"\t"rt[rid] }
-' /tmp/rcs_succ.tsv | sort > /tmp/rcs_links.tsv
-
-TOTAL_LINKS=$(grep -c . /tmp/rcs_links.tsv); THIS_LINKS=$(awk -F'\t' '$5=="this"' /tmp/rcs_links.tsv | grep -c .); OTHER_LINKS=$(awk -F'\t' '$5=="other"' /tmp/rcs_links.tsv | grep -c .)
-echo "existing auro-rcs links found: $TOTAL_LINKS  (this-sprint: $THIS_LINKS, other-sprint: $OTHER_LINKS)"
-[ "$TOTAL_LINKS" -gt 0 ] && { echo "  area / ticket / release / iter / class / title"; cat /tmp/rcs_links.tsv; }
+.github/prompts/create-rcs/scripts/rcs.sh scan-links
 ```
+For every ticket being released it finds any link to one of the skill's own Release tickets (tag `auro-rcs`) and classifies it `this` (same iteration) or `other`. A ticket sits on the **Successor** side (`System.LinkTypes.Dependency-Forward`) of the link the skill creates, so that is what the scan follows. Results are printed and saved to `/tmp/rcs_links.tsv` (`area  ticketId  releaseId  releaseIter  class  releaseTitle`). It also resets the three decision files (`/tmp/rcs_reuse.tsv`, `/tmp/rcs_moves.tsv`, `/tmp/rcs_left.tsv`) to empty, so 3B/3D work even with nothing to reconcile.
 
-**Decide reconciliation.** First create the three decision files empty (so 3B/3D work even with nothing to reconcile):
+**Decide reconciliation.** If the scan found no links, skip the prompts. Otherwise, using the scan output:
+- **Scenario B — an area has a `this`-class link:** for each such area ask once: *"Some tickets in `<area>` are already linked to this-sprint Release ticket #`<id>` (`<title>`). Link ALL of `<area>`'s tickets to that ticket instead of creating a new Release ticket?"* On **yes**, run `.github/prompts/create-rcs/scripts/rcs.sh decide reuse '<area>' <id>`. On **no**, do nothing (a new ticket is created; the pre-existing link is left, which may be an intentional dual-link).
+- **Scenario A — a ticket has an `other`-class link:** for **each** such ticket ask: *"Ticket #`<ticketId>` is linked to Release #`<releaseId>` in `<releaseIter>` (not this sprint). Remove that link and link it to this sprint's `<area>` Release ticket instead?"* On **yes**, run `.github/prompts/create-rcs/scripts/rcs.sh decide move <ticketId> <releaseId>`. On **no**, run `.github/prompts/create-rcs/scripts/rcs.sh decide leave <ticketId> <releaseId>`.
+
+`decide` looks the rest of the row up from the scan and refuses (`NO_SUCH_LINK`) a pairing the scan didn't find. Recording the same answer twice is harmless.
+
+**Reuse an existing `AuroDocsSite` Release ticket (read-only).** A forced `AuroDocsSite` area with no sprint tickets of its own never appears in the successor-link scan above, so on a re-run its existing ticket would be invisible and a **duplicate** would be created. Always run:
 ```bash
-: > /tmp/rcs_reuse.tsv   # area <TAB> existingReleaseId            (Scenario B "yes")
-: > /tmp/rcs_moves.tsv   # ticketId <TAB> oldReleaseId <TAB> area  (Scenario A "yes")
-: > /tmp/rcs_left.tsv    # ticketId <TAB> oldReleaseId <TAB> releaseIter <TAB> area  (Scenario A "no")
+.github/prompts/create-rcs/scripts/rcs.sh docs-reuse
 ```
-If the scan found no links, skip the prompts — the files stay empty. Otherwise, using `/tmp/rcs_links.tsv`:
-- **Scenario B — an area has a `this`-class link:** for each such area ask once: *"Some tickets in `<area>` are already linked to this-sprint Release ticket #`<id>` (`<title>`). Link ALL of `<area>`'s tickets to that ticket instead of creating a new Release ticket?"* On **yes**, append `<area>⇥<id>` to `/tmp/rcs_reuse.tsv`. On **no**, do nothing (a new ticket is created; the pre-existing link is left, which may be an intentional dual-link).
-- **Scenario A — a ticket has an `other`-class link:** for **each** such ticket ask: *"Ticket #`<ticketId>` is linked to Release #`<releaseId>` in `<releaseIter>` (not this sprint). Remove that link and link it to this sprint's `<area>` Release ticket instead?"* On **yes**, append `<ticketId>⇥<releaseId>⇥<area>` to `/tmp/rcs_moves.tsv`. On **no**, append `<ticketId>⇥<releaseId>⇥<releaseIter>⇥<area>` to `/tmp/rcs_left.tsv`.
-
-(Append with a literal tab, e.g. `printf '%s\t%s\n' "$AREA" "$RID" >> /tmp/rcs_reuse.tsv`.)
-
-**Reuse an existing `AuroDocsSite` Release ticket (read-only).** A forced `AuroDocsSite` area with no sprint tickets of its own never appears in the successor-link scan above, so on a re-run its existing ticket would be invisible and a **duplicate** would be created. If `AuroDocsSite` is in the area set and not already a reuse entry, query for an existing this-sprint `auro-rcs` `User Story` on the `AuroDocsSite` area path and, if one exists, reuse it:
-```bash
-ITER_PATH="<ITER_PATH>"   # from Step 1 (re-declared: fresh shell per block)
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-DOCS="AuroDocsSite"; DOCS_AREA="E_Retain_Content\\Auro Design System\\$DOCS"
-if grep -qxF "$DOCS" /tmp/rcs_areas.txt && ! cut -f1 /tmp/rcs_reuse.tsv | grep -qxF "$DOCS"; then
-  ESC_ITER=$(printf '%s' "$ITER_PATH" | sed "s/'/''/g"); ESC_DOCS=$(printf '%s' "$DOCS_AREA" | sed "s/'/''/g")
-  Q="SELECT [System.Id] FROM WorkItems WHERE [System.IterationPath] = '$ESC_ITER' AND [System.AreaPath] = '$ESC_DOCS' AND [System.WorkItemType] = 'User Story' AND [System.Tags] CONTAINS 'auro-rcs' ORDER BY [System.Id]"
-  BODY=$(jq -cn --arg q "$Q" '{query:$q}')
-  DID=$(curl -sS -u ":$ADO_PAT" -X POST -H "Content-Type: application/json" --data-binary "$BODY" \
-    "$BASE/wiql?api-version=7.0" | jq -r '.workItems[0].id // empty')
-  if [ -n "$DID" ]; then
-    printf '%s\t%s\n' "$DOCS" "$DID" >> /tmp/rcs_reuse.tsv
-    echo "Existing this-sprint AuroDocsSite Release ticket #$DID found — will reuse it (no duplicate)."
-  else
-    echo "No existing this-sprint AuroDocsSite Release ticket — a new one will be created."
-  fi
-fi
-```
-(A reused `AuroDocsSite` ticket has its Acceptance Criteria refreshed at submit time — see 3D — so its dependency checklist is not left stale; other reused tickets' fields are untouched.)
+If `AuroDocsSite` is in the area set and not already a reuse entry, it queries for an existing this-sprint `auro-rcs` `User Story` on the `AuroDocsSite` area path and, if one exists, records it for reuse. (A reused `AuroDocsSite` ticket has its Acceptance Criteria refreshed at submit time — see 3D — so its dependency checklist is not left stale; other reused tickets' fields are untouched.)
 
 ### 3B — Present the planned change set
 
-Run this block to print exactly what the submit step would do (still no writes), then show it to the user:
+Print exactly what the submit step would do (still no writes), then show it to the user:
 ```bash
-ITER_NAME="<ITER_NAME>"; FINISH="<FINISH>"   # from Step 1 (re-declared: fresh shell per block)
-TARGET_DATE="${FINISH}T00:00:00Z"; RCS_TAG="auro-rcs"; DOCS="AuroDocsSite"
-AREAS=$(cat /tmp/rcs_areas.txt)
-OTHER_AREAS=$(grep -vxF "$DOCS" /tmp/rcs_areas.txt)
-echo "=================  PLANNED CHANGES  ================="
-[ -s /tmp/rcs_repo.tsv ] && awk -F'\t' '{printf "Repo mode: %s  (%s, dev not yet on main + in-flight %s tickets)\n",$1,$2,$3}' /tmp/rcs_repo.tsv
-echo; echo "Reuse existing this-sprint Release tickets (no new ticket created):"
-if [ -s /tmp/rcs_reuse.tsv ]; then
-  while IFS=$'\t' read -r A RID; do [ -z "$A" ] && continue
-    printf '  %s  ->  Release #%s   (add Predecessor links for this area'"'"'s tickets)\n' "$A" "$RID"
-    if [ "$A" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
-      if [ -s /tmp/rcs_repo.tsv ]; then
-        printf '      + Predecessor link to the repo'"'"'s Release ticket, + add %s to the AC dependency checklist (existing items kept)\n' \
-          "$(awk 'NF{printf "%s ", $0}' /tmp/rcs_dep_pkgs.txt)"
-      else
-        printf '      + Predecessor links to every other Release ticket this sprint, + refresh AC dependency-update checklist\n'
-      fi
-    fi
-  done < /tmp/rcs_reuse.tsv
-else echo "  (none)"; fi
-
-echo; echo "Create new Release tickets:"
-REUSE_AREAS=$(cut -f1 /tmp/rcs_reuse.tsv | sort -u)
-while IFS= read -r AREA; do [ -z "$AREA" ] && continue
-  printf '%s\n' "$REUSE_AREAS" | grep -qxF "$AREA" && continue
-  SAFE=$(printf '%s' "$AREA" | tr '\\/ ' '___')
-  PC=$(jq '[.[]|select(.path=="/relations/-")]|length' "/tmp/rcs_draft_${SAFE}_parent.json")
-  printf '  Release %s - %s   [User Story, Blocked, Target %s, tag %s]  Predecessors: %s  (+ Generate Release Notes, + Update Dependencies)\n' \
-    "$AREA" "$ITER_NAME" "$TARGET_DATE" "$RCS_TAG" "$PC"
-  if [ "$AREA" = "$DOCS" ] && [ -n "$OTHER_AREAS" ]; then
-    printf '      + Predecessor links to every other Release ticket, + AC dependency-update checklist: %s\n' \
-      "$(awk 'NF{printf "%s ", $0}' /tmp/rcs_dep_pkgs.txt)"
-  fi
-done <<< "$AREAS"
-
-echo; echo "Move links to this sprint (remove old out-of-sprint link):"
-if [ -s /tmp/rcs_moves.tsv ]; then awk -F'\t' '{printf "  ticket #%s : unlink Release #%s, keep this-sprint %s Release\n",$1,$2,$3}' /tmp/rcs_moves.tsv
-else echo "  (none)"; fi
-
-echo; echo "Left linked to out-of-sprint Release tickets (unchanged):"
-if [ -s /tmp/rcs_left.tsv ]; then awk -F'\t' '{printf "  ticket #%s : stays linked to Release #%s (%s)\n",$1,$2,$3}' /tmp/rcs_left.tsv
-else echo "  none fall into this group"; fi
-echo "===================================================="
+.github/prompts/create-rcs/scripts/rcs.sh preview
 ```
 
 ### 3C — Confirm gate
@@ -686,159 +180,21 @@ Show the 3B summary and ask the user in plain words: **"Submit these changes to 
 
 ### 3D — Apply the changes (only after an explicit "yes")
 
-This is the **only** phase that writes to ADO. Run this block; it creates tickets, wires up children, adds predecessor links, and removes moved links, recording results to `/tmp/rcs_applied.tsv` and failures to `/tmp/rcs_apply_fail.tsv`:
+This is the **only** phase that writes to ADO, and `apply` is the only command that writes. **Never run it without the explicit "yes" from 3C.**
 ```bash
-ITER_NAME="<ITER_NAME>"   # from Step 1 (re-declared: fresh shell per block)
-DOCS="AuroDocsSite"
-# Process areas with AuroDocsSite LAST, so every other Release ticket's id is known before we
-# Predecessor-link the docs release to them. Each area's resulting Release id is recorded to
-# /tmp/rcs_relids.tsv (area <TAB> releaseId) as it is created or reused.
-AREAS=$(grep -vxF "$DOCS" /tmp/rcs_areas.txt; grep -xF "$DOCS" /tmp/rcs_areas.txt)
-BASE="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
-ORG_WI="https://itsals.visualstudio.com/_apis/wit/workItems"
-: > /tmp/rcs_applied.tsv; : > /tmp/rcs_apply_fail.tsv; : > /tmp/rcs_relids.tsv
-
-post_wi(){ # $1=url-encoded type  $2=payload-file  -> echoes new id (empty on failure; logs it)
-  local resp code body
-  resp=$(curl -sS -u ":$ADO_PAT" -w $'\n%{http_code}' -X POST \
-    -H "Content-Type: application/json-patch+json" --data-binary @"$2" \
-    "$BASE/workitems/\$$1?api-version=7.1")   # 7.1 required: multilineFieldsFormat (Markdown) is ignored on 7.0
-  code=$(printf '%s' "$resp" | sed -n '$p'); body=$(printf '%s' "$resp" | sed '$d')
-  if [ "$code" = "200" ] || [ "$code" = "201" ]; then printf '%s' "$body" | jq -r '.id'
-  else printf 'CREATE %s FAILED http=%s\t%s\n' "$1" "$code" "$(printf '%s' "$body" | tr '\n' ' ' | cut -c1-200)" >> /tmp/rcs_apply_fail.tsv; fi
-}
-
-REUSE_AREAS=$(cut -f1 /tmp/rcs_reuse.tsv | sort -u)
-while IFS= read -r AREA; do [ -z "$AREA" ] && continue
-  SAFE=$(printf '%s' "$AREA" | tr '\\/ ' '___')
-
-  if printf '%s\n' "$REUSE_AREAS" | grep -qxF "$AREA"; then
-    # reuse existing this-sprint ticket: add Predecessor links for area tickets not already linked to it
-    RELID=$(awk -F'\t' -v a="$AREA" '$1==a{print $2; exit}' /tmp/rcs_reuse.tsv)
-    for TID in $(awk -F'\t' -v a="$AREA" '$1==a{print $2}' /tmp/rcs_labeled.tsv); do
-      awk -F'\t' -v a="$AREA" -v t="$TID" -v r="$RELID" '$1==a&&$2==t&&$3==r{f=1}END{exit f?0:1}' /tmp/rcs_links.tsv && continue
-      OP=$(jq -cn --arg url "$ORG_WI/$TID" '[{op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Dependency-Reverse",url:$url,attributes:{comment:"RC predecessor"}}}]')
-      code=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH \
-        -H "Content-Type: application/json-patch+json" --data-binary "$OP" "$BASE/workitems/$RELID?api-version=7.0")
-      [ "$code" = "200" ] && printf 'LINK\t%s\t->\t%s\n' "$TID" "$RELID" >> /tmp/rcs_applied.tsv \
-        || printf 'LINK ADD FAILED http=%s ticket=%s release=%s\n' "$code" "$TID" "$RELID" >> /tmp/rcs_apply_fail.tsv
-    done
-    # AuroDocsSite only: refresh the Acceptance Criteria from the freshly-built draft so the dependency
-    # checklist reflects THIS sprint's releases (reuse otherwise leaves fields untouched). The AC field op
-    # plus its Markdown format op are lifted from the draft; 7.1 is required for multilineFieldsFormat.
-    if [ "$AREA" = "$DOCS" ]; then
-      if [ -s /tmp/rcs_repo.tsv ]; then
-        # Repo mode knows only this repo's package, so ADD it to the existing checklist instead of
-        # rebuilding (a rebuild would drop the other releases already listed). The checklist header and
-        # item lines are lines 1-2 of the draft AC. No-op if the package is already listed or unpublished.
-        ACOP=""
-        DRAFT_AC=$(jq -r '.[] | select(.path=="/fields/Microsoft.VSTS.Common.AcceptanceCriteria") | .value' "/tmp/rcs_draft_${SAFE}_parent.json")
-        NEWPKG=$(sed -n 1p /tmp/rcs_dep_pkgs.txt)
-        CUR=$(curl -sS -u ":$ADO_PAT" "$BASE/workitems/$RELID?fields=Microsoft.VSTS.Common.AcceptanceCriteria&api-version=7.1" \
-          | jq -r '.fields["Microsoft.VSTS.Common.AcceptanceCriteria"] // ""')
-        if [ -z "$NEWPKG" ] || printf '%s' "$CUR" | grep -qF "\`$NEWPKG\`"; then
-          :   # nothing to add
-        elif printf '%s' "$CUR" | grep -q '^[[:space:]]*<'; then
-          printf 'AC NOT UPDATED (stored as HTML) release=%s — add `%s` to its dependency checklist by hand\n' "$RELID" "$NEWPKG" >> /tmp/rcs_apply_fail.tsv
-        else
-          DEP_ITEM=$(printf '%s\n' "$DRAFT_AC" | sed -n 2p)
-          if printf '%s\n' "$CUR" | grep -q '^  - \[[ xX]\] `@'; then
-            # insert after the last existing dependency item
-            NEWAC=$(printf '%s\n' "$CUR" | awk -v item="$DEP_ITEM" '
-              { l[NR]=$0; if ($0 ~ /^  - \[[ xX]\] `@/) last=NR }
-              END{ for (i=1; i<=NR; i++) { print l[i]; if (i==last) print item } }')
-          else
-            # no checklist yet: prepend the header + this item
-            NEWAC="$(printf '%s\n' "$DRAFT_AC" | sed -n 1,2p)${CUR:+
-$CUR}"
-          fi
-          ACOP=$(jq -cn --arg ac "$NEWAC" '[{op:"add",path:"/fields/Microsoft.VSTS.Common.AcceptanceCriteria",value:$ac},
-            {op:"add",path:"/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria",value:"Markdown"}]')
-        fi
-      else
-        ACOP=$(jq -c '[ .[] | select(.path=="/fields/Microsoft.VSTS.Common.AcceptanceCriteria"
-                                  or .path=="/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria") ]' \
-               "/tmp/rcs_draft_${SAFE}_parent.json")
-      fi
-      if [ -n "$ACOP" ]; then
-        code=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH \
-          -H "Content-Type: application/json-patch+json" --data-binary "$ACOP" "$BASE/workitems/$RELID?api-version=7.1")
-        [ "$code" = "200" ] && printf 'ACUPDATE\t%s\tAcceptanceCriteria\n' "$RELID" >> /tmp/rcs_applied.tsv \
-          || printf 'AC UPDATE FAILED http=%s release=%s\n' "$code" "$RELID" >> /tmp/rcs_apply_fail.tsv
-      fi
-    fi
-  else
-    # create the new parent story (payload already has fields + tag + predecessor links)
-    RELID=$(post_wi "User%20Story" "/tmp/rcs_draft_${SAFE}_parent.json")
-    if [ -n "$RELID" ]; then
-      printf 'CREATE\tUser Story\t%s\tRelease %s - %s\n' "$RELID" "$AREA" "$ITER_NAME" >> /tmp/rcs_applied.tsv
-      for kind in notes deps; do
-        jq --arg url "$ORG_WI/$RELID" '. + [{op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Hierarchy-Reverse",url:$url}}]' \
-           "/tmp/rcs_draft_${SAFE}_child_${kind}.json" > /tmp/rcs_apply_child.json
-        CID=$(post_wi "Task" /tmp/rcs_apply_child.json)
-        [ -n "$CID" ] && printf 'CREATE\tTask\t%s\t(child of %s)\n' "$CID" "$RELID" >> /tmp/rcs_applied.tsv
-      done
-    fi
-  fi
-
-  # record this area's Release id (used to Predecessor-link the AuroDocsSite release to the others)
-  [ -n "$RELID" ] && printf '%s\t%s\n' "$AREA" "$RELID" >> /tmp/rcs_relids.tsv
-
-  # AuroDocsSite only (processed last): gate the docs release on every OTHER area's Release ticket by
-  # adding a Predecessor link to each. Dedup against links already present so re-runs are idempotent.
-  if [ "$AREA" = "$DOCS" ] && [ -n "$RELID" ]; then
-    LINKED=$(curl -sS -u ":$ADO_PAT" "$BASE/workItems/$RELID?\$expand=relations&api-version=7.0" \
-      | jq -r '[.relations[]? | select(.rel=="System.LinkTypes.Dependency-Reverse") | (.url|sub(".*/[wW]ork[iI]tems/";""))][]')
-    awk -F'\t' -v d="$DOCS" '$1!=d{print $2}' /tmp/rcs_relids.tsv | while IFS= read -r OTHERID; do
-      [ -z "$OTHERID" ] && continue
-      printf '%s\n' "$LINKED" | grep -qxF "$OTHERID" && continue   # already linked
-      OP=$(jq -cn --arg url "$ORG_WI/$OTHERID" '[{op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Dependency-Reverse",url:$url,attributes:{comment:"AuroDocsSite dependency bump — aligns with this release"}}}]')
-      code=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH \
-        -H "Content-Type: application/json-patch+json" --data-binary "$OP" "$BASE/workitems/$RELID?api-version=7.0")
-      [ "$code" = "200" ] && printf 'RELLINK\t%s\t->\t%s\n' "$RELID" "$OTHERID" >> /tmp/rcs_applied.tsv \
-        || printf 'RELLINK ADD FAILED http=%s docs=%s release=%s\n' "$code" "$RELID" "$OTHERID" >> /tmp/rcs_apply_fail.tsv
-    done
-  fi
-
-  # Scenario A moves for this area: remove each ticket's old Successor link (the ticket is already a
-  # Predecessor of RELID via the create/reuse above, so only the stale link needs removing).
-  awk -F'\t' -v a="$AREA" '$3==a{print $1"\t"$2}' /tmp/rcs_moves.tsv | while IFS=$'\t' read -r TID OLD; do
-    [ -z "$TID" ] && continue
-    WI=$(curl -sS -u ":$ADO_PAT" "$BASE/workItems/$TID?\$expand=relations&api-version=7.0")
-    REV=$(printf '%s' "$WI" | jq -r '.rev')
-    IDX=$(printf '%s' "$WI" | jq -r --arg oid "$OLD" '[.relations[]?]|to_entries|map(select(.value.rel=="System.LinkTypes.Dependency-Forward" and (.value.url|endswith("/"+$oid))))|.[0].key // empty')
-    if [ -n "$IDX" ]; then
-      code=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
-        --data-binary "[{\"op\":\"test\",\"path\":\"/rev\",\"value\":$REV},{\"op\":\"remove\",\"path\":\"/relations/$IDX\"}]" \
-        "$BASE/workitems/$TID?api-version=7.0")
-      [ "$code" = "200" ] && printf 'UNLINK\t%s\tfrom\t%s\n' "$TID" "$OLD" >> /tmp/rcs_applied.tsv \
-        || printf 'UNLINK FAILED http=%s ticket=%s release=%s\n' "$code" "$TID" "$OLD" >> /tmp/rcs_apply_fail.tsv
-    fi
-  done
-done <<< "$AREAS"
-
-echo "apply complete. successes: $(grep -c . /tmp/rcs_applied.tsv), failures: $(grep -c . /tmp/rcs_apply_fail.tsv)"
+.github/prompts/create-rcs/scripts/rcs.sh apply
 ```
+It processes the areas with `AuroDocsSite` last, so every other Release ticket's id is known before the docs release is Predecessor-linked to them. For each area it either:
+- **reuses** the recorded ticket — adding Predecessor links for the area's tickets not already linked to it, and for `AuroDocsSite` refreshing the Acceptance Criteria (repo mode: adding the one package to the existing checklist; an AC stored as HTML is left alone and reported as a failure to fix by hand) — or
+- **creates** the parent story from its draft (fields, tag, and Predecessor links), then the two child Tasks with a Parent link to it.
+
+For `AuroDocsSite` it then adds a Predecessor link to every other Release ticket, skipping ones already linked so re-runs are idempotent. Last, it removes each Scenario A "move" ticket's old out-of-sprint Successor link (guarded by a `rev` test so a concurrent edit fails instead of removing the wrong link). Results go to `/tmp/rcs_applied.tsv` and failures to `/tmp/rcs_apply_fail.tsv`; it ends with a success/failure count.
 
 ### 3E — Report what changed
 
 Run after 3D (or straight after a "no" at 3C, when nothing was applied):
 ```bash
-echo "==================  SUMMARY  =================="
-if [ -s /tmp/rcs_applied.tsv ]; then
-  echo "Applied to Azure DevOps:"
-  awk -F'\t' '
-    $1=="CREATE"{printf "  created %s #%s  %s\n",$2,$3,$4}
-    $1=="LINK"  {printf "  linked ticket #%s -> Release #%s\n",$2,$4}
-    $1=="RELLINK"{printf "  linked AuroDocsSite Release #%s -> depends on Release #%s\n",$2,$4}
-    $1=="ACUPDATE"{printf "  refreshed %s on AuroDocsSite Release #%s\n",$3,$2}
-    $1=="UNLINK"{printf "  unlinked ticket #%s from Release #%s\n",$2,$4}' /tmp/rcs_applied.tsv
-else echo "No changes were submitted."; fi
-[ -s /tmp/rcs_apply_fail.tsv ] && { echo; echo "Failures (review and re-run):"; cat /tmp/rcs_apply_fail.tsv; }
-echo; echo "Tickets left linked to Release tickets NOT in this sprint:"
-if [ -s /tmp/rcs_left.tsv ]; then awk -F'\t' '{printf "  ticket #%s -> Release #%s (%s)\n",$1,$2,$3}' /tmp/rcs_left.tsv
-else echo "  none fall into this group"; fi
-echo "=============================================="
+.github/prompts/create-rcs/scripts/rcs.sh summary
 ```
 
-Then summarize to the user in prose: how many Release tickets were created (with ids) or reused, which links were added/removed, and the list of tickets left linked to out-of-sprint Release tickets (or that none were). If the user declined at 3C, say plainly that nothing was written.
+Then summarize to the user in prose: how many Release tickets were created (with ids) or reused, which links were added/removed, any failures, and the list of tickets left linked to out-of-sprint Release tickets (or that none were). If the user declined at 3C, say plainly that nothing was written.

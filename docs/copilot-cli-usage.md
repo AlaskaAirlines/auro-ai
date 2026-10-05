@@ -32,11 +32,14 @@ same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents`
 | `ado` | `/agent ado` | bootstrap (needs `AURO_AI_HOME`) |
 | `code-review` | `/agent code-review` | bootstrap (needs `AURO_AI_HOME`) |
 | `sprint-report` | `/agent sprint-report` | bootstrap (needs `AURO_AI_HOME`) |
+| `create-rcs` | `/agent create-rcs` | inline, runs a bundled script (needs `AURO_AI_HOME`) |
 
 **Inline** agents embed the full workflow and are self-contained. **Bootstrap**
 agents (whose inlined workflow would exceed the CLI's 30,000-character agent-prompt
 cap) read their `SKILL.md` from your local `auro-ai` checkout at runtime — so those
-three require the `AURO_AI_HOME` step below.
+three require the `AURO_AI_HOME` step below. `create-rcs` is inline but runs its
+helper script from the checkout (`$AURO_AI_HOME/plugins/auro/skills/create-rcs/scripts/`),
+so it needs `AURO_AI_HOME` too.
 
 > **Copilot CLI vs. Claude Code.** These are mechanical ports of the same skills, so
 > Claude-only features degrade: `code-review` runs single-model (no adversarial
@@ -106,7 +109,7 @@ copilot
 ## 3. Point the bootstrap agents at your checkout (`AURO_AI_HOME`)
 
 `ado`, `code-review`, and `sprint-report` read their full workflow from your
-`auro-ai` checkout at runtime. Tell them where it is with a **user environment
+`auro-ai` checkout at runtime, and `create-rcs` runs its helper script from it. Tell them where it is with a **user environment
 variable** so the CLI inherits it:
 
 ```powershell
@@ -118,7 +121,7 @@ is unset, the agent will ask you for the checkout path instead.
 
 ---
 
-## 4. Set `ADO_PAT` — only for `ado` and `sprint-report`
+## 4. Set `ADO_PAT` — only for `ado`, `sprint-report`, and `create-rcs`
 
 These read an Azure DevOps Personal Access Token from the environment.
 
@@ -180,8 +183,8 @@ update, re-copy the files into your agent location (step 2) and restart `copilot
 | Symptom | Fix |
 | ------- | --- |
 | Auro agents don't appear in `/agent` | Confirm the files are in `%USERPROFILE%\.copilot\agents\` (Option A) or the repo's `.github\agents\` (Option B), then restart `copilot`. |
-| `ado` / `code-review` / `sprint-report` can't find their workflow | Set `AURO_AI_HOME` to your `auro-ai` checkout (step 3) and restart, or give the path when the agent asks. |
-| `ado` / `sprint-report` say "No Azure DevOps token found" | `setx ADO_PAT …` didn't reach the CLI — confirm it ran and **fully restart** `copilot`. |
+| `ado` / `code-review` / `sprint-report` / `create-rcs` can't find their workflow or script | Set `AURO_AI_HOME` to your `auro-ai` checkout (step 3) and restart, or give the path when the agent asks. |
+| `ado` / `sprint-report` / `create-rcs` say "No Azure DevOps token found" | `setx ADO_PAT …` didn't reach the CLI — confirm it ran and **fully restart** `copilot`. |
 | Azure DevOps returns sign-in HTML | PAT missing/expired/wrong scope — recreate with Work Items → Read & Write and re-run `setx ADO_PAT`. |
 | `pr` / `code-review` / `post-mortem` fail | Install and authenticate `gh` (`gh auth login`). |
 | `curl` not found | Install Git for Windows; in PowerShell use `curl.exe` (as above) to avoid the `Invoke-WebRequest` alias. |

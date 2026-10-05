@@ -27,6 +27,7 @@ as **GitHub Copilot prompt files** (`.prompt.md`). They live in
 | `ado` | `/ado` | Drafts a new Azure DevOps work item or refines an existing one, then writes it to ADO |
 | `post-mortem` | `/post-mortem` | Authors a structured post-mortem for a ticket, writes `docs/post-mortem/<ticket>.md`, and publishes a GitHub Discussion |
 | `sprint-report` | `/sprint-report` | Generates a read-only sprint report from the Auro ADO board, including per-bug root-cause analysis |
+| `create-rcs` | `/create-rcs` | Builds a Release Candidate Summary for a sprint (or one repo, given an npm package) and, after you confirm, creates the Release work items in ADO. Ships with a bundled script — see below |
 
 Each generated prompt begins with an **Argument** line (Copilot prompts you for it as
 `${input:args}`) and, where relevant, a **Copilot compatibility** note.
@@ -42,6 +43,8 @@ commit them so everyone on the repo gets the commands:
 mkdir -p .github/prompts
 # from a checkout of AlaskaAirlines/auro-ai:
 cp /path/to/auro-ai/copilot/prompts/*.prompt.md .github/prompts/
+# skills that bundle helper scripts (currently create-rcs) need their folder too:
+cp -R /path/to/auro-ai/copilot/prompts/create-rcs .github/prompts/
 git add .github/prompts && git commit -m "chore: add Auro Copilot prompt files"
 ```
 
@@ -73,6 +76,12 @@ commands are available in every workspace for your account:
 > the location, then copy the files there — but pointing at a checkout keeps them
 > updatable with `git pull`.
 
+> **`create-rcs` at user level:** its prompt runs a bundled script from
+> `.github/prompts/create-rcs/scripts/`, relative to the open workspace. With a
+> user-level install that folder isn't in your workspace, so either copy
+> `copilot/prompts/create-rcs/` into the workspace's `.github/prompts/`, or tell
+> Copilot to use `/absolute/path/to/auro-ai/copilot/prompts/create-rcs` instead.
+
 ---
 
 ## Claude Code → Copilot differences
@@ -88,8 +97,12 @@ Claude-only capabilities degrade:
   rather than silently allowing a pre-approved set.
 - **Prompts are inline.** Claude's structured `AskUserQuestion` picker becomes a
   plain inline question in Copilot Chat.
-- **External creds unchanged.** `ado`, `post-mortem`, and `sprint-report` still need
-  the GitHub CLI and/or an Azure DevOps PAT in your environment.
+- **External creds unchanged.** `ado`, `post-mortem`, `sprint-report`, and
+  `create-rcs` still need the GitHub CLI and/or an Azure DevOps PAT in your environment.
+- **Bundled scripts.** A skill can ship helper scripts in
+  `plugins/auro/skills/<name>/scripts/`. The build copies them to
+  `copilot/prompts/<name>/scripts/` and points the prompt at
+  `.github/prompts/<name>/scripts/`, so install that folder next to the prompt file.
 
 ---
 
@@ -104,4 +117,5 @@ npm run build:copilot
 ```
 
 Releases regenerate and commit them automatically (see the repo `README.md`), and CI
-fails a PR whose `copilot/prompts/` output has drifted from the skills.
+fails a PR whose `copilot/prompts/` output (prompt files and copied scripts) has
+drifted from the skills.

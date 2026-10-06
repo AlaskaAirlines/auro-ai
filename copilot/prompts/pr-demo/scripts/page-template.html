@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<!--
+  pr-demo page template. Copy it, fill in every FILL block, keep everything marked RUNTIME as is,
+  then run `pr-demo.mjs assemble`. The runtime gives each scenario a "before" and an "after"
+  iframe, runs each scenario's actions on both sides, and renders a probe table marking
+  every value that differs.
+
+  A scenario is a <section class="scenario" id="..."> containing:
+    - .controls             buttons: <button data-scenario="<id>" data-action="<name>">Label</button>
+    - <template class="fixture">        markup rendered identically in both iframes
+    - <script type="text/plain" class="fixture-script">   defines window.scenario (see below)
+    - <div class="probes"></div>        filled by the runtime
+
+  window.scenario = {
+    actions: { name: async () => { ... } },          // one per data-action button
+    probe: () => [{ label: 'menu.disabled', value: menu.disabled }, ...],
+  };
+  Helpers available inside the fixture script:
+    settle()                       wait for every custom element to finish updating (the runtime
+                                   also calls it after each action, so actions don't need to)
+    wait(ms)                       wait for timers, e.g. state a component sets in a setTimeout
+    styleOf(host, selector, ...props)  computed style of an element in host's shadow root
+    rectOf(host, selector)         bounding rect of an element in host's shadow root
+  Focus and hover only exist in one frame at a time, and the runtime runs Before's action, then
+  After's, then probes both. For focus-, hover-, or timer-dependent state, measure inside the
+  action, store the result in a variable, and have probe() return it.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FILL: PR #<n> — <short title> | auro-<component></title>
+
+  <!-- Same stylesheets as the component's own demo pages -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@aurodesignsystem/design-tokens@latest/dist/legacy/auro-classic/CSSCustomProperties.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@aurodesignsystem/design-tokens@latest/dist/themes/alaska/CSSCustomProperties--alaska.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@aurodesignsystem/webcorestylesheets@latest/dist/bundled/themes/alaska.global.min.css"/>
+
+  <!-- RUNTIME styles -->
+  <style>
+    main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .meta { color: var(--ds-basic-color-texticon-muted, #676767); font-size: .875rem; }
+    .tldr { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 8px; }
+    .tldr > div { border: 1px solid var(--ds-basic-color-border-divider, #ddd); border-radius: 8px; padding: 12px 16px; }
+    .tldr h3 { margin-top: 0; }
+    .scenario { margin-top: 40px; }
+    .lookFor { border-left: 4px solid var(--ds-basic-color-brand-primary, #01426a); padding: 4px 12px; background: var(--ds-basic-color-surface-neutral-subtle, #f7f7f7); }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .controls button { font: inherit; padding: 6px 12px; border: 1px solid #888; border-radius: 6px; background: #fff; cursor: pointer; }
+    .controls button:hover { background: #f0f4f7; }
+    .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .sides figure { margin: 0; border: 1px solid var(--ds-basic-color-border-divider, #ddd); border-radius: 8px; padding: 12px; }
+    .sides figcaption { font-weight: 600; margin-bottom: 8px; }
+    .sides figcaption .sha { font-weight: 400; font-family: ui-monospace, monospace; font-size: .8rem; color: #676767; }
+    .sides iframe { width: 100%; border: 0; min-height: 60px; display: block; }
+    .probes table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: .875rem; }
+    .probes th, .probes td { border: 1px solid #e3e3e3; padding: 4px 8px; text-align: left; vertical-align: top; }
+    .probes td code { white-space: pre-wrap; }
+    .probes tr.changed td { background: #fff6e0; }
+    .probes tr.changed td:first-child::after { content: " — changed"; color: #8a5a00; font-weight: 600; }
+    .openQuestions { border-left: 4px solid #b00020; background: #fdf1f2; padding: 8px 16px; }
+    .frameErrors { display: none; border-left: 4px solid #b00020; background: #fdf1f2; padding: 8px 16px; font-family: ui-monospace, monospace; font-size: .8rem; }
+  </style>
+</head>
+<body class="auro-markdown">
+<main>
+  <!-- FILL: header -->
+  <h1>PR #<n> — <title></h1>
+  <p class="meta">
+    <a href="<pr url>">PR #<n></a> by <author> · tickets: <AB#…> ·
+    Before = <code>__BEFORE_SHA__</code> (merge base with <code><base branch></code>) · After = <code>__AFTER_SHA__</code> (PR head).
+    Both columns run the real component source from those commits.
+  </p>
+
+  <div class="frameErrors" id="frameErrors"></div>
+
+  <!-- FILL: TL;DR — two or three sentences each, plain language. For a PR with several
+       separate fixes, replace each <p> with a <ul> holding one short bullet per fix. -->
+  <div class="tldr">
+    <div><h3>The problem</h3><p>…</p></div>
+    <div><h3>The fix</h3><p>…</p></div>
+  </div>
+
+  <!-- FILL: one section per scenario (usually 1–3). Copy this block. -->
+  <section class="scenario" id="scenario-1">
+    <h2>1. <scenario title></h2>
+    <p class="lookFor"><strong>What to look for:</strong> …</p>
+    <div class="controls">
+      <button data-scenario="scenario-1" data-action="example">Do the thing</button>
+    </div>
+    <div class="sides">
+      <figure><figcaption>Before <span class="sha">__BEFORE_SHA__</span></figcaption><iframe data-side="before" title="Before"></iframe></figure>
+      <figure><figcaption>After <span class="sha">__AFTER_SHA__</span></figcaption><iframe data-side="after" title="After"></iframe></figure>
+    </div>
+    <div class="probes"></div>
+    <template class="fixture">
+      <!-- markup rendered in both iframes -->
+    </template>
+    <script type="text/plain" class="fixture-script">
+      const el = document.querySelector('...');
+      window.scenario = {
+        actions: {
+          example: async () => { /* change el through its public API */ },
+        },
+        probe: () => [
+          { label: 'el.someProp', value: el.someProp },
+        ],
+      };
+    </script>
+  </section>
+
+  <!-- FILL: open questions (omit the section if there are none) -->
+  <section>
+    <h2>Open questions</h2>
+    <div class="openQuestions">
+      <ul>
+        <li>…</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<!-- RUNTIME: bundles, inlined by `pr-demo.mjs assemble` -->
+<script type="text/plain" id="bundle-before">__BUNDLE_BEFORE__</script>
+<script type="text/plain" id="bundle-after">__BUNDLE_AFTER__</script>
+
+<!-- RUNTIME: do not edit -->
+<script type="module">
+  const SIDES = ['before', 'after'];
+  const headLinks = [...document.querySelectorAll('head link[rel="stylesheet"]')].map((l) => l.outerHTML).join('');
+  const bundles = Object.fromEntries(SIDES.map((s) => [s, document.getElementById(`bundle-${s}`).textContent]));
+  const scenarios = [...document.querySelectorAll('section.scenario')];
+
+  const state = { ready: false, busy: false, errors: [], frames: new Map(), pending: 0 };
+  window.prDemo = state;
+
+  const reportError = (where, message) => {
+    state.errors.push(`${where}: ${message}`);
+    const box = document.getElementById('frameErrors');
+    box.style.display = 'block';
+    box.textContent = state.errors.join('\n');
+  };
+
+  // Shared helper injected into every frame before the fixture script.
+  const frameHelpers = `
+    window.addEventListener('error', (e) => parent.prDemo.frameError(frameElement.dataset.key, e.message));
+    window.addEventListener('unhandledrejection', (e) => parent.prDemo.frameError(frameElement.dataset.key, String(e.reason?.message ?? e.reason)));
+    window.settle = async () => {
+      const els = [...document.querySelectorAll('*')].filter((el) => el.updateComplete);
+      await Promise.all(els.map((el) => el.updateComplete));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    };
+    window.wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const inShadow = (host, selector) => (host.shadowRoot ?? host).querySelector(selector);
+    window.styleOf = (host, selector, ...props) => {
+      const el = inShadow(host, selector);
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return props.length === 1 ? cs[props[0]] : Object.fromEntries(props.map((p) => [p, cs[p]]));
+    };
+    window.rectOf = (host, selector) => {
+      const r = inShadow(host, selector)?.getBoundingClientRect();
+      return r ? { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) } : null;
+    };
+  `;
+
+  const escapeScript = (text) => text.replace(/<\/script/gi, '<\\/script');
+
+  const frameDoc = (side, fixture, fixtureScript) => `<!DOCTYPE html><html><head>${headLinks}
+    <style>body{margin:0;padding:4px}</style>
+    <script>${escapeScript(frameHelpers)}<\/script>
+    <script type="module">${bundles[side]}<\/script>
+    </head><body class="auro-markdown">${fixture}
+    <script type="module">
+      ${escapeScript(fixtureScript)}
+      await settle();
+      const undefinedTags = [...new Set([...document.querySelectorAll(':not(:defined)')].map((el) => el.localName))];
+      if (undefinedTags.length) parent.prDemo.frameError(frameElement.dataset.key, 'not registered (add their components to --components): ' + undefinedTags.join(', '));
+      parent.prDemo.frameReady(frameElement.dataset.key);
+    <\/script></body></html>`;
+
+  const escapeHtml = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const show = (v) => (v === undefined ? 'undefined' : typeof v === 'string' ? JSON.stringify(v) : JSON.stringify(v) ?? String(v));
+
+  const probeScenario = (section) => {
+    const rows = new Map();
+    SIDES.forEach((side) => {
+      const win = state.frames.get(`${section.id}:${side}`)?.contentWindow;
+      const results = win?.scenario?.probe?.() ?? [];
+      results.forEach(({ label, value }) => {
+        if (!rows.has(label)) rows.set(label, {});
+        rows.get(label)[side] = show(value);
+      });
+    });
+    return [...rows].map(([label, v]) => ({ label, before: v.before ?? '—', after: v.after ?? '—', changed: v.before !== v.after }));
+  };
+
+  const renderProbes = (section) => {
+    const rows = probeScenario(section);
+    if (!rows.length) return;
+    section.querySelector('.probes').innerHTML = `<table><thead><tr><th>Check</th><th>Before</th><th>After</th></tr></thead><tbody>${
+      rows.map((r) => `<tr class="${r.changed ? 'changed' : ''}"><td><code>${escapeHtml(r.label)}</code></td><td><code>${escapeHtml(r.before)}</code></td><td><code>${escapeHtml(r.after)}</code></td></tr>`).join('')
+    }</tbody></table>`;
+  };
+
+  state.snapshot = () => Object.fromEntries(scenarios.map((s) => [s.id, probeScenario(s)]));
+  state.frameError = (key, message) => reportError(key, message);
+  state.frameReady = (key) => {
+    const frame = state.frames.get(key);
+    const resize = () => { frame.style.height = `${frame.contentDocument.documentElement.scrollHeight}px`; };
+    new ResizeObserver(resize).observe(frame.contentDocument.body);
+    resize();
+    state.pending -= 1;
+    if (state.pending === 0) {
+      scenarios.forEach(renderProbes);
+      state.ready = true;
+    }
+  };
+
+  scenarios.forEach((section) => {
+    const fixture = section.querySelector('template.fixture')?.innerHTML ?? '';
+    const fixtureScript = section.querySelector('script.fixture-script')?.textContent ?? 'window.scenario = { actions: {}, probe: () => [] };';
+    section.querySelectorAll('iframe[data-side]').forEach((frame) => {
+      const key = `${section.id}:${frame.dataset.side}`;
+      frame.dataset.key = key;
+      state.frames.set(key, frame);
+      state.pending += 1;
+      frame.srcdoc = frameDoc(frame.dataset.side, fixture, fixtureScript);
+    });
+  });
+
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button) return;
+    const section = document.getElementById(button.dataset.scenario);
+    state.busy = true;
+    try {
+      for (const side of SIDES) {
+        const win = state.frames.get(`${section.id}:${side}`).contentWindow;
+        const action = win.scenario?.actions?.[button.dataset.action];
+        if (!action) { reportError(`${section.id}:${side}`, `no action "${button.dataset.action}"`); continue; }
+        await action();
+        await win.settle();
+      }
+      renderProbes(section);
+    } catch (e) {
+      reportError(section.id, e.message);
+    } finally {
+      state.busy = false;
+    }
+  });
+</script>
+</body>
+</html>

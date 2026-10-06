@@ -20,10 +20,11 @@ for skills. Use the marketplace flow below instead.
 | `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
+| `pr-demo` | `/auro:pr-demo <PR url \| #>` | Generates a single-page review demo for a pull request, saved next to the component's other demo pages. It explains the problem and the fix in plain language, shows the component's behavior **before and after** side by side (on auro-formkit both columns run the real source from the PR's base and head commits), and lists open questions such as a possible breaking change. Docs/build-only PRs get a markdown explainer instead. Writes one untracked file; never checks out, commits, or comments |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
-> `/auro:ado`, and `/auro:post-mortem` — not the bare forms.
+> `/auro:ado`, `/auro:post-mortem`, and `/auro:pr-demo` — not the bare forms.
 
 ---
 
@@ -327,6 +328,41 @@ HTML, the PAT is missing, expired, or lacks the Work Items scope.
 > DevOps returns its sign-in page and the skill will tell you to refresh `ADO_PAT`.
 
 ---
+
+### `/auro:pr-demo`
+
+```shell
+/auro:pr-demo https://github.com/AlaskaAirlines/auro-formkit/pull/1625
+/auro:pr-demo 1625   # same repo as your current directory
+```
+
+Builds a review page for a PR so you can see what it changes in a couple of minutes. Run it
+from a clone of the PR's repo (any branch; it never checks the PR out). It:
+
+1. **Reads the PR**: description, commits, diff, and any post-mortem it adds.
+2. **Classifies it**: *behavior* (runtime source under `components/*/src` or `packages/*/src`)
+   or *non-behavior* (docs, tests, stories, build, CI).
+3. **Works out the story**: the problem, the fix, 1–3 scenarios that show it, and open
+   questions, including whether anything is a breaking change by the team's definition.
+4. **Picks the location**: `components/<name>/demo/pr-<n>.html` on auro-formkit, `demo/pr-<n>.html`
+   in single-component repos, or the repo root when there's no demo directory. It's never added
+   to `pages.json` or the nav.
+5. **Behavior PRs on auro-formkit**: bundles the component source at the PR's base and head
+   commits (via `git archive`, compiling SCSS on the fly) and runs each side in its own iframe,
+   with the same stylesheets as the demo pages. Every scenario has buttons that act on both sides
+   at once and a probe table that highlights each value that differs. It then loads the page in
+   headless Chromium, clicks through every scenario, and checks the differences match what the
+   page claims.
+6. **Non-behavior PRs** (and behavior PRs outside auro-formkit for now): writes `pr-<n>.md` in the
+   same place, with what changed, a before → after illustration, impact, and open questions.
+
+Requires `esbuild`, `sass`, and (for verification) Playwright in the target repo's
+`node_modules`; auro-formkit has all three after `npm ci`. The build cache lives in
+`node_modules/.cache/pr-demo/<n>/`.
+
+> **Scope guardrail:** the only file it writes is the demo page (plus the build cache). It never
+> checks out or switches branches, edits tracked files, commits, pushes, or comments on the PR.
+> The page isn't tracked by git, so don't commit it.
 
 ## Getting new or updated skills
 

@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 > **Argument** (`${input}`): "[npm package, e.g. @aurodesignsystem/auro-button]" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
 >
-> **Bundled scripts:** this workflow runs scripts from your local `auro-ai` checkout at `$AURO_AI_HOME/plugins/auro/skills/create-rcs/scripts/`. Set `AURO_AI_HOME` to the checkout path before invoking it; if it is unset, ask the user for the path.
+> **Bundled files:** this workflow uses files from your local `auro-ai` checkout at `$AURO_AI_HOME/plugins/auro/skills/create-rcs/`. Set `AURO_AI_HOME` to the checkout path before invoking it; if it is unset, ask the user for the path.
 
 ## Task — start now
 

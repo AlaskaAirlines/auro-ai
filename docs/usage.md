@@ -134,7 +134,10 @@ you're warned first — rewriting it needs a force-push (the skill never pushes)
 ```
 
 The skill runs in an isolated forked context and never asks questions. Without an effort
-argument it picks a level from the diff (usually `medium`) and says which it used. A PR
+argument it picks a level from the diff (usually `medium`) and says which it used. The
+review itself is done by two reviewer agents, one Opus and one Sonnet, at that effort
+(`auro:code-reviewer-<model>-<effort>`). These are internal to the skill, so don't invoke
+them directly. A PR
 review never writes to GitHub on its own: it saves its findings to
 `/tmp/code-review-<PR>-<head-sha>.json`, and a separate `post` run publishes that file.
 `post` refuses if the PR's head has changed since the preview, so you never post findings

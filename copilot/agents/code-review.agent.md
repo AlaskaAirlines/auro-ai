@@ -15,6 +15,6 @@ You are executing the **code-review** workflow. Its full instructions are large 
 
 1. Determine the path to your local `auro-ai` checkout — prefer the `AURO_AI_HOME` environment variable; if it is unset, ask the user for the path.
 2. Read `"$AURO_AI_HOME/plugins/auro/skills/code-review/SKILL.md"` in full (e.g. `cat` it via your shell tool, or open it with your read tool).
-3. Execute that workflow exactly, in order. Treat every `$ARGUMENTS` reference in it as `${input}` — the argument you were invoked with. Where a step says to prompt the user, ask inline in chat.
+3. Execute that workflow exactly, in order. Treat every `$ARGUMENTS` reference in it as `${input}` — the argument you were invoked with — and every `${CLAUDE_SKILL_DIR}` as `$AURO_AI_HOME/plugins/auro/skills/code-review`. Where a step says to prompt the user, ask inline in chat.
 
 Do not summarize, reorder, or skip steps — follow the file as written.

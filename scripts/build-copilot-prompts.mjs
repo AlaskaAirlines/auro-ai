@@ -13,11 +13,12 @@
 // the structured `AskUserQuestion` tool, or per-command Bash allowlists). Those
 // features degrade gracefully and are called out in a compatibility note.
 //
-// A skill may bundle helper scripts in plugins/auro/skills/<name>/scripts/. Those are
-// copied to copilot/prompts/<name>/scripts/, and the skill's `${CLAUDE_SKILL_DIR}`
+// A skill may bundle supporting files next to its SKILL.md (helper scripts in
+// scripts/, or extra instruction files such as code-review's reviewer.md). Those are
+// copied to copilot/prompts/<name>/, and the skill's `${CLAUDE_SKILL_DIR}`
 // references are rewritten to the documented install location next to the prompt
 // file (.github/prompts/<name>).
-import { readdir, readFile, writeFile, mkdir, rm, cp, stat } from 'node:fs/promises';
+import { readdir, readFile, writeFile, mkdir, rm, cp } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -111,17 +112,14 @@ const CAVEATS = {
 /** Where a skill's bundled scripts live once installed alongside its prompt file. */
 const installDir = (name) => `.github/prompts/${name}`;
 
-/** True if the skill ships a scripts/ folder. */
-async function hasScripts(name) {
-  try {
-    return (await stat(join(SKILLS_DIR, name, 'scripts'))).isDirectory();
-  } catch {
-    return false;
-  }
+/** Supporting files/folders the skill ships next to its SKILL.md (scripts/, extra .md files). */
+async function supportEntries(name) {
+  const entries = await readdir(join(SKILLS_DIR, name), { withFileTypes: true });
+  return entries.map((e) => e.name).filter((n) => n !== 'SKILL.md' && !n.startsWith('.')).sort();
 }
 
 /** Build the leading banner + compatibility block prepended to each prompt body. */
-function buildPreamble(name, fields, scripts) {
+function buildPreamble(name, fields, support) {
   const lines = [
     `<!-- Generated from plugins/auro/skills/${name}/SKILL.md by scripts/build-copilot-prompts.mjs. Do not edit by hand. -->`,
     '',
@@ -145,9 +143,9 @@ function buildPreamble(name, fields, scripts) {
     lines.push('> **Copilot compatibility:** ' + noteParts.join(' '), '');
   }
 
-  if (scripts) {
+  if (support.length) {
     lines.push(
-      `> **Bundled scripts:** this prompt runs scripts from \`${installDir(name)}/scripts/\`. Install the \`copilot/prompts/${name}/\` folder next to the prompt file (\`cp -R /path/to/auro-ai/copilot/prompts/${name} .github/prompts/\`). If you keep the prompt somewhere else, replace \`${installDir(name)}\` below with the folder you copied.`,
+      `> **Bundled files:** this prompt uses files from \`${installDir(name)}/\` (${support.map((f) => `\`${f}\``).join(', ')}). Install the \`copilot/prompts/${name}/\` folder next to the prompt file (\`cp -R /path/to/auro-ai/copilot/prompts/${name} .github/prompts/\`). If you keep the prompt somewhere else, replace \`${installDir(name)}\` below with the folder you copied.`,
       '',
     );
   }
@@ -172,7 +170,7 @@ function yamlString(value) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-function renderPrompt(name, source, scripts) {
+function renderPrompt(name, source, support) {
   const { frontmatter, body } = splitFrontmatter(source, name);
   const fields = parseFrontmatter(frontmatter);
   const tools = mapTools(fields['allowed-tools']);
@@ -185,7 +183,7 @@ function renderPrompt(name, source, scripts) {
     '---',
   ].join('\n');
 
-  const preamble = buildPreamble(name, fields, scripts).trimEnd();
+  const preamble = buildPreamble(name, fields, support).trimEnd();
   const transformedBody = transformBody(name, body).replace(/^\n+/, '');
 
   return `${fm}\n\n${preamble}\n\n${transformedBody.trimEnd()}\n`;
@@ -201,13 +199,13 @@ async function main() {
 
   for (const name of skills) {
     const source = await readFile(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
-    const scripts = await hasScripts(name);
-    const out = renderPrompt(name, source, scripts);
+    const support = await supportEntries(name);
+    const out = renderPrompt(name, source, support);
     await writeFile(join(OUT_DIR, `${name}.prompt.md`), out);
     console.log(`build-copilot-prompts: wrote copilot/prompts/${name}.prompt.md`);
-    if (scripts) {
-      await cp(join(SKILLS_DIR, name, 'scripts'), join(OUT_DIR, name, 'scripts'), { recursive: true });
-      console.log(`build-copilot-prompts: copied copilot/prompts/${name}/scripts/`);
+    for (const entry of support) {
+      await cp(join(SKILLS_DIR, name, entry), join(OUT_DIR, name, entry), { recursive: true });
+      console.log(`build-copilot-prompts: copied copilot/prompts/${name}/${entry}`);
     }
   }
 

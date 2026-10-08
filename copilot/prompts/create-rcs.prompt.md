@@ -10,7 +10,7 @@ tools: ['runCommands']
 
 > **Copilot compatibility:** Requires an Azure DevOps PAT in your environment and shell tools (`bash`, `curl`, `jq`); repo mode also needs the GitHub CLI (`gh`). The terminal will ask to approve each command.
 
-> **Bundled scripts:** this prompt runs scripts from `.github/prompts/create-rcs/scripts/`. Install the `copilot/prompts/create-rcs/` folder next to the prompt file (`cp -R /path/to/auro-ai/copilot/prompts/create-rcs .github/prompts/`). If you keep the prompt somewhere else, replace `.github/prompts/create-rcs` below with the folder you copied.
+> **Bundled files:** this prompt uses files from `.github/prompts/create-rcs/` (`scripts`). Install the `copilot/prompts/create-rcs/` folder next to the prompt file (`cp -R /path/to/auro-ai/copilot/prompts/create-rcs .github/prompts/`). If you keep the prompt somewhere else, replace `.github/prompts/create-rcs` below with the folder you copied.
 
 ## Task — start now
 

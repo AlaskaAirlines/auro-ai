@@ -28,6 +28,7 @@ as **GitHub Copilot prompt files** (`.prompt.md`). They live in
 | `post-mortem` | `/post-mortem` | Authors a structured post-mortem for a ticket, writes `docs/post-mortem/<ticket>.md`, and publishes a GitHub Discussion |
 | `sprint-report` | `/sprint-report` | Generates a read-only sprint report from the Auro ADO board, including per-bug root-cause analysis |
 | `create-rcs` | `/create-rcs` | Builds a Release Candidate Summary for a sprint (or one repo, given an npm package) and, after you confirm, creates the Release work items in ADO. Ships with a bundled script — see below |
+| `close-dependabot` | `/close-dependabot` | Lists open Dependabot PRs across the Auro repos, asks which to leave open, then closes the rest |
 
 Each generated prompt begins with an **Argument** line (Copilot prompts you for it as
 `${input:args}`) and, where relevant, a **Copilot compatibility** note.

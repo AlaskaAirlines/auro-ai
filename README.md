@@ -13,6 +13,7 @@ repository, with versioning and change history tracked in git.
 | `auro` | `release-notes` — derive the next version from Conventional Commits and author (or refresh) the release-notes doc | `/auro:release-notes [base ref]` |
 | `auro` | `pr` — open a PR for the current branch, assigned to you; prompts for base branch + draft/ready, applies component labels (auro-formkit), and adds each post-mortem ticket's Executive Summary + Discussion link | `/auro:pr [base branch]` |
 | `auro` | `ado` — draft a new Azure DevOps work item or refine an existing one (infers component, classifies bug vs. story, drafts title/description/acceptance criteria, then writes to ADO) | `/auro:ado <new \| ADO # >` |
+| `auro` | `close-dependabot` — list open Dependabot PRs across all Auro repos, pick which to keep, close the rest | `/auro:close-dependabot` |
 
 > Plugin skills are **namespaced** by the plugin name, so `/commit` becomes
 > `/auro:commit`. Namespacing prevents collisions with other plugins.
@@ -52,7 +53,8 @@ auro-ai/
 │           ├── code-review/      # SKILL.md + reviewer.md (reviewer criteria) + posting.md (post mode)
 │           ├── release-notes/SKILL.md
 │           ├── pr/SKILL.md
-│           └── ado/SKILL.md
+│           ├── ado/SKILL.md
+│           └── close-dependabot/SKILL.md
 ├── copilot/
 │   ├── prompts/                  # generated .prompt.md files for GitHub Copilot
 │   └── README.md

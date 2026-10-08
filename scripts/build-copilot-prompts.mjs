@@ -107,6 +107,8 @@ const CAVEATS = {
     'Requires an Azure DevOps PAT in your environment and shell tools (`curl`, `jq`); the terminal will ask to approve each command.',
   'create-rcs':
     'Requires an Azure DevOps PAT in your environment and shell tools (`bash`, `curl`, `jq`); repo mode also needs the GitHub CLI (`gh`). The terminal will ask to approve each command.',
+  'close-dependabot':
+    'Requires the GitHub CLI (`gh`) with write access to the Auro repos, and `jq`; the terminal will ask to approve each command.',
 };
 
 /** Where a skill's bundled scripts live once installed alongside its prompt file. */

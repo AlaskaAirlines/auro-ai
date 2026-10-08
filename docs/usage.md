@@ -14,16 +14,17 @@ for skills. Use the marketplace flow below instead.
 
 | Skill | Invocation | What it does |
 | ----- | ---------- | ------------ |
-| `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
+| `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference (reply `skip` at the prompt to waive it), staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` | Adversarial multi-model review of a GitHub PR (previews findings, then posts them with `post`) or the current branch (chat output) |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
+| `close-dependabot` | `/auro:close-dependabot` | Finds every open Dependabot PR across the Auro repos (the `auro-team` GitHub team's repos), shows a numbered summary, asks which to leave open (by number/range, repo, or title phrase), and **closes only the approved PRs**. Never merges, comments, or deletes branches |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
-> `/auro:ado`, and `/auro:post-mortem` — not the bare forms.
+> `/auro:ado`, `/auro:post-mortem`, and `/auro:close-dependabot` — not the bare forms.
 
 ---
 
@@ -113,7 +114,8 @@ Then try it:
 
 Walks you through: a protected-branch (`dev`/`main`/`master`) warning, a sync check,
 generating a Conventional Commits subject + body from your **staged** changes, and a
-confirm-or-edit loop before it commits. A ticket/PR reference is required.
+confirm-or-edit loop before it commits. A ticket/PR reference is required; when it prompts
+for one, reply `skip` to commit without a reference.
 
 **Amend mode (`amend`).** Instead of creating a new commit, this rewrites the **previous**
 commit (`git commit --amend`) so the staged changes are folded into it and the message is
@@ -328,6 +330,31 @@ HTML, the PAT is missing, expired, or lacks the Work Items scope.
 > **Security:** the PAT is a live secret. Keep it only in `~/.zshenv` (which isn't in any
 > repo), never commit it, and rotate it if it leaks. PATs expire — when yours does, Azure
 > DevOps returns its sign-in page and the skill will tell you to refresh `ADO_PAT`.
+
+### `/auro:close-dependabot`
+
+```shell
+/auro:close-dependabot
+```
+
+Bulk-closes open Dependabot PRs across the Auro repos. The repo set is the non-archived
+repos of the `AlaskaAirlines/auro-team` GitHub team, so it includes `Icons`,
+`WC-Generator`, `WebCoreStyleSheets`, and `eslint-config`, and skips unrelated org repos.
+It shows a numbered table of every open Dependabot PR (repo, link, title, opened date),
+then asks which to leave open. You can answer with:
+
+- list numbers or ranges, e.g. `3, 7, 12-15`
+- repo names, e.g. `auro-header`
+- a quoted title phrase, e.g. `"auro-cli"`
+- `none` to close them all
+
+If you excluded anything, it shows what will stay open and asks you to confirm. It then
+closes the rest and reports what was closed, skipped, or failed. Failures are retried once
+after a pause, in case GitHub rate-limited the bulk close. You need write access to the
+repos (the `gh` CLI must be authenticated).
+
+> Closing a Dependabot PR tells Dependabot to skip that version. It opens a new PR when
+> a newer release comes out.
 
 ---
 

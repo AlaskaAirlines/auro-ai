@@ -84,7 +84,7 @@ Options: **Continue with amend** — proceed to Step 3; **Exit** — end the wor
 **Amend mode.** If `AMEND_MODE` is true, do **not** prompt. The reference is inherited from the commit being amended so the rewritten subject keeps the same trailing reference:
 - If the invocation supplied an explicit reference after `amend` (e.g. `amend 1602084`), classify that number by the length rules in step 2 below and use it (it overrides the inherited one).
 - Otherwise read the previous commit's message (`git log -1 --pretty=%B`) and extract the trailing reference from its subject — the last `AB#<digits>` (ADO ticket) or `#<digits>` (PR) token. Reuse it verbatim (and remember whether it is an ADO ticket or PR, from the `AB#` vs `#` form).
-- If the previous subject has no such token, fall back to `git config --local --get commit.skillLastRef`. If that is also unset, prompt once with: "The previous commit has no ticket/PR reference. Enter the ADO ticket number (7 digits) or PR number (fewer than 7 digits) to add, or reply `none` to amend without one:" — classify the reply per step 2, or omit the reference on `none`.
+- If the previous subject has no such token, fall back to `git config --local --get commit.skillLastRef`. If that is also unset, prompt once with: "The previous commit has no ticket/PR reference. Enter the ADO ticket number (7 digits) or PR number (fewer than 7 digits) to add, or reply `none` to amend without one:" — classify the reply per step 2, or omit the reference on `none` or `skip`.
 
 Then continue to Step 4. The rest of this step (the `prev` and explicit-number rules below) applies to the **normal** flow only.
 
@@ -103,13 +103,15 @@ git config --local --get commit.skillLastRef
 - **Exactly 7 characters** → **ADO ticket**. The subject will end with `AB#<number>`.
 - **Fewer than 7 characters** → **PR number**. The subject will end with `#<number>`.
 
-**3. Missing or invalid — the reference is required.** If `$ARGUMENTS` is empty, or is 8+ characters, or is not numeric after stripping, the skill cannot proceed without a reference. Prompt with a plain-text message:
+**3. Missing or invalid — prompt for a reference.** If `$ARGUMENTS` is empty, or is 8+ characters, or is not numeric after stripping, a reference is needed before continuing. Prompt with a plain-text message:
 
-> A ticket or PR number is required. Enter the ADO ticket number (7 digits), a PR number (fewer than 7 digits), or `prev` to reuse the last one:
+> A ticket or PR number is required. Enter the ADO ticket number (7 digits), a PR number (fewer than 7 digits), `prev` to reuse the last one, or `skip` to commit without one:
 
-Apply steps 1–2 to the reply. If the reply is still empty or invalid, **re-prompt** — repeat until the user supplies a valid ADO ticket or PR number (or `prev` that resolves). Do **not** proceed to Step 4 without a resolved reference. (If the user clearly wants to abandon the commit — e.g. replies `cancel`/`exit`/`quit` — end the workflow without committing.)
+If the reply is `skip` (trimmed, case-insensitive), waive the requirement: the commit has **no reference**. The subject omits it (Step 4), the post-mortem lookup is skipped (Step 5), and nothing is recorded for `prev` (Step 6). Continue to Step 4.
 
-Remember the resolved reference (its final form and whether it is an ADO ticket or PR) for Step 4, and record it in Step 6.
+Otherwise apply steps 1–2 to the reply. If the reply is still empty or invalid, **re-prompt** — repeat until the user supplies a valid ADO ticket or PR number, `prev` that resolves, or `skip`. Do **not** proceed to Step 4 without a resolved reference or an explicit `skip`. (If the user clearly wants to abandon the commit — e.g. replies `cancel`/`exit`/`quit` — end the workflow without committing.)
+
+Remember the resolved reference (its final form and whether it is an ADO ticket or PR) for Step 4, and record it in Step 6. If the user replied `skip`, remember that there is no reference.
 
 ---
 

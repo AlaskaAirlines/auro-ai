@@ -14,7 +14,7 @@ for skills. Use the marketplace flow below instead.
 
 | Skill | Invocation | What it does |
 | ----- | ---------- | ------------ |
-| `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference, staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
+| `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference (reply `skip` at the prompt to waive it), staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` | Adversarial multi-model review of a GitHub PR (previews findings, then posts them with `post`) or the current branch (chat output) |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
@@ -114,7 +114,8 @@ Then try it:
 
 Walks you through: a protected-branch (`dev`/`main`/`master`) warning, a sync check,
 generating a Conventional Commits subject + body from your **staged** changes, and a
-confirm-or-edit loop before it commits. A ticket/PR reference is required.
+confirm-or-edit loop before it commits. A ticket/PR reference is required; when it prompts
+for one, reply `skip` to commit without a reference.
 
 **Amend mode (`amend`).** Instead of creating a new commit, this rewrites the **previous**
 commit (`git commit --amend`) so the staged changes are folded into it and the message is

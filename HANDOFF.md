@@ -116,6 +116,8 @@ release-prep work starts. Leave the other skills alone.
 
 **Universality** (from parent Phase 1, never run) is carried into **2b**.
 
+**Repositories in scope (2026-10-08).** Of the four with `rc` branches configured, **`auro-layover` and `auro-devops-component` are retired** and out of scope for capture (recorded in #57 §2.7; `auro-layover` is archived on GitHub). **Open: `auro-tabs`** — Jordan recalled a third dead repo; `auro-tabs` is the likely one (newest default-branch commit 2025-10-03). **Confirm with Jordan**, then mark it in #57 §2.7 the same way. If confirmed, `auro-formkit` is the only active repo releasing from `rc` branches.
+
 ---
 
 ## Work items
@@ -157,6 +159,10 @@ gates resolved in `main`'s favour); if `main` moves again, the same restack may
 be needed before Phase 1 lands.
 
 ---
+
+## Unrelated, but only recorded here
+
+An automated security review on 2026-10-07 flagged **`plugins/auro/skills/pr-demo/scripts/pr-demo.mjs`** on Jordan's `jjones/pr-demo-skill` branch (medium): the skill builds and opens a pull request's own code locally, so a fork PR could use crafted import paths to read local files, and the Playwright step runs with network access. Suggested fix: reject resolved paths outside the PR tree and `node_modules`, restrict bundler loaders to `.js`/`.mjs`/`.ts`/`.css`, block network in the Playwright step except the stylesheet CDN, and never disable the sandbox for untrusted PRs. Not acted on.
 
 ## Gotchas learned
 

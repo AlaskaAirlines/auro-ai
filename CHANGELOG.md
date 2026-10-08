@@ -1,3 +1,11 @@
+# [1.20.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.19.0...v1.20.0) (2026-10-08)
+
+
+### Features
+
+* **close-dependabot:** add skill to bulk-close Dependabot PRs across Auro repos ([cf2c7d0](https://github.com/AlaskaAirlines/auro-ai/commit/cf2c7d0fc6ad380c048d8cabbaa39a6963932b11))
+* **commit:** accept skip at the ticket prompt to commit without a reference ([c76abf9](https://github.com/AlaskaAirlines/auro-ai/commit/c76abf96eadca95ec01ed9585d499e6787d5768b))
+
 # [1.19.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.18.1...v1.19.0) (2026-10-08)
 
 

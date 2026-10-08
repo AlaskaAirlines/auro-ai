@@ -46,9 +46,10 @@ auro-ai/
 │   └── auro/                     # one plugin
 │       ├── .claude-plugin/
 │       │   └── plugin.json       # plugin manifest (name, version)
+│       ├── agents/               # code-review reviewer agents (one per model × effort level)
 │       └── skills/               # SKILL.md sources — the single source of truth
 │           ├── commit/SKILL.md
-│           ├── code-review/SKILL.md
+│           ├── code-review/      # SKILL.md + reviewer.md (reviewer criteria) + posting.md (post mode)
 │           ├── release-notes/SKILL.md
 │           ├── pr/SKILL.md
 │           └── ado/SKILL.md

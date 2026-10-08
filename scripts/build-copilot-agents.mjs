@@ -91,11 +91,11 @@ function argumentBanner(fields) {
 /** Where a skill's folder (and any bundled scripts) lives in an `auro-ai` checkout. */
 const checkoutSkillDir = (name) => `$AURO_AI_HOME/plugins/auro/skills/${name}`;
 
-/** Skills that reference `${CLAUDE_SKILL_DIR}` run bundled scripts, which the CLI
- *  can only reach through a local checkout. */
+/** Skills that reference `${CLAUDE_SKILL_DIR}` use bundled files (scripts or extra
+ *  instruction files), which the CLI can only reach through a local checkout. */
 function scriptsBanner(name, body) {
   if (!body.includes('${CLAUDE_SKILL_DIR}')) return null;
-  return `> **Bundled scripts:** this workflow runs scripts from your local \`auro-ai\` checkout at \`${checkoutSkillDir(name)}/scripts/\`. Set \`AURO_AI_HOME\` to the checkout path before invoking it; if it is unset, ask the user for the path.`;
+  return `> **Bundled files:** this workflow uses files from your local \`auro-ai\` checkout at \`${checkoutSkillDir(name)}/\`. Set \`AURO_AI_HOME\` to the checkout path before invoking it; if it is unset, ask the user for the path.`;
 }
 
 /** Inline shape: the whole workflow embedded, with `$ARGUMENTS` → `${input}` and

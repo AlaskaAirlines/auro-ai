@@ -1,3 +1,16 @@
+# [1.19.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.18.1...v1.19.0) (2026-10-08)
+
+
+### Bug Fixes
+
+* **code-review:** apply effort via reviewer agents and cut duplicate review work ([3bf0220](https://github.com/AlaskaAirlines/auro-ai/commit/3bf0220dd6285d4a69b4d5b69e2c7d680b349766))
+* **code-review:** remove auro cem-check step now handled during build ([e30f616](https://github.com/AlaskaAirlines/auro-ai/commit/e30f61663d76f308b366e4f9a3f12d1e3a53b1b1))
+
+
+### Features
+
+* **code-review:** flag bundled tickets that should be split into separate PRs ([eedb9e0](https://github.com/AlaskaAirlines/auro-ai/commit/eedb9e07b05fb58c6764fba0247475a64bd940e6))
+
 ## [1.18.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.18.0...v1.18.1) (2026-10-05)
 
 

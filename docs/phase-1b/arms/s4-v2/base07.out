@@ -1,0 +1,41 @@
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+
+  if (changedProperties.has('validity') || changedProperties.has('error')) {
+    const isInvalid = this.validity && this.validity !== 'valid';
+    const radiogroup = this.shadowRoot.querySelector('[role="radiogroup"]');
+    radiogroup.setAttribute('aria-invalid', isInvalid ? 'true' : 'false');
+  }
+}
+
+render() {
+  const isInvalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid=${isInvalid ? 'true' : 'false'}
+      aria-describedby=${this.error ? 'errorMessage' : nothing}
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="errorMessage" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Key additions:
+- `aria-invalid` on the `radiogroup` element itself, kept in sync with `validity` (not just `error`, so `valueMissing` from a plain `required` violation is also announced).
+- `aria-describedby="errorMessage"` on the `radiogroup`, wired to the `id` on the error `<p>`, so screen readers associate the error text with the group even outside the live-region announcement moment (e.g., when the user navigates back to it later).
+
+Setting `aria-invalid` directly in `render()` means it's always correct on first paint; the `updated()` block keeps it correct if `validity`/`error` change without a full re-render path (defensive redundancy — drop the `updated()` half if `render()` alone proves sufficient in your case).

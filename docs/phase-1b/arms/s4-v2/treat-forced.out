@@ -1,0 +1,56 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Standards consulted: `references/a11y.md`, `form.md`, `life.md`, `api.md`.
+
+The bug is exactly `CS-A11Y-001`: the invalid state is keyed on `error` (one *cause* of invalidity) rather than on the authoritative `validity`, so a required-and-empty group (`valueMissing`) exposes nothing to AT — and `changedProperties.has('error')` never runs when only `validity` moves.
+
+**Single predicate** (per `CS-A11Y-001`, and `CS-A11Y-002` — one predicate, not one inlined per call site):
+
+```js
+get isInvalid() {
+  return this.validity !== undefined && this.validity !== 'valid';
+}
+```
+
+**`updated()`** — key the child mirroring on `isInvalid`, and react to `validity` as well as `error`:
+
+```js
+  updated(changedProperties) {
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      // mirror the invalid state onto each child, from authoritative validity
+      this.items.forEach((el) => {
+        if (this.isInvalid) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+      });
+    }
+  }
+```
+
+**`render()`** — bind `aria-invalid` declaratively, on the element that carries the `role` (the `<fieldset>`, not the host), and wire the message as the group's description so it is read on focus as well as on change:
+
+```js
+  render() {
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-invalid="${this.isInvalid ? 'true' : 'false'}"
+        aria-describedby="${this.error ? 'error-message' : nothing}"
+        aria-required="${this.required ? 'true' : nothing}">
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        ${this.error
+          ? html`<p id="error-message" role="alert">${this.error}</p>`
+          : nothing}
+      </fieldset>
+    `;
+  }
+```
+
+Notes on the deltas:
+
+- `role="radiogroup"` is kept deliberately — a bare `<fieldset>` is implicitly `group`, which does **not** support `aria-invalid` under ARIA 1.2; `radiogroup` does (`CS-A11Y-003`). Verify with axe rather than trusting the mapping.
+- `aria-invalid="false"` is emitted explicitly rather than dropped, so the state transition is announced rather than silently disappearing.
+- `aria-live="assertive"` is removed: `role="alert"` already implies an assertive live region, and doubling them causes duplicate announcements in some SR/browser pairs.
+- `aria-describedby` covers the case a user focuses the group *after* the error rendered — the live region only fires on the change itself.
+- `valueMissing` now surfaces even with no `error` string set. If you want it spoken and not just exposed as state, the group needs a default message for that branch — flagging rather than inventing copy.
+
+Two follow-ups this change implies, outside the code you asked for: `CS-A11Y-002` says to check the sibling group components for the same shape (checkbox-group is the usual carrier), and `references/test.md` would want a regression test asserting `aria-invalid="true"` on the `radiogroup` for a required-and-empty group with **no** `error` set — that's the assertion the original bug would have failed.

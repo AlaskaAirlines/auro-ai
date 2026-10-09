@@ -1,0 +1,15 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+I can't retrieve AB#1533044, so I can't start implementing it. Here's what I checked:
+
+- **Azure DevOps CLI** — `az` is installed, but not authenticated for Boards: `az boards work-item show --id 1533044 --org https://dev.azure.com/alaskaairlines` returns *"Before you can run Azure DevOps commands, you need to run the login command."* I also can't read the configured default org — `az devops configure --list` was declined by the permission gate both times I tried it.
+- **This repo** — `grep -rn "1533044"` across the working tree: no matches. No branch matching `*1533044*`, and no commit on any ref mentioning it.
+- **Remote** — `origin` is GitHub (`AlaskaAirlines/auro-formkit`), so there's no Azure DevOps auto-detect to fall back on.
+
+I'd rather not guess at scope here — without the ticket I don't know which component it touches, let alone what the change is, and any assumption I made would likely produce throwaway work.
+
+To unblock, either:
+
+1. **Paste the work item** — title, description, and acceptance criteria. That's the fastest path and I can start immediately.
+2. **Authenticate `az`** — run `az login` (or `az devops login` with a PAT) in your own terminal, plus `az devops configure --defaults organization=https://dev.azure.com/<your-org>`. Then I can pull it myself. I'll need the correct org name; `alaskaairlines` was my guess.
+
+One thing worth confirming once I know the scope: per the branch policy I have on file, this should land on `dev` unless it's an intentional v6 breaking change, in which case it goes to `breaking/formkit-v6`. We're currently on `dev` with a clean tree.

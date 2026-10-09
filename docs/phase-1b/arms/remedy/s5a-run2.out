@@ -1,0 +1,36 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Implemented. `stacked` was declared and reflected but nothing consumed it — there were no `[stacked]` style rules at all.
+
+## Changes (3 files)
+
+**`src/styles/classic/style.scss`** — the actual fix. A new `:host([layout*='classic'][range][stacked])` block that unwinds each of the row-layout compensations sitting above it:
+
+| Row layout | Stacked |
+|---|---|
+| `.inputSection` is a row | column, `align-items: stretch` |
+| `.inputContainer` flexes to share the line (From gets an icon-footprint basis) | `flex: 0 0 auto` — intrinsic height |
+| `.inputDivider` is a 1px × 2rem vertical rule | full-width × 1px horizontal rule |
+| `.dateTo` has a `--ds-size-150` left gutter | `margin-left: 0` |
+| `.dateTo`'s own calendar icon suppressed (avoids two icons on one row) | `accent-left` restored, so both rows start on the same edge |
+
+Scoped to `layout*='classic'` (the default, and the only layout where the `.inputDivider`/`accent-left` overrides it unwinds exist). In `snowflake` the trigger is a compact single-line display, so `stacked` stays a no-op there — say the word if you want it to apply there too.
+
+**`src/auro-datepicker.js`** — JSDoc for `stacked` now states it applies to `range` and adds `@type`/`@default`, matching the neighboring props.
+
+**`test/auro-datepicker.test.js`** — four tests in the existing `stacked` describe: `row` when unset (proves the attribute drives it), `column` when set, the end input rendered below the start input with a shared left edge, and the divider flipped horizontal. The geometry test asserts both heights are non-zero before comparing positions rather than guarding the comparison behind a conditional (CS-TEST-001).
+
+## What I could not verify
+
+**I did not run the build or the tests** — every attempt to run outside the sandbox was denied, and inside it the sandbox blocks all filesystem writes from Bash (`npm run sass` fails, and even `> ./file` redirection into the repo is refused; `$TMPDIR` is `/tmp/claude-502`, which isn't in the write allowlist). You can manage this with `/sandbox`. To confirm:
+
+```
+cd components/datepicker && npm run sass && npm run test:default
+```
+
+Two notes on that:
+- The generated CSS artifacts (`style.css`, `style-css.js`) are untracked, and the local copies already happen to contain exactly the rules my SCSS compiles to — I diffed them. So a local test run should pick up the right CSS even before you rebuild.
+- `docs/api.md` is tracked and generated, so my JSDoc change leaves it stale until `npm run build:docs` runs.
+
+`npx stylelint` on the file reports 3 new errors (`selector-max-attribute`, `scss/selector-nest-combinators`) — all the same kinds already present on the pre-existing lines 27/45/46 of this file, and the component's `lint` script is a no-op stub. I matched the surrounding style rather than diverging; tell me if you'd rather I nest them.
+
+Nothing is committed. Per the branch policy this is a `fix` for `dev` — want me to branch and commit?

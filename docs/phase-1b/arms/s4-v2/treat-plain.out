@@ -1,0 +1,66 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Two things were missing: the group never exposed `aria-invalid`/`aria-required`, and the error text wasn't associated with the group — so the only signal was a visual `error` attribute plus a live region that only fires when `error` is set (not for `valueMissing`).
+
+## `updated()`
+
+```js
+  get isInvalid() {
+    return Boolean(this.error) || (this.validity && this.validity !== 'valid');
+  }
+
+  // this.error covers customError; valueMissing has no consumer-supplied text
+  get errorMessage() {
+    if (this.error) return this.error;
+    if (this.validity === 'valueMissing') return 'Select an option.';
+    return '';
+  }
+
+  updated(changedProperties) {
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      const invalid = this.isInvalid;
+
+      this.items.forEach((el) => {
+        // existing behaviour: mirror the error attribute onto each child
+        if (this.error) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+
+        // each radio is individually focusable, so each carries the state
+        if (invalid) el.setAttribute('aria-invalid', 'true');
+        else el.removeAttribute('aria-invalid');
+      });
+    }
+  }
+```
+
+## `render()`
+
+```js
+  render() {
+    const invalid = this.isInvalid;
+    const message = this.errorMessage;
+
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-required="${this.required ? 'true' : 'false'}"
+        aria-invalid="${invalid ? 'true' : 'false'}"
+        aria-describedby="${ifDefined(message ? 'error-message' : undefined)}">
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        <p id="error-message" role="alert">${message}</p>
+      </fieldset>
+    `;
+  }
+```
+
+Requires `import { ifDefined } from 'lit/directives/if-defined.js';`.
+
+What changed and why:
+
+- **`aria-invalid` on the group and on each radio.** Screen readers announce the focused radio, not the container, so the per-child mirroring in `updated()` is what makes the state audible while arrowing through options. The group-level attribute covers AT that reports the radiogroup on entry.
+- **`aria-describedby` → the message.** The slotted radios flatten into the `<fieldset>` in the accessibility tree, so a description on the group is announced when entering it. Note this only works because the message lives in the same (shadow) tree as the `<fieldset>` — `aria-describedby` on the light-DOM radios could not have referenced it.
+- **The live region is always rendered**, with text swapped in rather than the whole `<p>` being created. Several screen readers miss a `role="alert"` node that is inserted into the DOM at the same moment it gets content; an existing empty region that later fills reliably announces. Dropped `aria-live="assertive"` — `role="alert"` already implies it.
+- **`updated()` now watches `validity`,** not just `error`. Previously a `valueMissing` state changed nothing at all in the DOM.
+- **`aria-required`** so the constraint is known before the user trips it, rather than only after.
+
+One assumption worth your review: I added a default `'Select an option.'` string for `valueMissing`, since that validity state has no consumer-supplied text and would otherwise be flagged invalid with nothing to describe it. If your design system routes that copy through a token or a `setCustomValidity`-style API, swap the getter to read from there.

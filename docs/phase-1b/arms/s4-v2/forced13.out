@@ -1,0 +1,60 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Two rules from the standards drove this: **CS-A11Y-001** (bind ARIA validity declaratively off a single authoritative predicate, on the element that carries the role) and **CS-A11Y-003** (`radiogroup` is a legitimate explicit override on `<fieldset>`, and it *is* on the ARIA 1.2 supported-role list for `aria-invalid`).
+
+The core defect: the only invalid signal was gated on `changedProperties.has('error')`. A required-and-empty group sets `validity = "valueMissing"` with no consumer `error` string, so nothing rendered and nothing was exposed — and even the visible `<p role="alert">` was keyed on `error` alone.
+
+```js
+  /** Single authoritative invalid predicate — never key ARIA off one cause of invalidity. */
+  get isInvalid() {
+    return Boolean(this.validity && this.validity !== 'valid');
+  }
+
+  /** Message shown and announced for the current invalid state. */
+  get errorMessage() {
+    if (!this.isInvalid) return undefined;
+    if (this.validity === 'customError') return this.error;
+    return this.error || 'Please select an option.';
+  }
+
+  updated(changedProperties) {
+    // Mirror invalid state onto each child — keyed on validity, not just `error`,
+    // so valueMissing (no consumer message) still propagates. CS-A11Y-001
+    if (changedProperties.has('error') || changedProperties.has('validity')) {
+      this.items.forEach((el) => {
+        if (this.isInvalid) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+      });
+    }
+  }
+
+  render() {
+    const message = this.errorMessage;
+
+    return html`
+      <fieldset
+        role="radiogroup"
+        aria-required=${this.required ? 'true' : nothing}
+        aria-invalid=${this.isInvalid ? 'true' : nothing}
+        aria-describedby=${message ? 'error-message' : nothing}
+      >
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        ${message
+          ? html`<p id="error-message" role="alert">${message}</p>`
+          : nothing}
+      </fieldset>
+    `;
+  }
+```
+
+What changed and why:
+
+- **`aria-invalid` is bound in `render()` on the `<fieldset>`** — the element carrying `role="radiogroup"` — not set imperatively on the host. Setting it on the custom-element host while the role lives in shadow DOM means AT never associates the two (CS-A11Y-001).
+- **`aria-describedby` wires the message to the group**, so the error is part of the group's accessible description on focus, not just a one-time live announcement.
+- **`aria-required`** exposes the `required` property, which was previously invisible to AT entirely.
+- **`validity: "valueMissing"` now renders a message.** Without a fallback string there is nothing for `role="alert"` to announce and nothing for `aria-describedby` to point at. Swap the hardcoded default for your localized string source — it's the one thing here I'd flag as needing a product decision.
+- **Dropped `aria-live="assertive"`** — `role="alert"` already implies it; the pair is redundant and in some AT combinations causes double announcement.
+
+One thing to verify in your implementation: `nothing` in an attribute position removes the attribute, which is what you want for `aria-invalid` — `aria-invalid="false"` is valid but noisier than absence.
+
+Per **CS-A11Y-002**, check `auro-checkbox-group` (and any sibling built from this template) for the same `changedProperties.has('error')` shape before closing this out — that exact defect has shipped twice in paired components, and the fix should copy the `isInvalid` *shape* rather than re-deriving a second predicate.

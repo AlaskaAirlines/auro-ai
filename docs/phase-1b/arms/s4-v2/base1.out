@@ -1,0 +1,35 @@
+The `role="alert"` announces the message when it appears, but nothing tells assistive tech that the *group itself* is currently invalid — a screen reader user tabbing back into the fieldset later gets no indication. Add `aria-invalid` on the fieldset, driven off `validity`, and connect the error text via `aria-describedby` so it's read as part of the field's accessible description, not just a one-time interruption.
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  const isInvalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid=${isInvalid ? 'true' : 'false'}
+      aria-describedby=${this.error ? 'errorMessage' : nothing}
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="errorMessage" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Notes:
+- `aria-invalid` is computed from `validity` (not just `error`), so `valueMissing` (required-but-empty, no custom message) is also surfaced.
+- `id="errorMessage"` + `aria-describedby` ties the message to the fieldset persistently, so it's announced on focus later, not just at the moment it appears.

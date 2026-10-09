@@ -1,0 +1,352 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Data collection complete. Here is the report.
+
+---
+
+# Sprint Report — Sprint 19.26 (2026-09-09 → 2026-09-22)
+
+**Board:** Auro Design System (`itsals` / `E_Retain_Content`) · **Previous sprint:** Sprint 18.26 (2026-08-26 → 2026-09-08)
+
+> ⚠️ **Two data-access caveats for this run.** (1) The ADO PAT lacks the optional `GitHub Connections (Read)` scope, so the connected-repo list returned HTTP 401. I rebuilt the repo map from GitHub's public `AlaskaAirlines` org listing instead — the 92 repo names are verified against GitHub, not guessed, so PR links below are real. (2) The `GITHUB_TOKEN` in the environment is **suspended** (403 on every call), so GitHub lookups ran anonymously at 60 req/hr. To stay inside that budget, Section 8a looked up the **top 10** blame commits per bug rather than all of them (noted per bug where it applies). The eleven data tables are unaffected.
+
+---
+
+### 1. Sprint 19.26 (2026-09-09 → 2026-09-22) — work items changed this sprint, by type and current state
+
+*What this shows: a single-glance picture of everything the team worked on this sprint. Each row is a kind of work (user stories, bugs, tasks…) and each column is where those items stand today; the far-right **Total** is the sprint's overall volume, and the two **Closed** columns separate finished work that shipped code from finished work that didn't.*
+
+| Work Item Type | New | New (edit only) | Approved | Committed | Active | Ready For Acceptance | Closed (PR/commit) | Closed (no code) | **Total** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Bug | 8 | 33 | 2 | 0 | 0 | 2 | 5 | 0 | **50** |
+| User Story | 4 | 18 | 2 | 1 | 0 | 0 | 3 | 3 | **31** |
+| Design Story | 0 | 0 | 0 | 0 | 3 | 3 | 0 | 0 | **6** |
+| Task | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 3 | **5** |
+| **Total** | **13** | **51** | **4** | **1** | **3** | **5** | **9** | **6** | **92** |
+
+---
+
+### 2. Change vs Sprint 18.26 (2026-08-26 → 2026-09-08) — +/- in each count from the previous sprint
+
+*What this shows: how this sprint compares with the one before it — every number is the change from last sprint (`+` means more this sprint, `-` means fewer). Use it to spot at a glance whether activity and completed work are trending up or down.*
+
+| Work Item Type | New | New (edit only) | Approved | Committed | Active | Ready For Acceptance | Closed (PR/commit) | Closed (no code) | Rejected | **Total** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| User Story | +4 | +17 | +1 | +1 | 0 | 0 | -46 | -1301 | 0 | **-1324** |
+| Bug | +8 | +33 | +2 | 0 | 0 | +2 | -66 | -177 | -2 | **-200** |
+| Design Story | 0 | 0 | 0 | 0 | +3 | +3 | 0 | -57 | 0 | **-51** |
+| Task | -7 | 0 | 0 | 0 | 0 | 0 | -2 | -14 | 0 | **-23** |
+| Discovery | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -1 | 0 | **-1** |
+| **Total** | **+5** | **+50** | **+3** | **+1** | **+3** | **+5** | **-114** | **-1550** | **-2** | **-1599** |
+
+> The very large negatives are dominated by Sprint 18.26's bulk backlog closure (1,550 items closed with no linked code, mostly on the `(root)` area path). Read this table as "18.26 was an outlier cleanup sprint," not as a collapse in throughput.
+
+---
+
+### 3. Sprint 19.26 (2026-09-09 → 2026-09-22) — Support-tagged work items changed this sprint, by type and current state
+
+*What this shows: the same breakdown as the first table, limited to **Support-tagged** items — the reactive, customer- and partner-driven work. It shows how much of the sprint's capacity went to support versus planned roadmap work.*
+
+| Work Item Type | New | Committed | Ready For Acceptance | Closed (no code) | **Total** |
+|---|---:|---:|---:|---:|---:|
+| User Story | 1 | 1 | 0 | 1 | **3** |
+| Design Story | 0 | 0 | 1 | 0 | **1** |
+| **Total** | **1** | **1** | **1** | **1** | **4** |
+
+---
+
+### 4. Change vs Sprint 18.26 (2026-08-26 → 2026-09-08) — Support-tagged +/- from the previous sprint
+
+*What this shows: the sprint-over-sprint change in Support-tagged volume — whether reactive customer work is growing or shrinking as a share of the team's load.*
+
+| Work Item Type | New | Committed | Ready For Acceptance | Closed (PR/commit) | Closed (no code) | **Total** |
+|---|---:|---:|---:|---:|---:|---:|
+| Bug | 0 | 0 | 0 | -27 | -67 | **-94** |
+| User Story | +1 | +1 | 0 | -12 | -63 | **-73** |
+| Design Story | 0 | 0 | +1 | 0 | -5 | **-4** |
+| **Total** | **+1** | **+1** | **+1** | **-39** | **-135** | **-171** |
+
+---
+
+### 5. Sprint 19.26 (2026-09-09 → 2026-09-22) — work items changed this sprint, by assignee, type, and current state
+
+*What this shows: the same sprint work broken out by person, so you can see how the load was distributed across the team. Each person's rows are split by work item type, and the **Subtotal** is that person's total for the sprint.*
+
+| Assigned To | Work Item Type | New | New (edit only) | Approved | Committed | Active | Ready For Acceptance | Closed (PR/commit) | Closed (no code) | **Total** |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Chris Friedberg | Bug | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| | User Story | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| | **Subtotal** | **0** | **0** | **0** | **0** | **0** | **0** | **2** | **0** | **2** |
+| Eunsun Mota | Bug | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| | Task | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 1 |
+| | **Subtotal** | **0** | **0** | **0** | **0** | **0** | **0** | **1** | **1** | **2** |
+| Forrest Akemann | Design Story | 0 | 0 | 0 | 0 | 2 | 3 | 0 | 0 | 5 |
+| | **Subtotal** | **0** | **0** | **0** | **0** | **2** | **3** | **0** | **0** | **5** |
+| Jason Baker | Bug | 0 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 2 |
+| | Task | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| | User Story | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 3 | 4 |
+| | **Subtotal** | **0** | **0** | **0** | **0** | **0** | **2** | **2** | **3** | **7** |
+| Jordan Jones | Bug | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 3 |
+| | User Story | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 1 |
+| | **Subtotal** | **0** | **0** | **0** | **0** | **0** | **0** | **4** | **0** | **4** |
+| Nick King | User Story | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
+| | **Subtotal** | **0** | **1** | **0** | **0** | **0** | **0** | **0** | **0** | **1** |
+| Unassigned | Bug | 8 | 33 | 2 | 0 | 0 | 0 | 0 | 0 | 43 |
+| | Design Story | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
+| | Task | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 3 |
+| | User Story | 4 | 17 | 2 | 1 | 0 | 0 | 0 | 0 | 24 |
+| | **Subtotal** | **13** | **50** | **4** | **1** | **1** | **0** | **0** | **2** | **71** |
+| **Total** | | **13** | **51** | **4** | **1** | **3** | **5** | **9** | **6** | **92** |
+
+---
+
+### 6. Sprint 19.26 (2026-09-09 → 2026-09-22) — work items changed this sprint, by area path and current state
+
+*What this shows: the same sprint activity grouped by the part of the design system it belongs to (component or product area) instead of by type — a quick read on which areas saw the most work.*
+
+| Area Path | New | New (edit only) | Approved | Committed | Active | Ready For Acceptance | Closed (PR/commit) | Closed (no code) | **Total** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| (root) | 0 | 7 | 1 | 0 | 2 | 0 | 0 | 0 | **10** |
+| auro-accordion | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **1** |
+| auro-ai | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | **2** |
+| auro-button | 1 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | **2** |
+| auro-dialog | 0 | 0 | 1 | 1 | 0 | 0 | 0 | 0 | **2** |
+| auro-drawer | 1 | 1 | 0 | 0 | 0 | 1 | 0 | 0 | **3** |
+| auro-flight | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | **1** |
+| auro-formkit | 1 | 4 | 0 | 0 | 0 | 0 | 3 | 1 | **9** |
+| auro-formkit\auro-checkbox | 0 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | **3** |
+| auro-formkit\auro-combobox | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 | **1** |
+| auro-formkit\auro-counter | 1 | 6 | 0 | 0 | 0 | 0 | 1 | 0 | **8** |
+| auro-formkit\auro-datepicker | 1 | 5 | 0 | 0 | 0 | 1 | 0 | 0 | **7** |
+| auro-formkit\auro-dropdown | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | **2** |
+| auro-formkit\auro-input | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | **6** |
+| auro-formkit\auro-menu | 0 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | **5** |
+| auro-formkit\auro-radio | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | **2** |
+| auro-formkit\auro-select | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | **3** |
+| auro-hyperlink | 2 | 0 | 0 | 0 | 0 | 0 | 2 | 0 | **4** |
+| auro-library | 1 | 1 | 0 | 0 | 0 | 0 | 1 | 2 | **5** |
+| auro-loader | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **1** |
+| auro-popover | 0 | 2 | 0 | 0 | 0 | 0 | 1 | 0 | **3** |
+| auro-tail | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | **1** |
+| auro-toast | 1 | 1 | 0 | 0 | 0 | 0 | 1 | 0 | **3** |
+| AuroDesignTokens | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 2 | **3** |
+| AuroDocsSite | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | **1** |
+| icons | 0 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | **2** |
+| WebCoreStyleSheets | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | **2** |
+| **Total** | **13** | **51** | **4** | **1** | **3** | **5** | **9** | **6** | **92** |
+
+---
+
+### 7. Change vs Sprint 18.26 (2026-08-26 → 2026-09-08) — by area path, +/- from the previous sprint
+
+*What this shows: which areas got busier or quieter versus last sprint.*
+
+| Area Path | New | New (edit only) | Approved | Committed | Active | Ready For Acceptance | Closed (PR/commit) | Closed (no code) | Rejected | **Total** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| (root) | 0 | +7 | +1 | 0 | +2 | 0 | -18 | -1328 | 0 | **-1336** |
+| auro-accordion | 0 | 0 | 0 | 0 | 0 | +1 | -6 | -5 | 0 | **-10** |
+| auro-actions | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -1 | 0 | **-1** |
+| auro-ai | +1 | 0 | 0 | 0 | +1 | 0 | 0 | -2 | 0 | **0** |
+| auro-avatar | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -1 | 0 | **-1** |
+| auro-badge | 0 | 0 | 0 | 0 | 0 | 0 | -3 | 0 | 0 | **-3** |
+| auro-button | +1 | 0 | 0 | 0 | 0 | +1 | 0 | -4 | 0 | **-2** |
+| auro-card | 0 | 0 | 0 | 0 | 0 | 0 | -1 | -1 | 0 | **-2** |
+| auro-cli | 0 | 0 | 0 | 0 | 0 | 0 | -8 | -12 | 0 | **-20** |
+| auro-datetime | 0 | 0 | -1 | 0 | 0 | 0 | 0 | -1 | 0 | **-2** |
+| auro-dialog | -2 | 0 | +1 | +1 | 0 | 0 | -1 | -2 | 0 | **-3** |
+| auro-drawer | -1 | +1 | 0 | 0 | 0 | +1 | -2 | -3 | 0 | **-4** |
+| auro-element | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -3 | 0 | **-3** |
+| auro-flight | 0 | +1 | 0 | 0 | 0 | 0 | -1 | -2 | -1 | **-3** |
+| auro-formkit | +1 | +4 | 0 | 0 | 0 | 0 | -13 | -25 | 0 | **-33** |
+| auro-formkit\auro-checkbox | 0 | +3 | 0 | 0 | 0 | 0 | -2 | 0 | 0 | **+1** |
+| auro-formkit\auro-combobox | 0 | 0 | +1 | 0 | 0 | 0 | -8 | -22 | 0 | **-29** |
+| auro-formkit\auro-counter | +1 | +6 | 0 | 0 | 0 | 0 | -5 | -6 | -1 | **-5** |
+| auro-formkit\auro-datepicker | +1 | +5 | 0 | 0 | 0 | +1 | -8 | -24 | 0 | **-25** |
+| auro-formkit\auro-dropdown | 0 | +2 | 0 | 0 | 0 | 0 | -4 | -4 | 0 | **-6** |
+| auro-formkit\auro-form | 0 | 0 | 0 | 0 | 0 | 0 | -1 | -2 | 0 | **-3** |
+| auro-formkit\auro-input | 0 | +5 | 0 | 0 | 0 | 0 | -6 | -6 | 0 | **-7** |
+| auro-formkit\auro-menu | 0 | +5 | 0 | 0 | 0 | 0 | -2 | -4 | 0 | **-1** |
+| auro-formkit\auro-radio | 0 | +2 | 0 | 0 | 0 | 0 | -4 | 0 | 0 | **-2** |
+| auro-formkit\auro-select | +1 | +1 | +1 | 0 | 0 | 0 | -6 | -6 | 0 | **-9** |
+| auro-hyperlink | +2 | 0 | 0 | 0 | 0 | 0 | 0 | -4 | 0 | **-2** |
+| auro-icon | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -3 | 0 | **-3** |
+| auro-library | +1 | +1 | 0 | 0 | 0 | 0 | -2 | +1 | 0 | **+1** |
+| auro-loader | +1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | **+1** |
+| auro-pane | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -3 | 0 | **-3** |
+| auro-popover | -2 | +2 | 0 | 0 | 0 | 0 | +1 | -3 | 0 | **-2** |
+| auro-tabs | 0 | 0 | 0 | 0 | 0 | 0 | 0 | -2 | 0 | **-2** |
+| auro-tail | 0 | +1 | 0 | 0 | 0 | 0 | 0 | -5 | 0 | **-4** |
+| auro-toast | +1 | +1 | 0 | 0 | 0 | 0 | 0 | -1 | 0 | **+1** |
+| AuroDesignTokens | 0 | 0 | 0 | 0 | 0 | +1 | 0 | -29 | 0 | **-28** |
+| AuroDocsSite | 0 | +1 | 0 | 0 | 0 | 0 | -5 | -15 | 0 | **-19** |
+| icons | 0 | +1 | 0 | 0 | 0 | 0 | -2 | -10 | 0 | **-11** |
+| WebCoreStyleSheets | -1 | +1 | 0 | 0 | 0 | 0 | -7 | -12 | 0 | **-19** |
+| **Total** | **+5** | **+50** | **+3** | **+1** | **+3** | **+5** | **-114** | **-1550** | **-2** | **-1599** |
+
+---
+
+### 8. Sprint 19.26 (2026-09-09 → 2026-09-22) — done this sprint, with a linked PR/commit
+
+*What this shows: every ticket the team **finished** this sprint that shipped actual code changes, each with a direct link to the work item and its pull request. This is the sprint's tangible engineering output.*
+
+| Area Path | Work Item Type | Current State | ID | PR | Title | Assigned To |
+|---|---|---|---:|---|---|---|
+| auro-formkit | Task | Closed | [1638610](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638610) | [PR #1613](https://github.com/AlaskaAirlines/auro-formkit/pull/1613) | Generate Release Notes | Jason Baker |
+| auro-formkit | User Story | Closed | [1638609](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638609) | [PR #1612](https://github.com/AlaskaAirlines/auro-formkit/pull/1612), [PR #1614](https://github.com/AlaskaAirlines/auro-formkit/pull/1614) | Release auro-formkit - Sprint 18.26 08.26-09.08 | Jordan Jones |
+| auro-formkit | User Story | Closed | [1639416](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1639416) | [PR #1610](https://github.com/AlaskaAirlines/auro-formkit/pull/1610) | Standardize all auro-formkit MANUAL_TESTING.md docs to a Smoke Test / Depth structure | Jason Baker |
+| auro-formkit\auro-counter | Bug | Closed | [1510603](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1510603) | [PR #1618](https://github.com/AlaskaAirlines/auro-formkit/pull/1618) (via commit) | Fix missing footer buttons in auro-counter fullscreen view on the API demo page | Jordan Jones |
+| auro-hyperlink | Bug | Closed | [1551053](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1551053) | [PR #344](https://github.com/AlaskaAirlines/auro-hyperlink/pull/344), [PR #364](https://github.com/AlaskaAirlines/auro-hyperlink/pull/364) | Fix hyperlink internal/same-domain example rendering the external-link icon | Jordan Jones |
+| auro-hyperlink | User Story | Closed | [1639236](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1639236) | [PR #362](https://github.com/AlaskaAirlines/auro-hyperlink/pull/362) | Complete auro-hyperlink's JSDoc so editors surface deprecation, descriptions, and valid attribute values | Chris Friedberg |
+| auro-library | Bug | Closed | [1616087](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1616087) | [PR #1615](https://github.com/AlaskaAirlines/auro-library/pull/1615), [PR #296](https://github.com/AlaskaAirlines/auro-library/pull/296) | Stop shipping handlebars and markdown-magic as runtime dependencies in auro-library | Chris Friedberg |
+| auro-popover | Bug | Closed | [1311537](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1311537) | [PR #135](https://github.com/AlaskaAirlines/auro-popover/pull/135) | Expose auro-popover arrow and inner elements as styleable shadow parts | Jordan Jones |
+| auro-toast | Bug | Closed | [1376974](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1376974) | [PR #147](https://github.com/AlaskaAirlines/auro-toast/pull/147) | Toast close event is named with an "on" prefix, breaking handler binding in Svelte | Eunsun Mota |
+
+> **Link-integrity note:** three of the PR references above do not exist in the repo the area path points at — `auro-popover#135`, `auro-hyperlink#364`, and `auro-library#1615` all return *Not Found* on GitHub. Azure Boards stores only a PR *number* plus an internal repo GUID, so a PR linked from the wrong repo (or since-deleted) can't be resolved. These three links will 404.
+
+---
+
+### 8a. Sprint 19.26 (2026-09-09 → 2026-09-22) — bug root-cause analysis: why did these closed bugs slip through?
+
+*What this shows: for each bug the team fixed this sprint — flagging which came in as customer/partner **Support** tickets and who reported them — a trace from the fix back to the pull request(s) that last touched that same code, who reviewed that last touch, the people who wrote it, a best-effort guess at whether the buggy code was AI- or human-authored, a **leadership-level** explanation of the process gap that let it slip through, the prevention steps the fix already applied, and the follow-on actions still recommended. Use it to spot recurring process gaps — missing acceptance criteria, skipped TRDs, thin test coverage, over-trusting AI, single-reviewer merges — and target prevention. (Scope: closed bugs that shipped a code change; bugs closed without code aren't analyzable here.)*
+
+None of the five bugs below carried the `Support` tag — all were internally found.
+
+#### auro-formkit
+
+- **[1510603](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1510603) — Fix missing footer buttons in auro-counter fullscreen view on the API demo page**
+  - **Fix:** [PR #1618](https://github.com/AlaskaAirlines/auro-formkit/pull/1618) — adds the missing `import '@aurodesignsystem/auro-button'` to the counter demo's `customize.js` so the fullscreen bib's footer buttons actually upgrade and render, alongside a broader counter-group validity refactor (`computeValidityFromCounters()` extracted from `updateValidity()`, `renderHelpTextErrors()` removed, `auroFormElement-validated` documented).
+  - **Last touched by:** [PR #1595](https://github.com/AlaskaAirlines/auro-formkit/pull/1595) — 2026-08-31. **Contributors:** Stephen Rios (65 lines), Jason Baker (65), rmenner (17), Eunsun Mota (12), Jordan Jones (1).
+  - **Who reviewed the last touch (#1595):** Eunsun Mota (requested changes) and Jason Baker (commented) — two humans engaged, which is the healthiest review on this list. Sourcery, Chromatic and GitHub Actions also commented; those are bots and do not count as human review.
+  - **Last touched by AI/Human — guess (low/med/high):** guess — AI-assisted (med): the closest prior commit `ad5dca8e` ("fix: correct CEM types and add deprecation flags for editor IntelliSense AB#1633053") carries a `Co-authored-by AI: Claude Opus 4.8` trailer; the surrounding commits from Stephen Rios and Jason Baker have `trailers=NONE` and read as hand-written.
+  - **Why it slipped through:** the demo page is treated as documentation rather than product, so nothing in the team's definition of done requires a demo page to be opened and exercised before a component change ships. A missing custom-element registration produces no build error and no test failure — it only shows as an invisible button to a human looking at the page. The prior PR was a metadata/IntelliSense pass with no acceptance criterion covering "the demo still renders," so two competent human reviewers had no reason to catch it.
+  - **Regression Remedies Applied:** substantial. The fix added counter-group unit coverage (`components/counter/test/auro-counter-group.test.js`, +232), a Storybook regression story (`components/counter/stories/component.stories.ts`, +45), a shared Playwright-facing suite update (`apps/shared/form-interaction.suite.ts`, +34), a manual-testing doc update, and a post-mortem (`docs/post-mortem/1642340.md`, +69). Note the post-mortem is filed under a *different* work item number than this bug.
+  - **Follow-on Recommendations:** add a lightweight smoke check that loads each component's `demo/` and `apiExamples/` pages and fails when a referenced `auro-*` tag never upgrades — this class of defect is invisible to unit tests by construction. Extend the `code-review` skill to flag PRs that add an `auro-*` tag to a demo/example file without a matching import. Reconcile the post-mortem filename with the bug ID so the trail is followable.
+
+- **[1616087](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1616087) — Stop shipping handlebars and markdown-magic as runtime dependencies in auro-library**
+  - **⚠ Data-quality caveat — mislinked fix:** the ticket links two PRs, but `auro-library#1615` does not exist (404) — that number belongs to the auro-formkit range. Only [PR #296](https://github.com/AlaskaAirlines/auro-library/pull/296) is real and is the actual fix; the analysis below rests on #296.
+  - **Fix:** [PR #296](https://github.com/AlaskaAirlines/auro-library/pull/296) — pre-compiles the doc-generation scripts into a bundled build (`build/bundleDocsScripts.mjs` +131, `build/entryPoints.mjs` +141, a `syncRequest` CommonJS shim +113) so `handlebars` and `markdown-magic` move out of runtime `dependencies`.
+  - **Last touched by:** [PR #73](https://github.com/AlaskaAirlines/auro-library/pull/73) — 2024-10-21. **Contributors:** Chris Friedberg (52 lines), Dale Sande (17), Jason Baker (2).
+  - **Who reviewed the last touch (#73):** Jason Baker (approved) and Dale Sande (commented) — one human approver. Sourcery also commented; it is a bot and does not count as human review. *Review gap: single human approver on a change to shared build scripts consumed by every Auro component.*
+  - **Last touched by AI/Human — guess (low/med/high):** guess — human-written (med): all four prior commits show ordinary human authors with `trailers=NONE`, and the October 2024 date predates the team's AI-assisted commit conventions.
+  - **Why it slipped through:** this is a packaging defect, not a logic defect, and the team has no gate that asks "what does a consumer actually download?" The build scripts and the runtime bundle share one `package.json`, so a dependency added for doc generation silently became a runtime dependency for every consuming component. No acceptance criterion in the original work mentioned dependency surface or install size, and a single approver reviewing a build-script change had no signal that the published artifact had changed.
+  - **Regression Remedies Applied:** the strongest remediation of the five. The fix added four dedicated test suites — `build/__tests__/distBundle.spec.js` (+405), `build/__tests__/packaging.spec.js` (+123), `build/__tests__/syncRequestShim.spec.js` (+116), `scripts/utils/__tests__/ansiColors.spec.js` (+220) — plus a test fixture server and a post-mortem (`docs/post-mortem/1616087.md`, +164). The new `packaging.spec.js` directly guards the regression.
+  - **Follow-on Recommendations:** promote the new packaging assertion into a shared CI check that every Auro repo runs, not just auro-library — the same dev-vs-runtime dependency mistake is possible in all of them. Require two human approvers on changes to `package.json` dependency blocks and shared build scripts, given the blast radius. Fix the stale `#1615` link on the ADO work item.
+
+#### auro-toast
+
+- **[1376974](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1376974) — Toast close event is named with an "on" prefix, breaking handler binding in Svelte**
+  - **Fix:** [PR #147](https://github.com/AlaskaAirlines/auro-toast/pull/147) — adds a standards-compliant `toast-close` CustomEvent with a `{ visible, id }` detail alongside the legacy `onToastClose` (now marked `@deprecated` but still dispatched for backwards compatibility), plus a standalone live region and other a11y improvements.
+  - **Last touched by:** [PR #116](https://github.com/AlaskaAirlines/auro-toast/pull/116) — 2026-05-07. **Contributors:** Dale Sande (218 lines), Eunsun Mota (71), Jason Baker (31), cynthiaricomendoza-alaskaair (15), Doug (14), Jordan Jones (8), Forrest Taylor (2).
+  - **Who reviewed the last touch (#116):** **no human reviewed it** — the only recorded participant is GitHub Actions, a bot. *Review gap: zero human approvers.* In fairness, #116 is a release-candidate roll-up ("RC #115") rather than a feature PR, but that means the naming decision was never reviewed at any point in the chain that blame reaches.
+  - **Last touched by AI/Human — guess (low/med/high):** guess — human-written (med-high): the blame-adjacent commits are all ordinary human authors with `trailers=NONE`. The one AI trailer present (`Co-authored-by AI: Claude Sonnet 4.6 (1M context)` on `c1d35369`) is on *this sprint's fix*, not on the code that introduced the defect.
+  - **Why it slipped through:** this is an API-design gap, not a coding error. `onToastClose` was a valid-looking name that only breaks when a consumer uses a framework whose event binding assumes DOM conventions — Svelte's `on:` prefix collides with it. Nothing in the team's process tests Auro components against the frameworks that actually consume them, and there is no written event-naming standard for a reviewer to check a new event against. It took a downstream consumer hitting it in Svelte to surface a naming choice made years earlier.
+  - **Regression Remedies Applied:** good coverage. The fix added substantial unit tests (`test/auro-toast.test.js`, +163), a post-mortem (`docs/post-mortem/1376974.md`, +81), and updated the API docs and README to document the deprecation path. The legacy event is retained, so consumers are not broken. No framework-integration (Svelte/React) test was added — the exact scenario that produced the bug remains untested.
+  - **Follow-on Recommendations:** write an event-naming standard into the `coding-standards` skill (no `on*` prefixes on dispatched CustomEvents; kebab-case, component-scoped) and have the `code-review` skill flag any new `dispatchEvent` whose name starts with `on`. Extend the existing `auro-formkit` framework-integration Playwright apps to cover standalone components like toast, so Svelte/React binding is exercised in CI. Audit the other Auro components for remaining `on*`-named events and deprecate them on the same schedule.
+
+#### auro-hyperlink
+
+- **[1551053](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1551053) — Fix hyperlink internal/same-domain example rendering the external-link icon**
+  - **⚠ Data-quality caveat — partially mislinked:** the ticket links two PRs; `auro-hyperlink#364` does not exist (404). [PR #344](https://github.com/AlaskaAirlines/auro-hyperlink/pull/344) is real and is the fix analyzed here.
+  - **Fix:** [PR #344](https://github.com/AlaskaAirlines/auro-hyperlink/pull/344) — "docs: fix same domain example to point same host": corrects the `href` in `apiExamples/external.html` and `external-appearance-inverse.html` so the "same domain" example actually points at the same host, and bumps `src/iconVersion.js` from `9.1.1` to `9.2.0`. Documentation/example content only — no component logic changed.
+  - **Last touched by:** no prior PR resolved — the buggy lines were net-new in the fix's own history or could not be attributed. **Contributors:** Eunsun Mota (1 line).
+  - **Who reviewed the last touch:** no prior PR to attribute review to.
+  - **Last touched by AI/Human — guess (low/med/high):** guess — human-written (low): the single blame commit `c1692fea` (authored by Eunsun Mota, committed by Ryan Menner) shows `trailers=NONE`, and a one-line `href` in a hand-maintained HTML example is characteristic of manual editing. Only one line of prior code exists to judge, hence low confidence.
+  - **Why it slipped through:** example HTML is not covered by any automated check, and nobody is accountable for verifying that an example demonstrates what its heading claims. The "same domain" example pointed at a different host, so the component behaved *correctly* by rendering the external-link icon — the documentation was wrong, not the code. Reviewers reading a docs diff have no way to notice a semantically wrong URL without opening the page.
+  - **Regression Remedies Applied:** **none — the fix added no new safety net.** The changed files are two example HTML pages, `src/iconVersion.js`, and dependency manifests. No test, no Storybook story, no post-mortem.
+  - **Follow-on Recommendations:** add an assertion to the docs build (or the demo smoke check recommended for 1510603) that each hyperlink example renders the icon state its heading advertises. Ask the `ado` skill to generate an explicit "the example demonstrates the stated behavior" acceptance criterion for docs/example tickets. Correct the stale `#364` link on the work item.
+
+#### auro-popover
+
+- **[1311537](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1311537) — Expose auro-popover arrow and inner elements as styleable shadow parts**
+  - **⚠ Data-quality caveat — mislinked fix:** the only PR on this ticket, `auro-popover#135`, does not exist on GitHub (404). With no resolvable fix PR there is no diff to read, nothing to blame, and no reviewers to attribute — the analysis below is therefore limited to what the ticket itself says.
+  - **Not analyzed:** no resolvable fix PR (ADO link points at a PR number that does not exist in `AlaskaAirlines/auro-popover`). The real fix is likely linked elsewhere in the repo or was merged without an `AB#1311537` mention in the PR body.
+  - **Follow-on Recommendations:** re-link the correct pull request on the ADO work item so this bug can be traced. More broadly, three of five bugs this sprint carry an unresolvable PR link — see the summary below.
+
+#### How the team can ship more reliably
+
+- **Demo and example surfaces have no automated gate (2 of 5 bugs — 1510603, 1551053).** Both defects lived in `demo/`/`apiExamples/` content that compiles cleanly, passes every unit test, and is only wrong to a human looking at the rendered page. **Action:** add a demo/example smoke check to CI that loads each page, fails when a referenced `auro-*` tag never upgrades, and asserts examples demonstrate their stated behavior.
+- **No framework-integration testing for standalone components (1 of 5 — 1376974).** The toast event-naming bug is definitionally invisible to WTR tests and only appears when a Svelte consumer binds a handler. **Action:** extend the framework-integration Playwright apps that already exist for `auro-formkit` to cover standalone components.
+- **Missing written standards for API surface (1 of 5 — 1376974).** There is no event-naming rule for a reviewer to check against, so `onToastClose` passed review as a reasonable-looking name. **Action:** encode event-naming and public-API conventions in the `coding-standards` skill and have `code-review` enforce them mechanically.
+- **Thin review on high-blast-radius changes (2 of 5 — 1616087 zero-to-one human approver on shared build scripts, 1376974 zero human reviewers on the last touch).** **Action:** require two human approvers on changes to shared build scripts and `package.json` dependency blocks; treat AI reviewers (Sourcery, Copilot) as advisory only, never as the approval of record.
+- **Work-item link hygiene is degrading (3 of 5 bugs — 1311537, 1551053, 1616087 all carry PR links that 404).** This is not a code problem but it directly blocks root-cause analysis: one bug this sprint could not be analyzed at all. **Action:** make an `AB#<id>` mention in the PR body part of the PR template, and add a periodic job that flags ADO work items whose linked PR numbers don't resolve.
+- **AI authorship is not itself the pattern.** Only one of the five bugs traces to AI-assisted code, and in the toast case the AI trailer is on the *fix*, not the defect. The recurring theme is absent automated gates and thin review, not over-trusting AI.
+
+---
+
+### 9. Sprint 19.26 (2026-09-09 → 2026-09-22) — done this sprint, no linked PR/commit
+
+*What this shows: tickets **finished** this sprint that did not involve code changes — triage, documentation, decisions, duplicates, and the like. It captures completed work that still consumed team capacity but produced no code.*
+
+| Area Path | Work Item Type | Current State | ID | Title | Assigned To |
+|---|---|---|---:|---|---|
+| auro-formkit | Task | Closed | [1638611](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638611) | Update Dependencies | Eunsun Mota |
+| auro-library | Task | Closed | [1638616](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638616) | Generate Release Notes | Unassigned |
+| auro-library | Task | Closed | [1638617](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638617) | Update Dependencies | Unassigned |
+| AuroDesignTokens | User Story | Closed | [1643475](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1643475) | Vendor and minify aag-style-universal and typographyBandaid CSS in the token build | Jason Baker |
+| AuroDesignTokens | User Story | Closed | [1649193](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1649193) | Publish the typography bandaid stylesheet from Auro Design Tokens with a minified build output | Jason Baker |
+| icons | User Story | Closed | [1649180](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1649180) | New Tails: Air Rarotonga(GZ); Air Tahiti(VT); Mokulele(MW) | Jason Baker |
+
+---
+
+### 10. Sprint 19.26 (2026-09-09 → 2026-09-22) — open work-in-progress worked this sprint (still not closed)
+
+*What this shows: work the team actively moved this sprint but has **not** finished — the in-flight and carry-over items heading into the next sprint. Useful for seeing what's still in motion and who's holding it.*
+
+| Area Path | Work Item Type | Current State | ID | PR | Title | Assigned To |
+|---|---|---|---:|---|---|---|
+| (root) | Design Story | Active | [1622207](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1622207) | | Assess legality of modifying paid font files used by Auro Design System | Forrest Akemann |
+| (root) | Design Story | Active | [1642325](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1642325) | | Define unified visual design guidelines for the ecommerce digital experience | Unassigned |
+| auro-accordion | Bug | Ready For Acceptance | [1633056](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1633056) | [PR #244](https://github.com/AlaskaAirlines/auro-accordion/pull/244) | Correct auro-accordion manifest attribute names for the right-align and expand-up options | Jason Baker |
+| auro-actions | Bug | Ready For Acceptance | [1643314](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1643314) | *(46 linked PRs — see note below)* | Fix Sync Tags so dev fast-forwards to main after every release | Jason Baker |
+| auro-ai | Design Story | Active | [1630889](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1630889) | | Spike for AI Design Tool linked to Auro | Forrest Akemann |
+| auro-ai | User Story | Active | [1642074](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1642074) | | Phase 1 — scaffold the coding-standards skill and pilot rules from five post-mortems | Jordan Jones |
+| auro-button | Bug | Ready For Acceptance | [1633055](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1633055) | [PR #410](https://github.com/AlaskaAirlines/auro-button/pull/410) | Stop exposing internal hover and press state as public button attributes | Jason Baker |
+| auro-dialog | Bug | Ready For Acceptance | [1625424](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1625424) | [PR #131](https://github.com/AlaskaAirlines/auro-dialog/pull/131), [PR #169](https://github.com/AlaskaAirlines/auro-dialog/pull/169), [PR #301](https://github.com/AlaskaAirlines/auro-dialog/pull/301) | Prevent the page behind an open auro-dialog from scrolling | Jordan Jones |
+| auro-dialog | User Story | Committed | [1554217](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1554217) | | Add a centered modal variant for auro-dialog on mobile viewports | Unassigned |
+| auro-dialog | User Story | Blocked | [1638600](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638600) | | Release auro-dialog - Sprint 18.26 08.26-09.08 | Unassigned |
+| auro-drawer | Bug | Ready For Acceptance | [1625435](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1625435) | [PR #131](https://github.com/AlaskaAirlines/auro-drawer/pull/131), [PR #169](https://github.com/AlaskaAirlines/auro-drawer/pull/169), [PR #301](https://github.com/AlaskaAirlines/auro-drawer/pull/301) | Prevent the page behind an open auro-drawer from scrolling | Jordan Jones |
+| auro-drawer | Design Story | Ready For Acceptance | [1577657](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1577657) | | Feature Request: Auro-drawer - Allow Close Button (X) to be docked | Forrest Akemann |
+| auro-drawer | User Story | Blocked | [1638603](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638603) | | Release auro-drawer - Sprint 18.26 08.26-09.08 | Unassigned |
+| auro-formkit\auro-counter | User Story | Committed | [1642036](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1642036) | | Remove non-functional error property from auro-counter-group | Unassigned |
+| auro-formkit\auro-datepicker | Bug | Blocked | [1634252](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1634252) | [PR #1605](https://github.com/AlaskaAirlines/auro-formkit/pull/1605) | Allow the mobile datepicker calendar to reopen in a single tap after a date is selected | Jason Baker |
+| auro-formkit\auro-datepicker | Design Story | Ready For Acceptance | [1223707](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1223707) | | Datepicker improvement: Making the bib.fullscreen.headline optional | Forrest Akemann |
+| auro-library | Bug | Active | [1647843](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1647843) | [PR #131](https://github.com/AlaskaAirlines/auro-library/pull/131), [PR #301](https://github.com/AlaskaAirlines/auro-library/pull/301) | Freeze the page behind any overlay that covers it, not only full-screen ones | Jordan Jones |
+| auro-loader | User Story | Ready For Acceptance | [1391812](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1391812) | [PR #128](https://github.com/AlaskaAirlines/auro-loader/pull/128) | Add optional descriptive and cycling text to the auro-loader component | Eunsun Mota |
+| auro-popover | User Story | Blocked | [1638618](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638618) | [PR #139](https://github.com/AlaskaAirlines/auro-popover/pull/139) | Release auro-popover - Sprint 18.26 08.26-09.08 | Unassigned |
+| auro-toast | User Story | Active | [1638621](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638621) | [PR #157](https://github.com/AlaskaAirlines/auro-toast/pull/157) | Release auro-toast - Sprint 18.26 08.26-09.08 | Jason Baker |
+| AuroDesignTokens | Design Story | Active | [1546451](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1546451) | | Feature Request: Border Color Tokens – Add extra-subtle token + Align existing tokens across themes | Forrest Akemann |
+| AuroDesignTokens | Design Story | Ready For Acceptance | [1589763](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1589763) | | Align Grey and Neutral Colors per Brand | Forrest Akemann |
+| AuroDesignTokens | User Story | Blocked | [1430054](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1430054) | | Implement Token Changes for Button- Atmos theme (WAIT) | Unassigned |
+| WebCoreStyleSheets | Bug | Blocked | [1527647](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1527647) | | Fix Alaska theme not applying Auro bold typography to strong and b text on macOS Chrome | Joshua Pothier |
+| WebCoreStyleSheets | Bug | Blocked | [1566887](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1566887) | | Fix text and icon vertical misalignment on Windows caused by line-height-based centering | Unassigned |
+| WebCoreStyleSheets | Bug | Blocked | [1605294](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1605294) | [PR #290](https://github.com/AlaskaAirlines/WebCoreStyleSheets/pull/290) | Auro Bug: WCSS not including AS Circular font-weight 500 | Joshua Pothier |
+| WebCoreStyleSheets | User Story | Blocked | [1638588](https://dev.azure.com/itsals/E_Retain_Content/_workitems/edit/1638588) | | Release WebCoreStyleSheets - Sprint 18.26 08.26-09.08 | Unassigned |
+
+> **Note on 1643314 (`auro-actions`):** this one ticket has **46** linked pull requests spanning the entire repo history (#3 through #426), which is almost certainly an over-linking artifact rather than 46 real fixes. I collapsed the cell rather than reproduce a 46-link row; the links are on the work item itself.
+
+---
+
+### 11. Sprint 19.26 (2026-09-09 → 2026-09-22) — completion breakdown (stories & bugs finished this sprint)
+
+*What this shows: the sprint's delivered output at a glance — how many story points of planned work the team completed, and how many bugs it cleared by severity. Useful for tracking velocity and the balance between feature work and defect burn-down.*
+
+| Metric | Value |
+|---|---:|
+| User Stories completed | 3 |
+| Story Points completed | 3 |
+| Bugs resolved (Critical) | 0 |
+| Bugs resolved (High) | 0 |
+| Bugs resolved (Medium) | 2 |
+| Bugs resolved (Low) | 3 |
+| **Bugs resolved (Total)** | 5 |
+
+---
+
+**Summary.** Sprint 19.26 saw 92 work items change state, delivering 3 user stories (3 story points) and 5 bugs — 2 Medium, 3 Low, none High or Critical — all with linked code. Nine tickets finished with a linked PR/commit and six without; 27 items were actively worked but remain open, weighted toward `Blocked` release tickets carried over from Sprint 18.26 and `Ready For Acceptance` bugs awaiting sign-off. Support-tagged activity was very light (4 items, 1 closed).
+
+A few reading notes: counts reflect items **changed during the iteration's date range**, not the whole board, and State is each item's **current** state, not its state during the sprint. `New` is split into `New` (created inside the sprint) and `New (edit only)` (older items still in New that were merely touched), computed per-sprint in the diff tables. `Closed (PR/commit)` means at least one linked GitHub PR or commit — a linked GitHub *issue* alone does not count. Tables 3–4 are tables 1–2 filtered to items whose current tags include `Support`, so they show only the states occurring in that subset; the diff tables span the **union** of rows and states seen in either sprint, so a row absent this sprint can still show a negative. Assignee is the item's **current** `Assigned To` (unassigned grouped as `Unassigned`), and Area Path rows are the current area path with the `E_Retain_Content\Auro Design System` prefix trimmed. Table 10 is the only one built from **revision history** rather than the current snapshot — it lists tickets that held a state other than New/Approved at some moment in the window and whose current state is a still-open worked state. Tables 8 and 9 use the current snapshot (Closed/Done/Rejected, split by linked code), and table 11 summarizes the same set as table 8, so its story and bug counts reconcile with those rows. Section 8a's authorship calls are explicitly guesses, and its scope is closed bugs that shipped code — the one bug with no resolvable fix PR (1311537) could not be analyzed.
+
+The two diff tables are dominated by Sprint 18.26's bulk backlog closure and should not be read as a throughput collapse.
+
+---
+
+Would you like me to export this report to a Markdown file? (yes/no)

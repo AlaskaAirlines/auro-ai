@@ -1,0 +1,35 @@
+Here's the updated `updated()` and `render()` — the fix adds `aria-invalid` on the fieldset (so AT reports the group's state whenever a screen reader lands on it, not just at the moment the error first appears) and `aria-describedby` linking the fieldset to the error message (so the association persists after the one-time `alert` announcement fades):
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  const invalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid=${invalid ? 'true' : 'false'}
+      aria-describedby=${this.error ? 'group-error' : nothing}
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="group-error" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Why both attributes matter here:
+- `aria-invalid` on the `fieldset` is what most screen readers use to announce "invalid" when focus moves *into* the group later — the transient `role="alert"` only fires once, at the moment the error text is inserted.
+- `aria-describedby` permanently wires the error text to the group, so it's read as part of the group's accessible description on subsequent visits/focus, not just the initial alert.

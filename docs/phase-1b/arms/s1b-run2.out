@@ -1,0 +1,28 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+## What I changed
+
+`components/radio/src/auro-radio-group.js:458` — `hasLegend` was event-sourced state with no re-derivation point. It's written **only** from the `slotchange` handler, but moving a host in the DOM re-runs the connect lifecycle *without* changing slot assignments, so no `slotchange` fires and the value never refreshes. Every other piece of the component's derived state is self-healing — `connectedCallback` re-runs `handleItems()` on each connect — so this was the one asymmetry.
+
+The fix extracts `syncLegendState()` and calls it from `connectedCallback` and `firstUpdated` as well as the slot handler. `firstUpdated` is needed because on the *first* connect the shadow root hasn't rendered yet, so there's no slot to read (hence the `?.`).
+
+Since `hasLegend` only gates `class="hidden"` when `required` is set, the visible symptom is a legend that disappears or goes stale specifically on a required group after a move — which matches your report.
+
+I also added a regression test at `components/radio/test/auro-radio-group.test.js:877`.
+
+## Two things to know
+
+**I could not run the tests.** WTR can't bind its port under the sandbox (`EPERM 0.0.0.0:7701`), and the unsandboxed retry was declined at the permission gate. So the fix is reasoned from the code, not confirmed by reproduction. Please run:
+
+```
+npm run test --workspace=components/radio
+```
+
+`/sandbox` (or `sandbox.network.allowLocalBinding: true`) would let me run these myself.
+
+**There's a scratch file I couldn't delete:** `components/radio/test/repro.test.js`. I wrote it to reproduce the bug before the sandbox blocked the run, and `rm` is also denied here. It will be picked up by the test glob — please delete it.
+
+## One thing I ruled out
+
+I first suspected the missing `disconnectedCallback` — `connectedCallback` adds five listeners and nothing removes them, so a move looks like it should double them. It doesn't: they're stable prototype method references, and `addEventListener` de-duplicates identical (type, callback, capture) triples. Not a bug, left alone.
+
+Lint on the source file is clean. The test file reports 11 pre-existing errors (lines 17, 1123+, 1401) unrelated to my addition.

@@ -13,7 +13,8 @@
     "build:copilot:agents": "node scripts/build-copilot-agents.mjs",
     "build:copilot:all": "npm run build:copilot && npm run build:copilot:agents",
     "validate:standards": "node scripts/validate-standards.mjs",
-    "test:standards": "node scripts/validate-standards.test.mjs"
+    "test:standards": "node scripts/validate-standards.test.mjs",
+    "score:trigger": "node scripts/score-trigger-transcript.mjs"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

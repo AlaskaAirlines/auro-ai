@@ -1,0 +1,41 @@
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+
+  if (changedProperties.has('validity')) {
+    const isInvalid = this.validity !== 'valid';
+    this.items.forEach((el) => {
+      if (isInvalid) el.setAttribute('aria-invalid', 'true');
+      else el.removeAttribute('aria-invalid');
+    });
+  }
+}
+
+render() {
+  const isInvalid = this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${isInvalid ? 'true' : 'false'}"
+      aria-describedby="${this.error ? 'group-error' : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="group-error" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Key changes:
+- `aria-invalid` on the `fieldset[role="radiogroup"]` reflects `validity` (authoritative state), not just presence of an error string — so `valueMissing` (e.g. required-but-untouched) is also exposed, not only `customError`.
+- The error `<p>` gets a stable `id="group-error"`, and the fieldset references it via `aria-describedby` — this gives a persistent, re-discoverable association (AT can inspect it anytime), rather than relying solely on the one-shot `aria-live` announcement, which is missed by anyone not focused there when it fires.

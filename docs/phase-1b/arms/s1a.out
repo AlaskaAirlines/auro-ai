@@ -1,0 +1,20 @@
+Permission allow rule (../../../.claude/settings.json): Write(.claude/**) is not matched by file permission checks — only Edit(path) rules are. Use Edit(.claude/**) instead (Edit rules cover all file-editing tools).
+Done. `auro-select` now exposes `aria-invalid="true"` whenever its validity is anything but valid.
+
+**Where the fix landed:** not in `auro-select` itself. The element carrying `role="combobox"` is `#trigger` inside `auro-dropdown`'s shadow root — setting `aria-invalid` on the `<auro-select>` host would leave AT with no association between the role and the state (`CS-A11Y-001`). So it's bound declaratively where the role lives:
+
+- `components/dropdown/src/auro-dropdown.js:1352` — `aria-invalid="${ifDefined(this.isInvalid ? 'true' : undefined)}"` on the trigger, alongside the existing `role` / `aria-expanded` / `aria-haspopup` bindings.
+- A single `get isInvalid()` predicate (`auro-dropdown.js:282`) rather than an inline expression, per `CS-A11Y-002`.
+- `clearTriggerA11yAttributes()` now also drops `aria-invalid`, since that's the path that strips the role.
+
+**Why it's keyed off `error` and that's still correct:** select binds `?error="${this.validity !== undefined && this.validity !== 'valid'}"` in all three layouts, so the dropdown's `error` tracks authoritative validity, not just the `error` attribute — a `required`-and-empty select (`valueMissing`) announces as invalid even though `error` was never set. There's a test for exactly that case.
+
+**Scoped so siblings don't regress:** the predicate requires `a11yRole === 'combobox'` and a non-focusable trigger. That means:
+- `role="button"` dropdowns get nothing — ARIA 1.2 doesn't list `button` among the roles supporting `aria-invalid` (`CS-A11Y-003`).
+- combobox and datepicker slot a focusable `auro-input` into the trigger, which carries its own `aria-invalid` (`auro-input.js:532`) — no double exposure.
+
+**Tests:** two in `components/select/test/auro-select.test.js` (valid → `valueMissing` → valid round-trip on a `required` fixture; a non-`customError` validity with no `error` attribute), four in the dropdown suite covering the combobox toggle and both negative cases.
+
+All green, run unsandboxed: dropdown 368 passed, select 581, combobox and datepicker (954) both pass. The select suite runs axe on every test via `useAccessibleIt`, so the new attribute is axe-clean. ESLint shows zero issues in the source file and no new issues in either test file (counts identical to the stashed baseline).
+
+One thing to know: `npm run build --workspace=components/dropdown` bundles `dist/` fine but its `docs` step fails with a `MODULE_NOT_FOUND` in `markdown-magic` under `auro-library`. That's pre-existing and unrelated to this change — I confirmed the bundle was written before it hit that step. No `dist/` files are tracked, so the working tree holds only the three source/test edits.

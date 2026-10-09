@@ -1,0 +1,41 @@
+Here's the updated code with ARIA wiring so the invalid state is exposed to assistive technology (via `aria-invalid` on the fieldset and `aria-describedby` linking it to the error message):
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error') || changedProperties.has('validity')) {
+    const invalid = this.validity && this.validity !== 'valid';
+
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+
+      if (invalid) el.setAttribute('aria-invalid', 'true');
+      else el.removeAttribute('aria-invalid');
+    });
+  }
+}
+
+render() {
+  const invalid = this.validity && this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid=${invalid ? 'true' : 'false'}
+      aria-describedby=${this.error ? 'group-error' : nothing}
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="group-error" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Key changes:
+- `aria-invalid` on the `fieldset` reflects `validity !== 'valid'` (covers both `valueMissing` and `customError`, not just when `error` text is present).
+- `aria-describedby="group-error"` on the fieldset ties the group to the error `<p>` persistently, so AT that doesn't catch the live-region announcement (e.g. a screen reader landing on the group later) still discovers the error text.
+- `updated()` now also triggers on `validity` changes (not just `error`), and mirrors `aria-invalid` onto each radio item so per-item state is exposed too.

@@ -1,0 +1,36 @@
+Here's the fix — add `aria-invalid` to the `fieldset` (the actual `radiogroup` role owner) and connect the error text with `aria-describedby` so it's announced regardless of whether `aria-live` fires in time (e.g. on initial render with a pre-existing error):
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  const isInvalid = this.validity && this.validity !== 'valid';
+  const errorId = 'radioGroupError';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${isInvalid ? 'true' : 'false'}"
+      aria-describedby="${this.error ? errorId : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="${errorId}" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Why both matter:
+- `aria-invalid` on the `radiogroup` tells AT the group's state whenever focus lands on it — `role="alert"` alone only fires on the live-region *change*, so it's silent if the error is already present when the group first gets focus (e.g. after a failed submit re-render, or if a screen reader user tabs in later).
+- `aria-describedby` permanently binds the message to the group, so it's read together with the group's label/state on focus, not just once at the moment it appears.

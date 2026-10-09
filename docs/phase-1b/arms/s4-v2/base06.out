@@ -1,0 +1,33 @@
+Here's the fix — add `aria-invalid` on the fieldset (driven reactively by `validity`, so it works for both `valueMissing` and `customError`) and `aria-describedby` linking it to the error message so screen readers announce the text when it appears:
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child
+    this.items.forEach((el) => {
+      if (this.error) el.setAttribute('error', '');
+      else el.removeAttribute('error');
+    });
+  }
+}
+
+render() {
+  const invalid = this.validity !== 'valid';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${invalid}"
+      aria-describedby="${this.error ? 'errorMessage' : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="errorMessage" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+Why this covers it: `aria-invalid` reflects `validity` directly, so it's set correctly for `valueMissing` (no custom error text yet) as well as `customError`. `aria-describedby` only points at the paragraph when it exists, and the `id` match means the fieldset's accessible description picks up the error text — so AT users get both the invalid state and the reason, not just a live-region announcement they might miss if focus isn't nearby at the moment it appears.

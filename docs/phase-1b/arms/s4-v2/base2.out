@@ -1,0 +1,41 @@
+Two changes needed: the `role="radiogroup"` fieldset itself needs `aria-invalid` and an `aria-describedby` link to the error text, and each child radio should get `aria-invalid` too (setting a custom `error` attribute alone doesn't reach the accessibility tree).
+
+```js
+updated(changedProperties) {
+  if (changedProperties.has('error')) {
+    // existing behaviour: mirror the error attribute onto each child,
+    // plus expose invalid state to assistive tech via aria-invalid
+    this.items.forEach((el) => {
+      if (this.error) {
+        el.setAttribute('error', '');
+        el.setAttribute('aria-invalid', 'true');
+      } else {
+        el.removeAttribute('error');
+        el.removeAttribute('aria-invalid');
+      }
+    });
+  }
+}
+
+render() {
+  const errorId = 'group-error';
+
+  return html`
+    <fieldset
+      role="radiogroup"
+      aria-invalid="${this.error ? 'true' : 'false'}"
+      aria-describedby="${this.error ? errorId : nothing}"
+    >
+      <legend><slot name="legend"></slot></legend>
+      <slot></slot>
+      ${this.error
+        ? html`<p id="${errorId}" role="alert" aria-live="assertive">${this.error}</p>`
+        : nothing}
+    </fieldset>
+  `;
+}
+```
+
+- `aria-invalid` on the `radiogroup` role announces the group's validity state to screen readers immediately when focus lands there, not just when the message first appears.
+- `aria-describedby` ties the error text to the group so it's read out as part of the group's accessible description (not only relying on the transient `role="alert"` announcement, which some AT/verbosity settings suppress).
+- Mirroring `aria-invalid` onto each child radio covers the case where a user tabs directly to an individual radio rather than the group.

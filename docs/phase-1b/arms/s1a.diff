@@ -1,0 +1,148 @@
+diff --git a/components/dropdown/src/auro-dropdown.js b/components/dropdown/src/auro-dropdown.js
+index a6970c9437..0473f68775 100644
+--- a/components/dropdown/src/auro-dropdown.js
++++ b/components/dropdown/src/auro-dropdown.js
+@@ -279,6 +279,22 @@ export class AuroDropdown extends AuroElement {
+     }
+   }
+ 
++  /**
++   * Whether the trigger should expose `aria-invalid` to assistive technology.
++   *
++   * Parent components (e.g. `auro-select`) bind `error` off their authoritative
++   * `validity` state, so this tracks every cause of invalidity rather than one
++   * of them. Gated on the trigger actually owning a role that supports the
++   * attribute: a focusable slotted trigger (the `auro-input` inside combobox and
++   * datepicker) carries no role here and exposes its own validity, and ARIA 1.2
++   * does not list `button` among the roles supporting `aria-invalid`.
++   * @private
++   * @returns {boolean}
++   */
++  get isInvalid() {
++    return Boolean(this.error) && !this.triggerContentFocusable && this.a11yRole === 'combobox';
++  }
++
+   /**
+    * Sets the active descendant element for accessibility.
+    * Uses ariaActiveDescendantElement to cross shadow DOM boundaries.
+@@ -1220,6 +1236,10 @@ export class AuroDropdown extends AuroElement {
+ 
+     triggerElement.removeAttribute('aria-controls');
+     triggerElement.removeAttribute('aria-autocomplete');
++
++    // The role goes away with it, so the invalid state has to as well — the
++    // focusable trigger the consumer slotted in owns its own validity exposure.
++    triggerElement.removeAttribute('aria-invalid');
+   }
+ 
+   /**
+@@ -1335,6 +1355,7 @@ export class AuroDropdown extends AuroElement {
+           aria-expanded="${ifDefined(this.a11yRole === 'button' || this.triggerContentFocusable ? undefined : this.isPopoverVisible)}"
+           aria-controls="${ifDefined(this.a11yRole === 'button' || this.triggerContentFocusable ? undefined : this.dropdownId)}"
+           aria-haspopup="${ifDefined(this.a11yRole === 'combobox' && !this.triggerContentFocusable ? 'listbox' : undefined)}"
++          aria-invalid="${ifDefined(this.isInvalid ? 'true' : undefined)}"
+           aria-labelledby="${ifDefined(this.triggerContentFocusable ? undefined : 'triggerLabel')}"
+           aria-disabled="${ifDefined(this.disabled ? 'true' : undefined)}"
+           @focusin="${this.handleFocusin}"
+diff --git a/components/dropdown/test/auro-dropdown.test.js b/components/dropdown/test/auro-dropdown.test.js
+index 62c72dc076..27f14433e7 100644
+--- a/components/dropdown/test/auro-dropdown.test.js
++++ b/components/dropdown/test/auro-dropdown.test.js
+@@ -515,6 +515,49 @@ function runFullTest(mobileView) {
+         await expect(el.error).to.be.true;
+         await expect(el.hasAttribute('error')).to.be.true;
+       });
++
++      it('should expose aria-invalid on the trigger when the combobox role is in error', async () => {
++        const el = await fixture(html`<auro-dropdown><div slot="trigger">Trigger</div></auro-dropdown>`);
++        el.a11yRole = 'combobox';
++        await elementUpdated(el);
++
++        const trigger = el.shadowRoot.querySelector('#trigger');
++        await expect(trigger.getAttribute('role')).to.equal('combobox');
++        await expect(trigger.hasAttribute('aria-invalid')).to.be.false;
++
++        el.error = true;
++        await elementUpdated(el);
++
++        await expect(trigger.getAttribute('aria-invalid')).to.equal('true');
++
++        el.error = false;
++        await elementUpdated(el);
++
++        await expect(trigger.hasAttribute('aria-invalid')).to.be.false;
++      });
++
++      it('should not expose aria-invalid on a role="button" trigger', async () => {
++        const el = await fixture(html`<auro-dropdown error><div slot="trigger">Trigger</div></auro-dropdown>`);
++        await elementUpdated(el);
++
++        // ARIA 1.2 does not support aria-invalid on role="button"
++        const trigger = el.shadowRoot.querySelector('#trigger');
++        await expect(trigger.getAttribute('role')).to.equal('button');
++        await expect(el.error).to.be.true;
++        await expect(trigger.hasAttribute('aria-invalid')).to.be.false;
++      });
++
++      it('should not expose aria-invalid when the slotted trigger content is focusable', async () => {
++        const el = await fixture(html`<auro-dropdown error><button slot="trigger">Trigger</button></auro-dropdown>`);
++        el.a11yRole = 'combobox';
++        await elementUpdated(el);
++
++        // The focusable trigger owns its own role and validity exposure
++        const trigger = el.shadowRoot.querySelector('#trigger');
++        await expect(el.error).to.be.true;
++        await expect(trigger.hasAttribute('role')).to.be.false;
++        await expect(trigger.hasAttribute('aria-invalid')).to.be.false;
++      });
+     });
+ 
+     describe('errorMessage', () => {
+diff --git a/components/select/test/auro-select.test.js b/components/select/test/auro-select.test.js
+index 43533ee4cd..c89bf38d34 100644
+--- a/components/select/test/auro-select.test.js
++++ b/components/select/test/auro-select.test.js
+@@ -2455,6 +2455,43 @@ function runTest(mobileView) {
+         await expect(trigger.getAttribute('aria-expanded')).to.equal('true');
+       });
+ 
++      it('should expose aria-invalid on the combobox trigger while validation fails', async () => {
++        const el = await requiredFixture();
++        const dropdown = el.shadowRoot.querySelector('[auro-dropdown]');
++        const trigger = dropdown.shadowRoot.querySelector('#trigger');
++
++        // aria-invalid belongs on the element carrying the role, not the host
++        await expect(trigger.getAttribute('role')).to.equal('combobox');
++        await expect(trigger.hasAttribute('aria-invalid')).to.be.false;
++
++        el.validate(true);
++        await elementUpdated(el);
++
++        await expect(el.getAttribute('validity')).to.equal('valueMissing');
++        await expect(trigger.getAttribute('aria-invalid')).to.equal('true');
++
++        el.value = 'Apples';
++        await elementUpdated(el);
++
++        await expect(el.getAttribute('validity')).to.equal('valid');
++        await expect(trigger.hasAttribute('aria-invalid')).to.be.false;
++      });
++
++      it('should expose aria-invalid for validity states other than customError', async () => {
++        const el = await defaultFixture();
++        const dropdown = el.shadowRoot.querySelector('[auro-dropdown]');
++        const trigger = dropdown.shadowRoot.querySelector('#trigger');
++
++        // The `error` attribute is only one cause of invalidity — a control that
++        // never had it set must still announce as invalid.
++        await expect(el.hasAttribute('error')).to.be.false;
++
++        el.validity = 'badInput';
++        await elementUpdated(el);
++
++        await expect(trigger.getAttribute('aria-invalid')).to.equal('true');
++      });
++
+       // ─── §2.3.4 / §6.1  ariaActiveDescendantElement binding across shadow DOM (P0) ─
+       it('should set ariaActiveDescendantElement on trigger to the activated menu option', async () => {
+         const el = await defaultFixture();

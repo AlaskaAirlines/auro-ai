@@ -1,0 +1,37 @@
+Here is a component:
+
+```js
+class DemoRadioGroup extends LitElement {
+  static properties = {
+    required: { type: Boolean },
+    error:    { type: String },   // consumer-supplied message -> validity "customError"
+    validity: { type: String },   // "valid" | "valueMissing" | "customError"
+  };
+
+  updated(changedProperties) {
+    if (changedProperties.has('error')) {
+      // existing behaviour: mirror the error attribute onto each child
+      this.items.forEach((el) => {
+        if (this.error) el.setAttribute('error', '');
+        else el.removeAttribute('error');
+      });
+    }
+  }
+
+  render() {
+    return html`
+      <fieldset role="radiogroup">
+        <legend><slot name="legend"></slot></legend>
+        <slot></slot>
+        ${this.error
+          ? html`<p role="alert" aria-live="assertive">${this.error}</p>`
+          : nothing}
+      </fieldset>
+    `;
+  }
+}
+```
+
+Screen reader users are not told when this radio group is invalid. Make the invalid state available to assistive technology.
+
+Show me the updated `updated()` and `render()`. Do not create any files.

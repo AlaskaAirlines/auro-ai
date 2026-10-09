@@ -472,8 +472,13 @@ function validateRule(file, segment, rule, seenIds) {
     }
   }
 
+  // Required from Phase 2 (parent §3.2). Capture's escape detection compares a
+  // new source's close date with it (Phase 2 TRD #57 D7), so a rule without one
+  // can never be flagged as having let a known lesson ship again.
   const since = rule.fields.since;
-  if (since && !SINCE_RE.test(since)) {
+  if (!since) {
+    fail(where, `${id} is missing "Since" — the date the rule was authored, YYYY-MM-DD`);
+  } else if (!SINCE_RE.test(since)) {
     fail(where, `${id} has malformed "Since: ${since}" — expected YYYY-MM-DD`);
   }
 

@@ -29,8 +29,10 @@ const OUT_DIR = join(ROOT, 'copilot/prompts');
 // Skills with no Copilot equivalent. `coding-standards` is a routing table that
 // loads reference files on demand — Copilot cannot do that, so it gets the
 // path-scoped applyTo instruction files Phase 4 generates instead. Remove this
-// entry once that exists (Phase 4 step 4.6).
-const EXCLUDED_SKILLS = new Set(['coding-standards']);
+// entry once that exists (Phase 4 step 4.6). `capture-standard` opens pull
+// requests in another repository; whether Copilot gets a copy of that is a
+// Phase 4 decision, not a side effect of copying its scripts.
+const EXCLUDED_SKILLS = new Set(['coding-standards', 'capture-standard']);
 
 // --- frontmatter parsing -----------------------------------------------------
 

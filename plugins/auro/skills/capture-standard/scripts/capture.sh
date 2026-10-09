@@ -59,6 +59,16 @@ need_corpus(){
   IFS=$'\t' read -r CORPUS_REF CORPUS_SHA < /tmp/capture_corpus_ref.tsv
 }
 
+# The PAT reaches curl on stdin as a config line, never in argv where `ps` would show it.
+ado_curl(){ printf 'user = ":%s"\n' "$ADO_PAT" | curl -K - "$@"; }
+
+# This branch's open PR on auro-ai itself. `gh pr list --head` also matches a fork's branch of the same
+# name, and publish would then rewrite that stranger's PR body and adopt its review ticket.
+own_pr(){
+  gh api "repos/$AI_REPO/pulls?state=open&head=$OWNER:$(enc "$BRANCH")" \
+    --jq '.[0] // empty | {number, url: .html_url, body}'
+}
+
 # A ref as one URL path segment or query value: branch names here can carry `#` (AB#…) and `/`.
 enc(){ printf '%s' "$1" | jq -sRr @uri; }
 
@@ -139,7 +149,7 @@ cmd_tickets(){
     TOTAL=$(jq length <<<"$IDS")
     for S in $(seq 0 200 $((TOTAL-1))); do
       CHUNK=$(jq -c --argjson s "$S" '{ids:.[$s:$s+200], errorPolicy:"omit", fields:["System.WorkItemType","System.State","Microsoft.VSTS.Common.ClosedDate","System.Title"]}' <<<"$IDS")
-      RESP=$(curl -sS -u ":$ADO_PAT" -w $'\n%{http_code}' -X POST -H "Content-Type: application/json" \
+      RESP=$(ado_curl -sS -w $'\n%{http_code}' -X POST -H "Content-Type: application/json" \
         --data-binary "$CHUNK" "$ADO/workitemsbatch?api-version=7.0")
       CODE=$(printf '%s' "$RESP" | sed -n '$p')
       if [ "$CODE" != "200" ]; then
@@ -251,8 +261,8 @@ cmd_next_ids(){
 
   # D8: another open capture PR may already have claimed the next number. Our own branch is excluded —
   # it is reset to a fresh proposal on publish, so its old IDs are free to be claimed again.
-  gh pr list -R "$AI_REPO" --state open --limit 100 --json number,headRefName,headRefOid \
-    --jq ".[] | select(.headRefName | startswith(\"capture/\")) | select(.headRefName != \"$BRANCH\") | \"\(.number)\t\(.headRefOid)\"" \
+  gh pr list -R "$AI_REPO" --state open --limit 100 --json number,headRefName,headRefOid,isCrossRepository \
+    --jq ".[] | select(.isCrossRepository | not) | select(.headRefName | startswith(\"capture/\")) | select(.headRefName != \"$BRANCH\") | \"\(.number)\t\(.headRefOid)\"" \
     > /tmp/capture_other_prs.tsv
   while IFS=$'\t' read -r NUM OID; do
     [ -z "$NUM" ] && continue
@@ -276,7 +286,7 @@ cmd_next_ids(){
 
 cmd_open_pr(){
   need_run
-  gh pr list -R "$AI_REPO" --head "$BRANCH" --state open --json number,url,body --jq '.[0] // empty' > /tmp/capture_pr.json
+  own_pr > /tmp/capture_pr.json
   if [ ! -s /tmp/capture_pr.json ]; then
     : > /tmp/capture_pr.tsv
     echo "NO_OPEN_PR — publishing will open one from $BRANCH."
@@ -312,7 +322,11 @@ cmd_check(){
 
   # Run the corpus ref's own validator over the corpus with the proposal laid on top — the same check
   # CI runs on the PR, so a malformed proposal fails here instead of on the pull request.
-  W=/tmp/capture_check; rm -rf "$W"; mkdir -p "$W/scripts" "$W/$REFS"
+  # The validator is fetched and then EXECUTED, so it goes in a private directory (mktemp -d is mode 700),
+  # never a fixed shared /tmp path another local user could pre-create.
+  W=$(mktemp -d "${TMPDIR:-/tmp}/capture_check.XXXXXX") || die "CHECK_FAILED — no scratch directory"
+  trap 'rm -rf "$W"' EXIT
+  mkdir -p "$W/scripts" "$W/$REFS"
   gh api -H "Accept: application/vnd.github.raw" "repos/$AI_REPO/contents/$VALIDATOR?ref=$CORPUS_SHA" > "$W/$VALIDATOR" \
     || die "FETCH_FAILED — $VALIDATOR at $CORPUS_REF"
   gh api -H "Accept: application/vnd.github.raw" "repos/$AI_REPO/contents/$SKILL_MD?ref=$CORPUS_SHA" > "$W/$SKILL_MD" \
@@ -321,10 +335,10 @@ cmd_check(){
   for N in $CHANGED; do cp "/tmp/capture_out/$N" "$W/$REFS/$N"; done
 
   echo "changed: $(printf '%s' "$CHANGED" | tr '\n' ' ')"
-  if node "$W/$VALIDATOR" > /tmp/capture_check.log 2>&1; then
+  if node "$W/$VALIDATOR" > "$W/check.log" 2>&1; then
     echo "CHECK_OK"
   else
-    grep -v 'staleness report\|rule(s)\|sources=' /tmp/capture_check.log
+    grep -v 'staleness report\|rule(s)\|sources=' "$W/check.log"
     die "CHECK_FAILED — fix the proposal in /tmp/capture_out/ and re-run \`capture.sh check\`."
   fi
 }
@@ -335,7 +349,7 @@ cmd_check(){
 
 # The sprint whose dates contain today, as an Iteration Path; the project root if none does (D14).
 sprint_for_today(){
-  CODE=$(curl -sS -u ":$ADO_PAT" -o /tmp/capture_iters.json -w "%{http_code}" \
+  CODE=$(ado_curl -sS -o /tmp/capture_iters.json -w "%{http_code}" \
     "$ADO/classificationnodes/Iterations?\$depth=2&api-version=7.0")
   [ "$CODE" = "200" ] || return 1
   TODAY=$(date +%Y-%m-%d)
@@ -371,14 +385,14 @@ Capture proposes rules distilled from the post-mortems this release carries. Eac
     > /tmp/capture_ticket.json
 
   # ADO creates a User Story only as New; Committed is a second call.
-  RESP=$(curl -sS -u ":$ADO_PAT" -w $'\n%{http_code}' -X POST -H "Content-Type: application/json-patch+json" \
+  RESP=$(ado_curl -sS -w $'\n%{http_code}' -X POST -H "Content-Type: application/json-patch+json" \
     --data-binary @/tmp/capture_ticket.json "$ADO/workitems/\$User%20Story?api-version=7.1")
   CODE=$(printf '%s' "$RESP" | sed -n '$p')
   if [ "$CODE" != "200" ]; then
     printf 'CREATE FAILED http=%s %s\n' "$CODE" "$(printf '%s' "$RESP" | sed '$d' | tr '\n' ' ' | cut -c1-200)" > /tmp/capture_ticket.log; return
   fi
   ID=$(printf '%s' "$RESP" | sed '$d' | jq -r .id)
-  CODE=$(curl -sS -u ":$ADO_PAT" -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+  CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
     --data-binary '[{"op":"add","path":"/fields/System.State","value":"Committed"}]' "$ADO/workitems/$ID?api-version=7.1")
   [ "$CODE" = "200" ] || echo "AB#$ID created but left New — moving it to Committed returned HTTP $CODE" > /tmp/capture_ticket.log
   echo "$ID"
@@ -428,7 +442,7 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
   fi
 
   # 3. Find or open the PR. An existing review ticket is carried into the new body.
-  gh pr list -R "$AI_REPO" --head "$BRANCH" --state open --json number,url,body --jq '.[0] // empty' > /tmp/capture_pr.json
+  own_pr > /tmp/capture_pr.json
   TID=""; OPENED=""
   if [ -s /tmp/capture_pr.json ]; then
     NUM=$(jq -r .number /tmp/capture_pr.json); URL=$(jq -r .url /tmp/capture_pr.json)

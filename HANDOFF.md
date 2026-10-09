@@ -57,19 +57,37 @@ Nothing below lives in git except this file, so a fresh laptop needs:
 
 ---
 
-## Start here
+## Start here — progress as of 2026-10-09
 
-- This branch is cut from #55's tip, so it carries all of Phase 1: the
-  `coding-standards` skill, 15 rules, the validator and its 41-case suite, and
-  the trigger scorer. It has no Phase 2 commits yet — only this file.
 - **Read [#57](https://github.com/AlaskaAirlines/auro-ai/discussions/57) before
   coding.** It is the authority; the summary below is not.
-
-**First commit of 2a** — step 1 of #57 §4: add `capture-standard` to
-`EXCLUDED_SKILLS` in both `scripts/build-copilot-prompts.mjs` and
-`scripts/build-copilot-agents.mjs`, run `npm run build:copilot:all`, confirm
-zero diff, commit alone. Then `capture.sh` (step 2). Steps 1–7a are 2a; step 8
-is 2b.
+- **Commit through the `auro` plugin's `commit` skill** (Jordan, 2026-10-09):
+  its message rules, `AB#1658228`, `Co-authored-by AI:`; no co-author; commit
+  without stopping.
+- **Done (local commits, not yet pushed):** step 1 `fce2eed`; step 2 `c13fd81`
+  (`capture.sh` + `locate-sections.mjs`) and its security fixes `5d4a210`;
+  step 4 `dde513f` (`npm run test:capture`, 22 cases, in CI); step 5 `5f4f874`
+  (`Since` required).
+- **Next: step 3 + 6 + 7 + 7a — `capture-standard/SKILL.md`.** Frontmatter
+  without `disable-model-invocation`, narrow description, `allowed-tools` =
+  `Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *)`, `Read`, `Write(/tmp/*)`,
+  `AskUserQuestion`. Procedure follows `capture.sh`'s header: range → tickets
+  → postmortems → sections → corpus → next-ids → open-pr → (model writes
+  `/tmp/capture_out/<cat>.md` + `/tmp/capture_pr_body.md` with
+  `**Review ticket:** {{REVIEW_TICKET}}`) → check → preview + one
+  confirmation → publish. Then dedupe outcomes (step 6) and the release-prep
+  calling contract (7a): the `CAPTURE_RESULT:` line.
+- **`publish` has never run live** — it opens a real PR and ADO ticket; that is
+  the 2b round-trip (`auro-formkit` `v6.0.2..v6.0.3`, corpus ref
+  `jjones/phase-1b/AB#1643440`). Everything else was verified read-only
+  against that range.
+- **Design notes not in #57:** D4's pattern is matched as a *prefix* (anchored
+  `lessons?( learned)?` misses `9. Lessons for Future…`); `publish` uses the
+  Git Data API (one commit, branch force-moved) rather than per-file Contents
+  API commits; `check` runs the corpus ref's own validator over the proposal.
+- **Restacked 2026-10-09** onto `main` 1.20.0 (`marketplace.json` conflict
+  resolved as on 10-06); local `backup/2026-10-09/*` branches hold the old
+  tips. `auro-tabs` is **not retired but unused** — recorded in #57 §2.7.
 
 ---
 
@@ -165,6 +183,14 @@ be needed before Phase 1 lands.
 An automated security review on 2026-10-07 flagged **`plugins/auro/skills/pr-demo/scripts/pr-demo.mjs`** on Jordan's `jjones/pr-demo-skill` branch (medium): the skill builds and opens a pull request's own code locally, so a fork PR could use crafted import paths to read local files, and the Playwright step runs with network access. Suggested fix: reject resolved paths outside the PR tree and `node_modules`, restrict bundler loaders to `.js`/`.mjs`/`.ts`/`.css`, block network in the Playwright step except the stylesheet CDN, and never disable the sandbox for untrusted PRs. Not acted on.
 
 ## Gotchas learned
+
+- **`git rebase --update-refs` also moves backup branches** that point at the
+  same commits. Create backups *after* the rebase, from `origin/*`.
+- **`gh auth status` fails intermittently** (network check per account); use
+  `gh auth token` to test for a login.
+- **The sandbox here blocks writes in the repo too**, not just `.git` — use
+  the Edit/Write tools, and run builds, commits and `/tmp/capture_*` work with
+  the sandbox disabled.
 
 - **The auto-mode classifier blocks branch rewrites** (`branch -f`, `rebase`)
   as destructive. Jordan runs the first command himself; continuing a rebase

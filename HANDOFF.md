@@ -64,19 +64,14 @@ Nothing below lives in git except this file, so a fresh laptop needs:
 - **Commit through the `auro` plugin's `commit` skill** (Jordan, 2026-10-09):
   its message rules, `AB#1658228`, `Co-authored-by AI:`; no co-author; commit
   without stopping.
-- **Done (local commits, not yet pushed):** step 1 `fce2eed`; step 2 `c13fd81`
-  (`capture.sh` + `locate-sections.mjs`) and its security fixes `5d4a210`;
-  step 4 `dde513f` (`npm run test:capture`, 22 cases, in CI); step 5 `5f4f874`
-  (`Since` required).
-- **Next: step 3 + 6 + 7 + 7a — `capture-standard/SKILL.md`.** Frontmatter
-  without `disable-model-invocation`, narrow description, `allowed-tools` =
-  `Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *)`, `Read`, `Write(/tmp/*)`,
-  `AskUserQuestion`. Procedure follows `capture.sh`'s header: range → tickets
-  → postmortems → sections → corpus → next-ids → open-pr → (model writes
-  `/tmp/capture_out/<cat>.md` + `/tmp/capture_pr_body.md` with
-  `**Review ticket:** {{REVIEW_TICKET}}`) → check → preview + one
-  confirmation → publish. Then dedupe outcomes (step 6) and the release-prep
-  calling contract (7a): the `CAPTURE_RESULT:` line.
+- **2a build is complete (local commits, not yet pushed):** step 1 `fce2eed`;
+  step 2 `c13fd81` (`capture.sh` + `locate-sections.mjs`) and its security
+  fixes `5d4a210`; step 4 `dde513f` (`npm run test:capture`, 22 cases, in CI);
+  step 5 `5f4f874` (`Since` required); steps 3/6/7/7a `325e853`
+  (`capture-standard/SKILL.md`, `docs/usage.md`).
+- **Next:** a write-free trial of the skill (run it, answer **Don't publish**
+  at the confirmation), then push, open the 2a PR stacked on #55, and remove
+  this file before that PR is opened.
 - **`publish` has never run live** — it opens a real PR and ADO ticket; that is
   the 2b round-trip (`auro-formkit` `v6.0.2..v6.0.3`, corpus ref
   `jjones/phase-1b/AB#1643440`). Everything else was verified read-only

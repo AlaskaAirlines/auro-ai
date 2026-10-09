@@ -107,6 +107,8 @@ cmd_range(){
   echo "repo: $REPO_FULL"
   echo "range: $BASE...$HEAD  ($AHEAD commits on $HEAD not on $BASE)"
   echo "capture branch: $BRANCH"
+  # Since for every rule this run creates, and the date D14 picks the review ticket's sprint by.
+  echo "run date: $(date +%Y-%m-%d)"
   [ "$AHEAD" = "0" ] && echo "EMPTY_RANGE — nothing is being released."
   echo "RANGE_OK"
 }

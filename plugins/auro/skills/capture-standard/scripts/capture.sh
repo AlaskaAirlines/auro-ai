@@ -76,6 +76,14 @@ own_pr(){
     --jq '.[0] // empty | {number, url: .html_url, body}'
 }
 
+# Commits on the head not on the base. Fails — rather than printing an empty count — on any GitHub error:
+# a network timeout once let `range` report "( commits …)" and RANGE_OK.
+ahead_by(){ # $1=owner/repo; needs BASE_SHA and HEAD_SHA
+  N=$(gh api "repos/$1/compare/$BASE_SHA...$HEAD_SHA?per_page=1" --jq .ahead_by 2>/dev/null) || return 1
+  case "$N" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s' "$N"
+}
+
 # A ref as one URL path segment or query value: branch names here can carry `#` (AB#…) and `/`.
 enc(){ printf '%s' "$1" | jq -sRr @uri; }
 
@@ -110,7 +118,7 @@ cmd_range(){
   BRANCH="capture/$NAME-$LABEL"
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$REPO_FULL" "$LABEL" "$BASE" "$HEAD" "$BRANCH" "$BASE_SHA" "$HEAD_SHA" > /tmp/capture_run.tsv
 
-  AHEAD=$(gh api "repos/$REPO_FULL/compare/$BASE_SHA...$HEAD_SHA?per_page=1" --jq .ahead_by)
+  AHEAD=$(ahead_by "$REPO_FULL") || die "GITHUB_FAILED — could not compare $BASE...$HEAD; re-run \`capture.sh range\`."
   echo "repo: $REPO_FULL"
   echo "range: $BASE...$HEAD  ($AHEAD commits on $HEAD not on $BASE)"
   echo "capture branch: $BRANCH"
@@ -128,8 +136,9 @@ cmd_tickets(){
   need_run
   # Every commit's full message, so AB# references in bodies are caught too — create-rcs repo mode's logic.
   gh api --paginate "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA?per_page=100" \
-    --jq '.commits[] | "@@COMMIT \(.sha)\n\(.commit.message)"' > /tmp/capture_msgs.txt
-  AHEAD=$(gh api "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA?per_page=1" --jq .ahead_by)
+    --jq '.commits[] | "@@COMMIT \(.sha)\n\(.commit.message)"' > /tmp/capture_msgs.txt \
+    || die "GITHUB_FAILED — could not read the range's commits; re-run \`capture.sh tickets\`."
+  AHEAD=$(ahead_by "$REPO") || die "GITHUB_FAILED — could not compare the range; re-run \`capture.sh tickets\`."
   N=$(grep -c '^@@COMMIT ' /tmp/capture_msgs.txt)
   echo "commits read: $N (GitHub reports $AHEAD ahead)"
   [ "$N" -lt "$AHEAD" ] && echo "WARNING_INCOMPLETE — some commits were not read; tickets may be missing."

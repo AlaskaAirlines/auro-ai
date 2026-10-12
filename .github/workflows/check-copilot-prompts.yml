@@ -18,6 +18,8 @@ jobs:
         run: node scripts/validate-standards.mjs
       - name: Test the coding-standards validator
         run: node scripts/validate-standards.test.mjs
+      - name: Test the capture-standard section locator
+        run: node scripts/capture-sections.test.mjs
       - name: Regenerate Copilot prompt files
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date

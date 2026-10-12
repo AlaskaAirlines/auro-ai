@@ -47,7 +47,14 @@ ROOT_ITER='E_Retain_Content'
 TAG="coding-standards-capture"
 PLACEHOLDER='{{REVIEW_TICKET}}'
 
-die(){ printf '%s\n' "$*"; exit 1; }
+# During publish, every exit must end with the CAPTURE_RESULT line release prep reads (SKILL.md calling
+# contract) — a bare marker would leave the caller with no result at all.
+PUBLISHING=""
+die(){
+  printf '%s\n' "$*"
+  [ -n "$PUBLISHING" ] && printf 'CAPTURE_RESULT: failed — %s\n' "$*" | tee /tmp/capture_result.txt
+  exit 1
+}
 # `gh auth token` is local; `gh auth status` makes a network call per account and fails intermittently.
 need_gh(){ gh auth token >/dev/null 2>&1 || die "GH_AUTH_MISSING — run \`gh auth login\`."; }
 need_run(){
@@ -364,18 +371,38 @@ sprint_for_today(){
 create_ticket(){ # $1=PR url
   : > /tmp/capture_ticket.log
   [ -n "$ADO_PAT" ] || { echo "ADO_PAT_MISSING — no review ticket created" > /tmp/capture_ticket.log; return; }
+  NAME="${REPO#*/}"
+  TICKET_TITLE="Review coding-standards capture for $NAME $LABEL"
+
+  # An earlier run may have created the ticket and then failed to write it into the PR body, so the
+  # body still says pending. Reuse that ticket rather than file a second one for the same capture.
+  jq -cn --arg t "$TICKET_TITLE" --arg tag "$TAG" '{query: (
+      "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
+      + " AND [System.WorkItemType] = '\''User Story'\'' AND [System.State] <> '\''Removed'\''"
+      + " AND [System.Tags] CONTAINS '\''" + $tag + "'\''"
+      + " AND [System.Title] = '\''" + ($t | gsub("'\''"; "'\'''\''")) + "'\'' ORDER BY [System.Id]")}' \
+    > /tmp/capture_ticket_query.json
+  CODE=$(ado_curl -sS -o /tmp/capture_ticket_found.json -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+    --data-binary @/tmp/capture_ticket_query.json "$ADO/wiql?api-version=7.0")
+  if [ "$CODE" = "200" ]; then
+    FOUND=$(jq -r '.workItems[0].id // empty' /tmp/capture_ticket_found.json)
+    if [ -n "$FOUND" ]; then
+      echo "reused AB#$FOUND from an earlier run" > /tmp/capture_ticket.log
+      echo "$FOUND"; return
+    fi
+  fi
+
   ITER=$(sprint_for_today) || { echo "ADO_AUTH_FAILURE — iterations lookup failed" > /tmp/capture_ticket.log; return; }
   ROOTED=""
   if [ -z "$ITER" ]; then ITER="$ROOT_ITER"; ROOTED=1; fi
   printf '%s\n' "$ITER" > /tmp/capture_ticket_iter.txt
   [ -n "$ROOTED" ] && echo "ROOT_ITERATION" >> /tmp/capture_ticket_iter.txt
 
-  NAME="${REPO#*/}"
   # No angle brackets anywhere: ADO strips anything shaped like an HTML tag from Markdown fields.
   DESC="Review the coding-standards capture pull request for \`$NAME\` \`$LABEL\`: $1
 
 Capture proposes rules distilled from the post-mortems this release carries. Each candidate in the PR body states its outcome and reason; check the flagged categories, derived candidates and escape stubs before approving. Nothing reaches the corpus until the PR is merged."
-  jq -n --arg title "Review coding-standards capture for $NAME $LABEL" --arg area "$AREA" --arg iter "$ITER" \
+  jq -n --arg title "$TICKET_TITLE" --arg area "$AREA" --arg iter "$ITER" \
         --arg tag "$TAG" --arg desc "$DESC" --arg url "$1" '
     [ {op:"add",path:"/fields/System.Title",value:$title},
       {op:"add",path:"/fields/System.AreaPath",value:$area},
@@ -406,6 +433,7 @@ patch_body(){ # $1=PR number  $2=body file
 }
 
 cmd_publish(){
+  PUBLISHING=1
   need_run; need_corpus
   [ -s /tmp/capture_pr_body.md ] || die "NO_PR_BODY — write the PR body to /tmp/capture_pr_body.md first."
   grep -qF "$PLACEHOLDER" /tmp/capture_pr_body.md || die "NO_PLACEHOLDER — the PR body must carry **Review ticket:** $PLACEHOLDER."

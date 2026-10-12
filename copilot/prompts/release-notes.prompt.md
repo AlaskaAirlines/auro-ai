@@ -1,6 +1,6 @@
 ---
 mode: 'agent'
-description: 'Generate or update the next release-notes document for auro-formkit. Determines the next semantic version from the Conventional Commits since the last released version (BREAKING CHANGE → major, feat → minor, fix/perf → patch), exits with an explanation if nothing release-worthy has landed. If a release-notes file for the current in-progress release already exists on this branch it refreshes that file in place; otherwise it generates a rich new file from the repo''s Release_Guide_TEMPLATE.md. Either way it wires the release into docs/templates/RELEASE_NOTES.md as the sole expanded accordion and stages the changed files (never commits). Exits early with instructions if the repo lacks the required release-notes folders/templates.'
+description: 'Generate or update the next release-notes document for auro-formkit. Run when asked to write, generate, or update the release notes for the next auro-formkit release. Determines the next semantic version from the Conventional Commits since the last released version (BREAKING CHANGE → major, feat → minor, fix/perf → patch), exits with an explanation if nothing release-worthy has landed. After the user confirms the version and target file, if a release-notes file for the current in-progress release already exists on this branch it refreshes that file in place; otherwise it generates a rich new file from the repo''s Release_Guide_TEMPLATE.md. Either way it wires the release into docs/templates/RELEASE_NOTES.md as the sole expanded accordion and stages the changed files (never commits). Exits early with instructions if the repo lacks the required release-notes folders/templates. Not for CHANGELOG.md, Release tickets, tagging, publishing, or running a release.'
 tools: ['runCommands', 'editFiles', 'search', 'codebase']
 ---
 
@@ -12,7 +12,7 @@ tools: ['runCommands', 'editFiles', 'search', 'codebase']
 
 ## Task — start now
 
-You are executing the **release-notes** skill. The invocation itself is the request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step and do not reorder them. This skill's only mutating side effects are the two files it writes/edits (the new release-notes file and `docs/templates/RELEASE_NOTES.md`) and a final `git add` that **stages** those files. It never commits and never pushes.
+You are executing the **release-notes** skill. The invocation itself is the request — whether it came from a `/release-notes` command, from another skill, or from the model acting on the user's request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step and do not reorder them. This skill's only mutating side effects are the two files it writes/edits (the new release-notes file and `docs/templates/RELEASE_NOTES.md`) and a final `git add` that **stages** those files — only after the user confirms at the end of Step 3. That confirmation, like every prompt below, must be the user's own reply — a calling skill, or the model, never answers one on the user's behalf. It never commits and never pushes.
 
 > **Scope guardrail — author release notes only, never perform a release.** The actual release is owned entirely by the GitHub Actions release workflow (semantic-release). This skill **only creates and modifies the release-notes documents**. It must **NOT**, under any circumstance:
 > - commit, push, or open a PR;
@@ -126,6 +126,10 @@ Briefly list the commit subjects you assessed so the user can verify.
 Record the new semver (e.g. `6.1.0`) and its zero-padded filename form (`06.01.00`).
 
 **Update mode — reconcile against the existing file.** In update mode you already know the in-progress file's version (Step 1d). Use **that existing file's version and filename** as the target for Steps 4–6 — do not create a second file or rename it here. Normally the freshly computed version equals it. If they **differ** (e.g. a `feat` landed since the file was first written, escalating a patch to a minor), still refresh the existing file, but record the mismatch and surface it in the Step 7 report so the user can decide whether to regenerate fresh at the new number (by deleting the stale file and re-running, or passing an explicit base ref). In **create mode**, the target is the newly computed version/filename.
+
+**Confirm before writing.** Nothing has been written yet. Show the user the plan: the commit range, the bump and new version (and, in update mode, any mismatch with the existing file's version), the target release-notes path and whether it will be **created** or **overwritten**, and that `docs/templates/RELEASE_NOTES.md` will be edited and both files staged. Ask with `AskUserQuestion`:
+- **Write and stage** → continue to Step 4.
+- **Cancel** → stop. Nothing is written or staged; say so.
 
 ---
 

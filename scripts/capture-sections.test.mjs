@@ -126,6 +126,26 @@ const tests = {
       [['prevention', '## Prevention']]);
   },
 
+  // --- variants in no post-mortem yet, named by the parent TRD or the review ---------
+  '## Key Takeaways'() {
+    // Parent #46 §4.1 names it. The prefix match on `takeaway` alone misses it.
+    expectSections('## Key Takeaways',
+      doc('# X', '## Key Takeaways', '- a'),
+      [['takeaway', '## Key Takeaways']]);
+  },
+
+  '## Key Learnings'() {
+    expectSections('## Key Learnings',
+      doc('# X', '## Key Learnings', '- a'),
+      [['learnings', '## Key Learnings']]);
+  },
+
+  '## What we learned'() {
+    expectSections('## What we learned',
+      doc('# X', '## What We Learned', '- a'),
+      [['learnings', '## What We Learned']]);
+  },
+
   // --- the absence cases ---------------------------------------------------------
   'a post-mortem with no lessons section locates nothing'() {
     const name = 'a post-mortem with no lessons section locates nothing';
@@ -196,6 +216,50 @@ const tests = {
     expectSections('a fence line with an info string does not close an open fence',
       doc('# X', '## Fix', '```', '```js', '## Learnings', '- fake', '```', '## Lessons', '- real'),
       [['lessons', '## Lessons']], { contains: { 0: 'real' } });
+  },
+
+  'a commented-out lessons heading is not located'() {
+    // A hidden draft, not a section. Multi-line, so the comment state has to
+    // carry across lines; the trailing real section proves it closes again.
+    expectSections('a commented-out lessons heading is not located',
+      doc('# X', '<!--', '## Learnings', '- draft', '-->', '## Lessons', '- real'),
+      [['lessons', '## Lessons']], { contains: { 0: 'real' } });
+  },
+
+  'a comment opener inside a fence is example text'() {
+    // Fences are evaluated first. Read as a real opener, the `<!--` would never
+    // close and hide the section after the fence.
+    expectSections('a comment opener inside a fence is example text',
+      doc('# X', '## Fix', '```html', '<!-- an example', '```', '## Learnings', '- a'),
+      [['learnings', '## Learnings']]);
+  },
+
+  'a <!-- mid-line is text, not a comment that hides what follows'() {
+    // auro-ai 1643439 mentions `<!--` in inline code in a bullet. Read as an
+    // opener with no closer, it hid that file's `## Learnings` 170 lines on.
+    expectSections('a <!-- mid-line is text, not a comment that hides what follows',
+      doc('# X', '## Fix', '- **HTML comments.** `<!--` was honoured only as body.', 'more', '## Learnings', '- a'),
+      [['learnings', '## Learnings']]);
+  },
+
+  'a one-line comment hides only its own line'() {
+    expectSections('a one-line comment hides only its own line',
+      doc('# X', '<!-- ## Learnings -->', '## Lessons', '- a'),
+      [['lessons', '## Lessons']]);
+  },
+
+  'a heading with a trailing inline comment is still located'() {
+    expectSections('a heading with a trailing inline comment is still located',
+      doc('# X', '## Learnings <!-- reworded 2026-10-01 -->', '- a'),
+      [['learnings', '## Learnings']]);
+  },
+
+  'a fence marker inside a comment does not open a fence'() {
+    // Commented-out text is inert, fence markers included. Read as a real
+    // opener, the ``` would swallow the comment's closer and the section after.
+    expectSections('a fence marker inside a comment does not open a fence',
+      doc('# X', '<!--', '```', '-->', '## Learnings', '- a'),
+      [['learnings', '## Learnings']]);
   },
 
   'non-lessons headings are not located'() {

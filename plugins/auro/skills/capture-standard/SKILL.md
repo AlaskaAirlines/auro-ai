@@ -2,7 +2,7 @@
 name: capture-standard
 description: Capture coding standards from the post-mortems a release carries, while preparing that release. Run when asked to capture coding standards or lessons from a release, an rc branch, or a commit range into the Auro coding-standards corpus — usually by the release-prep skill as an rc branch is merged into main. Proposes new rules and source-appends, previews them, and on one confirmation opens a pull request against auro-ai plus a review ticket. Not for writing or reviewing code, writing post-mortems, or release notes.
 argument-hint: "<repo> <branch | from..to> [--corpus-ref <branch>]"
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh), Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *), Read, Write(/tmp/*), AskUserQuestion
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh), Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *), Read, Write(//tmp/**), AskUserQuestion
 ---
 
 ## Task — start now
@@ -174,4 +174,4 @@ Options: **Publish** · **Don't publish**. Anything but **Publish** → nothing 
 ${CLAUDE_SKILL_DIR}/scripts/capture.sh publish
 ```
 
-It re-runs `check`, writes one commit on the corpus ref's tip and points `capture/<repo>-<label>` at it — **resetting** the branch on a re-run, never appending — opens the PR or replaces its body, and, if the PR has no review ticket yet, creates a **Committed** User Story in the current sprint (area `auro-ai`, tag `coding-standards-capture`) and writes its `AB#` into the body. Its last line is the `CAPTURE_RESULT:` line — **print it verbatim as your final line.** A `PUBLISH_FAILED` line → result `failed — <that line>`.
+It re-runs `check`, writes one commit on the corpus ref's tip and points `capture/<repo>-<label>` at it — **resetting** the branch on a re-run, never appending — opens the PR or replaces its body, and, if the PR has no review ticket yet, creates a **Committed** User Story in the current sprint (area `auro-ai`, tag `coding-standards-capture`) and writes its `AB#` into the body. Its last line is always a `CAPTURE_RESULT:` line — published, or `failed — <reason>` for any failure along the way — and a ticket reused from an earlier partial run is named as such. **Print it verbatim as your final line.**

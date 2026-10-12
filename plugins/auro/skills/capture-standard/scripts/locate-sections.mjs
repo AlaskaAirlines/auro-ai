@@ -23,13 +23,17 @@ import { fileURLToPath } from 'node:url';
 // Remaining Sub-PRs` are all lessons sections. Level-agnostic — `### Key
 // Lessons` is the only lessons section in seven files. The arrow is U+2192 in
 // every file today; `->` is accepted too because an ASCII search for it would
-// otherwise be the one that silently misses.
+// otherwise be the one that silently misses. `Key Takeaways`, `Key Learnings`
+// and `What we learned` appear in no post-mortem today, but the parent TRD
+// (#46 §4.1) names `Key Takeaways` as a variant, and a future file using any of
+// them would otherwise lose its lessons with no signal.
 const KINDS = [
   ['symptoms-table', /^symptoms\s*(?:→|->)\s*lessons?\b/i],
   ['key-lessons', /^key\s+lessons?\b/i],
-  ['learnings', /^learnings?\b/i],
+  ['learnings', /^(?:key\s+)?learnings?\b/i],
+  ['learnings', /^what\s+we\s+learned\b/i],
   ['lessons', /^lessons?\b/i],
-  ['takeaway', /^takeaways?\b/i],
+  ['takeaway', /^(?:key\s+)?takeaways?\b/i],
   ['recommendations', /^recommendations?\b/i],
   ['prevention', /^prevention\b/i],
 ];
@@ -60,11 +64,31 @@ export function classifyHeading(text) {
   return null;
 }
 
-/** Split markdown into heading records, ignoring anything inside a fence. */
+// CommonMark: a comment that hides the lines after it is an HTML block, which
+// opens only when `<!--` STARTS a line (up to three spaces of indent) and runs
+// to the line containing `-->`. A `<!--` anywhere else is inline text. Treating
+// any `<!--` as an opener — validate-standards.mjs's rule, safe in rule files —
+// hid every heading after a post-mortem that merely *mentions* `<!--` in inline
+// code (auro-ai 1643439 lost its `## Learnings` that way), and over-hiding is
+// the failure this file exists to avoid.
+const COMMENT_BLOCK_RE = /^ {0,3}<!--/;
+const INLINE_COMMENT_RE = /<!--[\s\S]*?-->/g;
+
+/**
+ * Split markdown into heading records, ignoring anything inside a fence or an
+ * HTML comment block. A commented-out `## Learnings` is a draft someone hid,
+ * not a section. Fences are evaluated first, so a `<!--` inside a fenced
+ * example is example text rather than a comment opener.
+ */
 function headings(lines) {
   const found = [];
   let fence = null;
+  let inComment = false;
   lines.forEach((line, index) => {
+    if (inComment) {
+      if (line.includes('-->')) inComment = false;
+      return;
+    }
     const f = line.match(FENCE_RE);
     if (f) {
       const marker = { char: f[1][0], len: f[1].length };
@@ -73,7 +97,11 @@ function headings(lines) {
       return;
     }
     if (fence) return;
-    const h = line.match(HEADING_RE);
+    if (COMMENT_BLOCK_RE.test(line)) {
+      inComment = !line.slice(line.indexOf('<!--') + 4).includes('-->');
+      return;
+    }
+    const h = line.replace(INLINE_COMMENT_RE, '').match(HEADING_RE);
     if (h) found.push({ level: h[1].length, text: (h[2] || '').trim(), index });
   });
   return found;

@@ -1,6 +1,6 @@
 ---
 mode: 'agent'
-description: 'Author or refresh a post-mortem for a piece of work, keyed to an Azure DevOps ticket. Prompts for the ADO ticket number (offering to reuse the ticket from the most recent post-mortem), then gathers context from the current git branch (commits + diff vs. its base), this session''s conversation, the ADO work item, and any linked Technical Research Document (TRD). It cross-checks the ticket''s requirements and acceptance criteria against the actual code changes to determine which parts were resolved and which were not. It composes a structured post-mortem — Executive Summary (with a link to the ADO ticket), optional TRD link, The Problem, Root Cause, The Fix, Why This Works, Outcome, Ticket Completeness (what the ticket asked for and what the change did/didn''t resolve), Learnings, and any failed iterations — then writes it to docs/post-mortem/<ticket>.md and publishes it as a GitHub Discussion in the repo''s "Post Mortems" category. On auro-formkit it also applies a discussion label for each component the post-mortem mentions. If a file or discussion already exists for the ticket, it updates them in place instead of creating duplicates.'
+description: 'Author or refresh a post-mortem for a piece of work, keyed to an Azure DevOps ticket. Run when asked to write, create, or update a post-mortem for the current branch''s work. Prompts for the ADO ticket number (offering to reuse the ticket from the most recent post-mortem), then gathers context from the current git branch (commits + diff vs. its base), this session''s conversation, the ADO work item, and any linked Technical Research Document (TRD). It cross-checks the ticket''s requirements and acceptance criteria against the actual code changes to determine which parts were resolved and which were not. It composes a structured post-mortem — Executive Summary (with a link to the ADO ticket), optional TRD link, The Problem, Root Cause, The Fix, Why This Works, Outcome, Ticket Completeness (what the ticket asked for and what the change did/didn''t resolve), Learnings, and any failed iterations — then previews it and, once the user confirms, writes it to docs/post-mortem/<ticket>.md and publishes it as a GitHub Discussion in the repo''s "Post Mortems" category. On auro-formkit it also applies a discussion label for each component the post-mortem mentions. If a file or discussion already exists for the ticket, it updates them in place instead of creating duplicates. Not for reviewing code, debugging a problem still in progress, release notes, or sprint reports.'
 tools: ['runCommands', 'editFiles', 'search', 'codebase', 'fetch']
 ---
 
@@ -12,7 +12,7 @@ tools: ['runCommands', 'editFiles', 'search', 'codebase', 'fetch']
 
 ## Task — start now
 
-You are executing the **post-mortem** skill. The invocation itself is the request: **begin immediately** and run the steps below **in order** — don't skip a step and don't reorder them. Most steps read from git, GitHub, Azure DevOps, and the conversation; the **only** mutating side effects are (1) writing/updating `docs/post-mortem/<ticket>.md`, (2) creating/updating one GitHub Discussion in the "Post Mortems" category, and (3) applying component labels to that discussion (auro-formkit only). It **never** commits, pushes, tags, edits any other file, or touches Azure DevOps (ADO is read-only enrichment here).
+You are executing the **post-mortem** skill. The invocation itself is the request — whether it came from a `/post-mortem` command, from another skill, or from the model acting on the user's request: **begin immediately** and run the steps below **in order** — don't skip a step and don't reorder them. Most steps read from git, GitHub, Azure DevOps, and the conversation; the **only** mutating side effects are (1) writing/updating `docs/post-mortem/<ticket>.md`, (2) creating/updating one GitHub Discussion in the "Post Mortems" category, and (3) applying component labels to that discussion (auro-formkit only) — all three happen **only after the user confirms** at the Step 3 preview gate. That confirmation, like every prompt below, must be the user's own reply — a calling skill, or the model, never answers one on the user's behalf. It **never** commits, pushes, tags, edits any other file, or touches Azure DevOps (ADO is read-only enrichment here).
 
 **Fresh start.** Each `/post-mortem` invocation is a clean slate. Do not carry a `TICKET`, gathered content, or draft from a previous run — rebuild everything from this run's git reads, ADO fetch, TRD fetch, and conversation. The only pre-existing content you may reuse is what you fetch fresh in this run and the existing `docs/post-mortem/<ticket>.md` (when updating).
 
@@ -110,6 +110,14 @@ Write for two audiences, as marked. Non-technical sections target Product Manage
 - **Iterations That Didn't Work** — `## Iterations That Didn't Work`. Fixes/changes that were tried and abandoned, and why. **Omit if none surfaced** from the commits or conversation.
 
 Keep it precise and consumer-facing where marked; no filler.
+
+**Preview and confirm (loop until approved).** Nothing has been written yet. Show the composed post-mortem in full, then say what Steps 4–5 will do: the file path and whether it will be **created** or **updated**, and that a "Post Mortems" GitHub Discussion titled `AB#<TICKET> — …` will be created or updated (plus component labels on auro-formkit). Ask with a plain-text prompt (not `AskUserQuestion`, so the user can reply with changes):
+
+> Write this post-mortem and publish it to GitHub Discussions? Reply **yes** to write and publish, **no** to stop without writing anything, or tell me what to change.
+
+- **Approval** (`yes`, `y`, or any clear affirmative) → continue to Step 4.
+- **Rejection** (`no`, `cancel`, or any clear negative) → stop. Nothing is written or published; say so.
+- **Anything else** → treat it as change instructions: revise, re-present, and ask again. Repeat until the user approves or rejects.
 
 ---
 

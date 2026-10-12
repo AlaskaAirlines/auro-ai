@@ -1,13 +1,12 @@
 ---
 name: close-dependabot
-description: Bulk-close open Dependabot pull requests across every Auro repository. Resolves the Auro repo set from the AlaskaAirlines `auro-team` GitHub team (non-archived repos), finds every open PR authored by Dependabot in those repos, and shows a numbered summary table (repo, PR link, title, opened date) plus per-repo counts. It then asks which to exclude — by list number or range, by repo name, or by a quoted phrase matched against PR titles (e.g. a package name) — and closes only the approved PRs, retrying transient failures once and reporting what was closed, skipped, or failed. It only closes PRs; it never merges, comments, deletes branches, or edits Dependabot config.
-disable-model-invocation: true
+description: Bulk-close open Dependabot pull requests across every Auro repository. Run when asked to close or clean up the open Dependabot PRs across the Auro repos. Resolves the Auro repo set from the AlaskaAirlines `auro-team` GitHub team (non-archived repos), finds every open PR authored by Dependabot in those repos, and shows a numbered summary table (repo, PR link, title, opened date) plus per-repo counts. It then asks which to exclude — by list number or range, by repo name, or by a quoted phrase matched against PR titles (e.g. a package name) — and closes only the approved PRs, retrying transient failures once and reporting what was closed, skipped, or failed. It only closes PRs; it never merges, comments, deletes branches, or edits Dependabot config. Not for reviewing, merging, or updating dependencies, or for closing PRs that Dependabot didn't open.
 allowed-tools: Bash(gh auth status *), Bash(gh api *), Bash(gh search *), Bash(gh pr close *), Bash(jq *), Bash(sleep *), Bash(cat *), Bash(wc *), Write(/tmp/*), AskUserQuestion
 ---
 
 ## Task — start now
 
-You are executing the **close-dependabot** skill. The invocation itself is the request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step and do not reorder them. Step 4 prompts the user — ask, wait for the reply, and resolve it before continuing.
+You are executing the **close-dependabot** skill. The invocation itself is the request — whether it came from a `/close-dependabot` command, from another skill, or from the model acting on the user's request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step and do not reorder them. Step 4 prompts the user — ask, wait for the reply, and resolve it before continuing. The Step 4 and Step 5 answers must be the user's own replies — a calling skill, or the model, never answers them on the user's behalf.
 
 > **Scope guardrail — close approved Dependabot PRs, nothing more.** This skill's **only** mutating side effect is `gh pr close` on the PRs the user approved in Step 4/5. It must **NOT**, under any circumstance:
 > - close a PR that isn't authored by Dependabot, isn't in an Auro repo, or wasn't on the approved list;

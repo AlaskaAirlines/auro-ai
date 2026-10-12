@@ -1,6 +1,6 @@
 ---
 mode: 'agent'
-description: 'Guided commit workflow for auro-formkit — takes an ADO ticket or PR number as its argument (or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit.'
+description: 'Guided commit workflow for Auro repos — takes an ADO ticket or PR number as its argument (or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit once the user approves the message. Run when asked to commit the staged changes or amend the previous commit. Not for staging files, pushing, or opening a pull request.'
 tools: ['runCommands', 'search', 'codebase']
 ---
 
@@ -12,7 +12,7 @@ tools: ['runCommands', 'search', 'codebase']
 
 ## Task — start now
 
-You are executing the **commit** skill. The invocation is the request: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step, and do not reorder them. Some steps require a user prompt — ask it, wait for the reply, and branch on the answer before continuing. This skill's only mutating side effects are a `git pull` (Step 2, only if the user asks for it), a repo-local `git config` write recording the reference (Step 6), and the final `git commit` — either a new commit or, in **amend mode**, a `git commit --amend` that rewrites the previous commit (Step 6, only after the user confirms). Never push.
+You are executing the **commit** skill. The invocation is the request — whether it came from a `/commit` command, from another skill, or from the model acting on the user's request to commit: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step, and do not reorder them. Some steps require a user prompt — ask it, wait for the reply, and branch on the answer before continuing. This skill's only mutating side effects are a `git pull` (Step 2, only if the user asks for it), a repo-local `git config` write recording the reference (Step 6), and the final `git commit` — either a new commit or, in **amend mode**, a `git commit --amend` that rewrites the previous commit (Step 6, only after the user confirms). Never push. Every prompt below needs the user's own reply — a calling skill, or the model, never answers one on the user's behalf.
 
 **The invocation takes one argument** — available as `${input:args}` (the text after `/commit`, trimmed; empty if none):
 - an **ADO ticket or PR number** (or `prev`) to associate with a **new** commit — the normal flow, resolved in **Step 3**; or

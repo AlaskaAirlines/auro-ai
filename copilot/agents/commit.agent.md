@@ -1,6 +1,6 @@
 ---
 name: commit
-description: 'Guided commit workflow for Auro repos — takes an ADO ticket or PR number as its argument (or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit once the user approves the message. Run when asked to commit the staged changes or amend the previous commit. Not for staging files, pushing, or opening a pull request.'
+description: 'Guided commit workflow for auro-formkit — takes an ADO ticket or PR number as its argument (or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit once the user approves the message. Run when asked to commit the staged changes or amend the previous commit. Not for staging files, pushing, or opening a pull request.'
 user-invocable: true
 ---
 

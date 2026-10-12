@@ -88,7 +88,10 @@ For **each** post-mortem, read its located sections and extract candidate rules.
 Rules that bite:
 
 - **Fan-out is normal.** One post-mortem often yields several rules across categories. Fan-in is too — two tickets teaching one lesson become one rule.
-- **Anti-platitude bar.** A candidate survives only if you can name a concrete generated output it changes. "Test thoroughly" and "consider accessibility" are **rejected**, with that reason.
+- **The extraction bar — a candidate must pass all three, or it is rejected with the test it failed.** The corpus is meant to be a small set of stable rules, not a log of every lesson:
+  1. **It changes code.** You can name a concrete output it changes. "Test thoroughly" and "consider accessibility" fail.
+  2. **It changes what is written, not how someone investigates.** "Re-derive the repro from the live component" and "a bug that works sometimes is a tell" are good habits, and fail.
+  3. **It generalises beyond the component it came from.** A fact about one component's internals — which class holds `auro-input`'s text — fails; the lesson behind it, if there is one that holds for other components, may pass.
 - **Within one post-mortem, dedupe first.** A `Symptoms → Lesson` table often restates the lessons section below it — one lesson, one candidate.
 - **No lessons section** (`sections: NONE`) **but a real post-mortem** (it has a title, a ticket and a root cause): **Read** `/tmp/capture_pm/<file>` and derive candidates from its root cause and fix, each labelled **derived** — or record "nothing extractable" honestly. **Never fabricate.**
 - **Not a post-mortem** — no H1, no ticket ID, no root-cause heading (consumer release notes have landed in `docs/post-mortem/` before): skip it, and list it as *not a post-mortem*.
@@ -101,9 +104,9 @@ Give every candidate **exactly one** outcome and a **one-line reason**:
 |---|---|---|
 | **new** | No equivalent in the batch or the corpus | New rule: the next free ID for its category, assigned upward within this run; `Since` = the run date |
 | **merged in batch** | Equivalent to another candidate in this run | One rule citing every source; the others record this outcome pointing at it |
-| **source-append** | Equivalent to an existing **active** rule that does not yet cite this source | Append the source to `Sources`, set `Learned: ×N` to the new distinct-source count, keep the ID and `Since`. Sharpen the wording only if the new post-mortem adds real precision |
+| **source-append** | Equivalent to an existing **active** rule that does not yet cite this source | Append the source to `Sources`, set `Learned: ×N` to the new distinct-source count, keep the ID and `Since`. Keep the wording: add at most one sentence, and only for a shape the rule as written does not cover |
 | **already cited — no change** | The existing rule already cites this source | Nothing. Re-capturing a post-mortem must change nothing |
-| **rejected** | Fails the anti-platitude bar, or is not a lesson about code or tooling | Nothing |
+| **rejected** | Fails one of the extraction bar's three tests — the reason names which | Nothing |
 
 Equivalence is about the **lesson**, not the wording. When unsure between *new* and *source-append*, prefer *source-append* and say why — a near-duplicate rule is the costlier mistake. Never append to a retired rule or a tombstone; never retire, merge or renumber existing rules — that is a review decision.
 

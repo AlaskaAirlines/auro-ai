@@ -73,7 +73,7 @@ ado_curl(){ printf 'user = ":%s"\n' "$ADO_PAT" | curl -K - "$@"; }
 # name, and publish would then rewrite that stranger's PR body and adopt its review ticket.
 own_pr(){
   gh api "repos/$AI_REPO/pulls?state=open&head=$OWNER:$(enc "$BRANCH")" \
-    --jq '.[0] // empty | {number, url: .html_url, body}'
+    --jq '.[0] // empty | {number, url: .html_url, body, base: .base.ref}'
 }
 
 # Commits on the head not on the base. Fails — rather than printing an empty count — on any GitHub error:
@@ -278,15 +278,18 @@ cmd_next_ids(){
   grep -hoE '^###[[:space:]]+CS-[A-Z0-9]+-[0-9]{3}' /tmp/capture_corpus/*.md | awk '{print $2}' > /tmp/capture_ids_taken.txt
 
   # D8: another open capture PR may already have claimed the next number. Our own branch is excluded —
-  # it is reset to a fresh proposal on publish, so its old IDs are free to be claimed again.
-  gh pr list -R "$AI_REPO" --state open --limit 100 --json number,headRefName,headRefOid,isCrossRepository \
-    --jq ".[] | select(.isCrossRepository | not) | select(.headRefName | startswith(\"capture/\")) | select(.headRefName != \"$BRANCH\") | \"\(.number)\t\(.headRefOid)\"" \
-    > /tmp/capture_other_prs.tsv
+  # it is reset to a fresh proposal on publish, so its old IDs are free to be claimed again. Every open PR
+  # is paged through, and any failed read stops the run: a claim missed here is a duplicate ID that the
+  # validator only catches at the second merge.
+  gh api --paginate "repos/$AI_REPO/pulls?state=open&per_page=100" \
+    --jq ".[] | select(.head.repo.full_name == \"$AI_REPO\") | select(.head.ref | startswith(\"capture/\")) | select(.head.ref != \"$BRANCH\") | \"\(.number)\t\(.head.sha)\"" \
+    > /tmp/capture_other_prs.tsv || die "GITHUB_FAILED — could not list open capture PRs; re-run \`capture.sh next-ids\`."
   while IFS=$'\t' read -r NUM OID; do
     [ -z "$NUM" ] && continue
     for NAME in $(cat /tmp/capture_corpus_names.txt); do
-      gh api -H "Accept: application/vnd.github.raw" "repos/$AI_REPO/contents/$REFS/$NAME?ref=$OID" 2>/dev/null \
-        | grep -oE '^###[[:space:]]+CS-[A-Z0-9]+-[0-9]{3}' | awk '{print $2}' >> /tmp/capture_ids_taken.txt
+      gh api -H "Accept: application/vnd.github.raw" "repos/$AI_REPO/contents/$REFS/$NAME?ref=$OID" > /tmp/capture_claimed.md 2>/dev/null \
+        || die "GITHUB_FAILED — could not read $NAME from open capture PR #$NUM; re-run \`capture.sh next-ids\`."
+      grep -oE '^###[[:space:]]+CS-[A-Z0-9]+-[0-9]{3}' /tmp/capture_claimed.md | awk '{print $2}' >> /tmp/capture_ids_taken.txt
     done
     echo "counted IDs claimed by open capture PR #$NUM"
   done < /tmp/capture_other_prs.tsv
@@ -304,7 +307,7 @@ cmd_next_ids(){
 
 cmd_open_pr(){
   need_run
-  own_pr > /tmp/capture_pr.json
+  own_pr > /tmp/capture_pr.json || die "GITHUB_FAILED — could not look up the open capture PR for $BRANCH."
   if [ ! -s /tmp/capture_pr.json ]; then
     : > /tmp/capture_pr.tsv
     echo "NO_OPEN_PR — publishing will open one from $BRANCH."
@@ -315,6 +318,12 @@ cmd_open_pr(){
   printf '%s\t%s\t%s\n' "$NUM" "$URL" "$TID" > /tmp/capture_pr.tsv
   echo "OPEN_PR #$NUM $URL — publishing will reset its branch and replace its body."
   if [ -n "$TID" ]; then echo "review ticket: AB#$TID (kept)"; else echo "review ticket: none yet (one is created on publish)"; fi
+  BASE_NOW=$(jq -r '.base // empty' /tmp/capture_pr.json)
+  if [ -s /tmp/capture_corpus_ref.tsv ]; then
+    IFS=$'\t' read -r CORPUS_REF CORPUS_SHA < /tmp/capture_corpus_ref.tsv
+    [ "$BASE_NOW" != "$CORPUS_REF" ] && echo "RETARGET — the PR targets $BASE_NOW; publishing will move it to $CORPUS_REF."
+  fi
+  return 0
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -481,7 +490,7 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
   fi
 
   # 3. Find or open the PR. An existing review ticket is carried into the new body.
-  own_pr > /tmp/capture_pr.json
+  own_pr > /tmp/capture_pr.json || die "GITHUB_FAILED — could not look up the open capture PR for $BRANCH."
   TID=""; OPENED=""
   if [ -s /tmp/capture_pr.json ]; then
     NUM=$(jq -r .number /tmp/capture_pr.json); URL=$(jq -r .url /tmp/capture_pr.json)
@@ -491,6 +500,14 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
   awk -v p="$PLACEHOLDER" -v r="$REPL" '{ while ((i = index($0, p)) > 0) $0 = substr($0, 1, i-1) r substr($0, i+length(p)); print }' \
     /tmp/capture_pr_body.md > /tmp/capture_pr_body.out
   if [ -n "$NUM" ]; then
+    # A re-run against a different corpus ref has just reset the branch onto that ref, so the PR must
+    # target it too — on its old base the diff would show the corpus difference as the proposal.
+    OLD_BASE=$(jq -r '.base // empty' /tmp/capture_pr.json)
+    if [ -n "$OLD_BASE" ] && [ "$OLD_BASE" != "$CORPUS_REF" ]; then
+      gh api --method PATCH "repos/$AI_REPO/pulls/$NUM" -f base="$CORPUS_REF" --jq .base.ref >/dev/null \
+        || die "PUBLISH_FAILED — retarget #$NUM from $OLD_BASE to $CORPUS_REF (branch $BRANCH was reset)"
+      echo "PR retargeted: #$NUM $OLD_BASE -> $CORPUS_REF"
+    fi
     patch_body "$NUM" /tmp/capture_pr_body.out || die "PUBLISH_FAILED — body of #$NUM (branch $BRANCH was reset)"
     echo "PR updated: #$NUM $URL"
   else

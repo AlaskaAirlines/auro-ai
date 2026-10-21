@@ -21,10 +21,11 @@ for skills. Use the marketplace flow below instead.
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 | `close-dependabot` | `/auro:close-dependabot` | Finds every open Dependabot PR across the Auro repos (the `auro-team` GitHub team's repos), shows a numbered summary, asks which to leave open (by number/range, repo, or title phrase), and **closes only the approved PRs**. Never merges, comments, or deletes branches |
+| `doc-review` | `/auro:doc-review [fix] [base branch]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings by default; `fix` applies the in-scope ones, rebuilds, and checks the generated docs. Never commits |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
-> `/auro:ado`, `/auro:post-mortem`, and `/auro:close-dependabot` — not the bare forms.
+> `/auro:ado`, `/auro:post-mortem`, `/auro:close-dependabot`, and `/auro:doc-review` — not the bare forms.
 
 ---
 
@@ -355,6 +356,33 @@ repos (the `gh` CLI must be authenticated).
 
 > Closing a Dependabot PR tells Dependabot to skip that version. It opens a new PR when
 > a newer release comes out.
+
+### `/auro:doc-review`
+
+```shell
+/auro:doc-review                 # review the current branch against the default branch
+/auro:doc-review dev             # review against another base branch
+/auro:doc-review fix             # apply the in-scope fixes, rebuild, and verify
+```
+
+Checks a component's documentation against the
+[content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660).
+Every run gives the same scope, rules, and checks, no matter who runs it:
+
+- **Rules:** fetches the current guidelines and the shared `auro-templates` headings on
+  every run. It never works from memory, and every finding cites the guideline section
+  it comes from.
+- **Scope:** follows the guidelines' "What to update" section. Every JSDoc block, README
+  partial section, and demo example the branch touches is reviewed in full. Problems in
+  untouched content and shared template content are reported, not fixed.
+- **Accuracy:** checks each claim (defaults, values, conditions, visual behavior) against
+  the component's source and styles, and reports claims the code contradicts.
+
+Findings are grouped as inaccurate claims, guideline issues, outside this change, shared
+template content (to fix in `auro-templates`), and open questions the guidelines don't
+settle. With `fix`, it edits only the in-scope documentation sources, never generated
+files, then runs the build (and `cem:check` when the repo has it) and confirms the
+changes in `custom-elements.json` and `docs/api.md`. It never commits.
 
 ---
 

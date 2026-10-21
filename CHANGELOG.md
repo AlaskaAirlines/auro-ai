@@ -1,3 +1,13 @@
+# [1.22.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.21.0...v1.22.0) (2026-10-21)
+
+
+### Features
+
+* **code-review:** run doc-review checks on changed component docs and report all findings ([dc31664](https://github.com/AlaskaAirlines/auro-ai/commit/dc316649d40a6b92688c79dfa3408105cb1e7350))
+* **commit:** accept skip as the argument to commit without a ticket reference ([81b9fd6](https://github.com/AlaskaAirlines/auro-ai/commit/81b9fd62576fb8e722e01b04c01602ea9ea02d21))
+* **doc-review:** add skill to review component docs against Auro content guidelines ([28214a0](https://github.com/AlaskaAirlines/auro-ai/commit/28214a061c9bf8a6ad49f7fbf6863bc4684afc51))
+* **doc-review:** add write, all, and component-name arguments to scope and apply fixes ([c3566ce](https://github.com/AlaskaAirlines/auro-ai/commit/c3566ce88a917d298e57563e9ec3c807d638dabb))
+
 # [1.21.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.20.0...v1.21.0) (2026-10-21)
 
 

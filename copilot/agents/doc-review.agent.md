@@ -141,7 +141,7 @@ For each touched item, in file order:
 **4b — Apply the rules** from these guideline sections, in this order: the matching **Patterns by item type** subsection, then **Structure**, **Voice and tone**, **Word choices**, and **Formatting**. Use these searches as a starting point. They don't replace reading each item against the rules.
 - `e\.g\.|i\.e\.` · `\bwill\b` · `DEPRECATED` · ` — ` (spaced em dash) · `This (property|attribute|Boolean)|Used to` · `HTML5` · `a11y`
 - Attribute, property, value, and tag names not in backticks, such as "(the link's href)".
-- Headings not in sentence case (except shared headings; see 3d).
+- Headings and labels not in sentence case, including button and other control text in API examples, such as "Extra Small" (except shared headings; see 3d).
 - Descriptions over the sentence limit in **Structure › Keep it brief**. Count the exceptions it allows.
 
 **4c — Verify every factual claim.** This is required, not optional. For each claim about behavior, such as defaults, accepted values, what happens in each state, conditions ("ignored when …"), icons, `rel` values, or URL handling, find the code that decides it and confirm it:

@@ -109,7 +109,7 @@ Apply the guidelines' **What to update** section mechanically.
 
 | Kind | Paths | Treatment |
 | --- | --- | --- |
-| **Doc source** | JSDoc in `**/src/**/*.{js,mjs,ts}`; `**/docs/partials/*.md`; visible text in `**/apiExamples/*.html`; `README.md` text outside `AURO-GENERATED` markers | Review; edit in write mode |
+| **Doc source** | JSDoc in `**/src/**/*.{js,mjs,ts}`; `**/docs/partials/*.md`; markup and visible text in `**/apiExamples/*.html`; `README.md` text outside `AURO-GENERATED` markers | Review; edit in write mode |
 | **Generated** | `custom-elements.json`, `**/docs/api.md`, `**/demo/*.md`, `AURO-GENERATED` sections of `README.md`, `dist/`, `*.min.js` | Never review as a source and never edit. Use as verification evidence (Step 4c) |
 | **Out of scope** | Everything else, including `docs/post-mortem/**`, lockfiles, configs, styles, tests | Not reviewed. Styles and code are still read as evidence |
 
@@ -118,7 +118,7 @@ If no changed file is a doc source, say so, report the base you compared against
 **3b — Find the touched items.** For each doc source, run `git diff <MERGE_BASE> -U0 -- <file>` and map every added or changed line to the item that contains it:
 - **JSDoc:** the whole `/** … */` block that contains the line, or the block directly above the changed declaration. The whole block is in scope: description, every tag, and every example.
 - **Markdown partial:** the whole section, from the nearest heading above the line down to the next heading of the same or higher level.
-- **API example HTML:** the whole file's visible text.
+- **API example HTML:** the whole file, markup and visible text.
 
 These **touched items** are the scope. List them with `file:line-range`.
 
@@ -136,12 +136,13 @@ Never fix these. Report them under **Shared template content** so they can be fi
 
 For each touched item, in file order:
 
-**4a — Identify the item type** using the guidelines' **Patterns by item type** headings: component description and summary, property or attribute (boolean, fixed set of values, or free text), slot, CSS part, CSS custom property, method or function (and its `@param`, `@returns`, and `@throws`), deprecation, security note, or README and demo prose. README and demo prose has no subsection of its own, so the general sections in 4b apply to it.
+**4a — Identify the item type** using the guidelines' **Patterns by item type** headings: component description and summary, property or attribute (boolean, fixed set of values, or free text), slot, CSS part, CSS custom property, method or function (and its `@param`, `@returns`, and `@throws`), deprecation, security note, API example, or README and demo prose. README and demo prose has no subsection of its own, so the general sections in 4b apply to it.
 
 **4b — Apply the rules** from these guideline sections, in this order: the matching **Patterns by item type** subsection, then **Structure**, **Voice and tone**, **Word choices**, and **Formatting**. Use these searches as a starting point. They don't replace reading each item against the rules.
 - `e\.g\.|i\.e\.` · `\bwill\b` · `DEPRECATED` · ` — ` (spaced em dash) · `This (property|attribute|Boolean)|Used to` · `HTML5` · `a11y`
 - Attribute, property, value, and tag names not in backticks, such as "(the link's href)".
 - Headings and labels not in sentence case, including button and other control text in API examples, such as "Extra Small" (except shared headings; see 3d).
+- API example markup that skips guidance in the component's own docs (its JSDoc and `docs/partials`), such as a control that shows only an icon or a count with no accessible name (no `ariaLabel` slot, `aria-label`, or `aria-labelledby`). Check every example in the file, not only the ones in the section that gives the guidance.
 - Descriptions over the sentence limit in **Structure › Keep it brief**. Count the exceptions it allows.
 
 **4c — Verify every factual claim.** This is required, not optional. For each claim about behavior, such as defaults, accepted values, what happens in each state, conditions ("ignored when …"), icons, `rel` values, or URL handling, find the code that decides it and confirm it:

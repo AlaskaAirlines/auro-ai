@@ -19,8 +19,8 @@
 // When adding a case, break the behaviour it is named for and confirm this
 // file reports that case failing. A case that cannot fail is cited as
 // coverage it does not provide.
-import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -379,6 +379,28 @@ const tests = {
     const name = 'corpus: a failed corpus-ref write fails instead of printing the corpus';
     const r = runCapture(['corpus', 'main'], { roAt: '.md?ref=' });
     if (expectUnwritable(name, r, 'corpus: ')) pass(name);
+  },
+
+  // --- running the script, as capture.sh does ---------------------------------------
+  'the CLI prints its report when reached through a symlinked directory'() {
+    // Phase 2b found the locator printing nothing — exit 0 — when its path ran through a
+    // symlink (macOS /tmp is one), because the run-as-script guard compared argv[1] with a
+    // symlink-resolved import.meta.url. capture.sh then saw no lessons in any post-mortem.
+    const name = 'the CLI prints its report when reached through a symlinked directory';
+    const scratch = mkdtempSync(join(tmpdir(), 'capture-sections-'));
+    try {
+      const link = join(scratch, 'scripts-link');
+      symlinkSync(dirname(LOCATOR), link, 'dir');
+      const fixture = join(scratch, '1234567.md');
+      writeFileSync(fixture, doc('# AB#1234567', '## Root Cause', 'x', '## Learnings', '- a lesson'));
+      const out = execFileSync(process.execPath, [join(link, 'locate-sections.mjs'), fixture], { encoding: 'utf8' });
+      if (!out.includes('=== 1234567.md') || !out.includes('## Learnings')) {
+        return failCase(name, `expected a report for 1234567.md, got ${JSON.stringify(out.slice(0, 120))}`);
+      }
+      pass(name);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
   },
 };
 

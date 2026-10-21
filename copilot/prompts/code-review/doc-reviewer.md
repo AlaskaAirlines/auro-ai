@@ -57,4 +57,5 @@ Return **only** this JSON object, with no other prose:
 - `group` is one of doc-review's Step 5 groups: `inaccurate` (Inaccurate claims), `guideline` (Guideline issues), `outside` (Outside this change), `template` (Shared template content), `question` (Open questions).
 - `rule` is the guideline section the finding cites. For `question` findings that rest on a fallback style guide, name that source.
 - `line` is a line that exists at `<REVIEWED_HEAD>` (PR mode) or in the working tree (local mode). Omit `startLine` unless `suggestion` replaces more than one line. Include `suggestion` only for `inaccurate` and `guideline` findings, and only when you have an exact replacement for those lines.
+- `suggested` and `suggestion` must pass doc-review Step 4e: the replacement meets the guidelines and its claims are confirmed in the code. When no replacement passes, omit both and explain why in `body`.
 - Return `"findings": []` when the in-scope docs are clean. An empty result is a correct outcome; don't invent findings.

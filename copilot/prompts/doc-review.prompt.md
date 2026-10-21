@@ -1,6 +1,6 @@
 ---
 mode: 'agent'
-description: 'Review the component documentation on the current branch against the Auro "Content guidelines for component documentation" (WC-Generator discussion #660). Run when asked to review, check, or fix component documentation against the Auro content guidelines, or when another skill needs those checks run. Fetches the current guidelines and the shared auro-templates headings on every run, so it never works from memory. Scopes the review the way the guidelines'' "What to update" section does — every JSDoc block, README partial, and demo section the branch touches, in full — and checks each factual claim against the component''s code and styles, not just the wording. With `all`, it reviews every documentation source in the repository instead of only what the branch touches. In a monorepo such as auro-formkit, passing a component name (e.g. `dropdown`, `datepicker`) limits either scope to that component. Reports findings grouped as inaccurate claims, guideline issues, problems outside this change (report only), shared template content to fix in auro-templates, and open questions the guidelines don''t settle. By default it only reports and changes no files. With `write`, it edits only the in-scope documentation sources, rebuilds, and verifies the generated custom-elements.json and docs/api.md, leaving the changes uncommitted. It never commits, pushes, edits generated files directly, or edits the guidelines discussion. Not for reviewing code changes, release notes, or editing the guidelines themselves.'
+description: 'Review the component documentation on the current branch against the Auro "Content guidelines for component documentation" (WC-Generator discussion #660). Run when asked to review, check, or fix component documentation against the Auro content guidelines, or when another skill needs those checks run. Fetches the current guidelines and the shared auro-templates headings on every run, so it never works from memory. Scopes the review the way the guidelines'' "What to update" section does — every JSDoc block, README partial, and demo section the branch touches, in full — and checks each factual claim against the component''s code and styles, not just the wording. Its own suggested fixes and edits are held to the same guidelines and checked before they''re reported or kept. With `all`, it reviews every documentation source in the repository instead of only what the branch touches. In a monorepo such as auro-formkit, passing a component name (e.g. `dropdown`, `datepicker`) limits either scope to that component. Reports findings grouped as inaccurate claims, guideline issues, problems outside this change (report only), shared template content to fix in auro-templates, and open questions the guidelines don''t settle. By default it only reports and changes no files. With `write`, it edits only the in-scope documentation sources, rebuilds, and verifies the generated custom-elements.json and docs/api.md, leaving the changes uncommitted. It never commits, pushes, edits generated files directly, or edits the guidelines discussion. Not for reviewing code changes, release notes, or editing the guidelines themselves.'
 tools: ['runCommands', 'editFiles', 'search', 'codebase']
 ---
 
@@ -157,6 +157,12 @@ A claim the code contradicts is an **Inaccurate claim**. If you can't confirm or
 
 **4d — Note the untouched remainder.** While reading each file, note clear guideline problems in its untouched parts, per 3c. Keep these brief. They are report-only.
 
+**4e — Check every suggestion.** Each "Suggested" text is new documentation, so it must meet the same rules as the text it replaces. For every suggestion, in any group:
+- Review it as its own touched item: apply 4b (including the searches) and 4c. Any claim the new wording adds or changes, such as a default, a condition, or a value, must be confirmed in the code.
+- Review it in place, too. Read the whole item with the change applied, and check the rules a single sentence can pass while the item fails: **Structure › Keep it brief** sentence counts, **Structure › The first sentence stands alone**, and terms and voice that stay consistent with the rest of the item.
+- When several findings touch the same text, write one suggestion that fixes all of them, and cite each rule. Separate suggestions for the same text can undo each other.
+- If a suggestion fails, revise it and check it again. If you can't write one that passes, because rules conflict or the fix needs a fact the code doesn't settle, give the finding without a suggestion and add an **Open questions** entry that says why.
+
 ---
 
 ## Step 5 — Review mode: report
@@ -183,6 +189,8 @@ Format each finding as:
 > `file:line`: what's wrong. *Rule: <guideline section>.*
 > Current: "…" → Suggested: "…"
 
+Every "Suggested" text must have passed 4e. Leave out the arrow and the suggestion when 4e found none that passes.
+
 Number the findings consecutively across groups, so they can be referred to by number. End with one line: the number of findings in groups 1 and 2, and "Run `/auro:doc-review write` to apply the in-scope fixes." (with SCOPE = all, "Run `/auro:doc-review write all` to apply the fixes across the repository."). Repeat any component names from `${input:args}` in the suggested command.
 
 If the user then asks for the findings as something to send to the PR author, render the same findings as a Markdown block addressed to the author, keeping the groups and numbering.
@@ -193,10 +201,11 @@ If the user then asks for the findings as something to send to the PR author, re
 
 ## Step 6 — Write mode: apply, rebuild, verify
 
-1. **Apply** every finding in groups 1 and 2 (Inaccurate claims and Guideline issues) by editing the doc source, never a generated file. Keep each edit to the touched item. Don't edit groups 3–5. For an inaccurate claim, change the doc to match the code. Never change the code.
-2. **Rebuild.** Find the `package.json` nearest the changed sources that has a `build` script (in a monorepo, the component's package; with SCOPE = all, every package you edited, one at a time). Run `npm run build` there with a generous timeout. If that `package.json` has a `cem:check` script and `build` doesn't already run it, run `npm run cem:check` too. If the build or check fails, report the output and stop. Don't try to fix build problems the docs didn't cause.
-3. **Verify the generated output.** In the rebuilt `custom-elements.json` and `docs/api.md`, confirm each fix appears as intended. Read the first sentence of each changed description on its own and confirm it still makes sense (guidelines: **Structure › The first sentence stands alone**).
-4. **Check for unrelated churn.** Run `git status --short` and `git diff --stat`. Generated files can change for reasons unrelated to your edits, such as a `REMOTE` template that changed upstream. List any generated-file change your edits didn't cause, so the user can decide whether to keep it.
+1. **Apply** every finding in groups 1 and 2 (Inaccurate claims and Guideline issues) by editing the doc source, never a generated file. Use the suggestion checked in 4e. Keep each edit to the touched item. Don't edit groups 3–5. For an inaccurate claim, change the doc to match the code. Never change the code. A finding with no passing suggestion from 4e isn't applied; report it under **Not fixed**.
+2. **Re-review your edits.** Run `git diff -- <file>` on each doc source you edited. Treat every item the diff touches as a touched item, and run Step 4a–4c on it again as it now reads. Your edits are held to the same rules as the author's text. If the re-review finds a problem, fix it and re-review that item. Stop after two more passes. Report anything still failing under **Not fixed**, and say which edit caused it.
+3. **Rebuild.** Find the `package.json` nearest the changed sources that has a `build` script (in a monorepo, the component's package; with SCOPE = all, every package you edited, one at a time). Run `npm run build` there with a generous timeout. If that `package.json` has a `cem:check` script and `build` doesn't already run it, run `npm run cem:check` too. If the build or check fails, report the output and stop. Don't try to fix build problems the docs didn't cause.
+4. **Verify the generated output.** In the rebuilt `custom-elements.json` and `docs/api.md`, confirm each fix appears as intended. Read the first sentence of each changed description on its own and confirm it still makes sense (guidelines: **Structure › The first sentence stands alone**).
+5. **Check for unrelated churn.** Run `git status --short` and `git diff --stat`. Generated files can change for reasons unrelated to your edits, such as a `REMOTE` template that changed upstream. List any generated-file change your edits didn't cause, so the user can decide whether to keep it.
 
 ---
 
@@ -204,7 +213,7 @@ If the user then asks for the findings as something to send to the PR author, re
 
 Tell the user:
 - The guidelines version and the base used, or "Entire repository" when SCOPE = all, plus the COMPONENTS list when one was given.
-- **Fixed:** each finding applied, with `file:line` and the rule.
-- **Not fixed:** groups 3–5 from Step 5's structure, in full, with the same numbering. The user may want to send these to the PR author or to `auro-templates`.
-- **Build:** the result of the build and `cem:check`, plus any unrelated churn from 6.4.
+- **Fixed:** each finding applied, with `file:line` and the rule. Note any problem the re-review in 6.2 found in your own edits and fixed.
+- **Not fixed:** groups 3–5 from Step 5's structure, in full, with the same numbering, plus any finding from 6.1 or 6.2 that couldn't be fixed in a way that passes the guidelines. The user may want to send these to the PR author or to `auro-templates`.
+- **Build:** the result of the build and `cem:check`, plus any unrelated churn from 6.5.
 - That nothing was committed. Hand control back to the user.

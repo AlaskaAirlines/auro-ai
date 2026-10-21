@@ -12,3 +12,10 @@ A keyboard handler that treats any single-character `evt.key` as printable will 
 
 - **Sources:** auro-formkit#1532
 - **Since:** 2026-09-18
+
+### CS-INTX-002 — Act on the highlighted element, not a cached index
+
+A numeric active index goes stale whenever the option list reconciles — a selection collapsing to empty, a filter, a re-render — while the element the user sees highlighted does not. Resolve a keyboard action (Enter, Space, arrow from the current position) against the active element at the moment of the action, deriving any index from it then, rather than trusting an index stored earlier.
+
+- **Sources:** AB#1606433
+- **Since:** 2026-10-21

@@ -19,3 +19,10 @@ Rules in this file are numbered `CS-TEST-001` upward, assigned in order, never r
 
 - **Sources:** auro-formkit#1532
 - **Since:** 2026-09-16
+
+### CS-TEST-003 — Test an exported utility against its own contract, called directly
+
+A utility's in-component caller only ever exercises the inputs that component produces, so a bug outside that envelope is invisible from component tests — a count-based duplicate check passed because the component always passed a full-length key. If a function is exported, give it standalone tests over its documented contract, including inputs its current caller never sends.
+
+- **Sources:** AB#1602086
+- **Since:** 2026-10-21

@@ -19,3 +19,10 @@ A typeahead or selection buffer is scoped to the user's current interaction, and
 
 - **Sources:** auro-formkit#1532
 - **Since:** 2026-09-16
+
+### CS-FORM-003 — Select by option identity, never by `value`
+
+Any component whose options consumers author must assume two options can share a `value`. Track the selection by the option element (or a stable key bound to it) and derive `value` from the selected set — never look the selection up from `value`, which picks the first match. Key options with monotonic, instance-prefixed keys rather than random ids, so identity survives re-renders and rebuild-on-filter and never collides across instances.
+
+- **Sources:** AB#1602086
+- **Since:** 2026-10-21

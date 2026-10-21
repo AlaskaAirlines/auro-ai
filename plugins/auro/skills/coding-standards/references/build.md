@@ -27,3 +27,10 @@ Workspace tests certify the wrong thing: WTR loads `src/`, and framework smoke t
 
 - **Sources:** AB#1575423
 - **Since:** 2026-09-16
+
+### CS-BUILD-004 — Check every hand-maintained registry mechanically in CI
+
+A hand-maintained list that must mirror the files it wires up — an import list, an examples registry, an index — drifts as its steady state, not by accident: nine unwired demo examples across four components had accumulated with nothing to flag them. When correctness depends on such a list, add a CI check that derives the expected entries from the source tree and fails on any difference.
+
+- **Sources:** AB#1611713
+- **Since:** 2026-10-21

@@ -230,6 +230,10 @@ cmd_sections(){
   [ -e "$1" ] || die "NO_POSTMORTEMS — nothing extractable from this range."
   node "$DIR/locate-sections.mjs" --json "$@" > /tmp/capture_sections.json || die "LOCATE_FAILED"
   node "$DIR/locate-sections.mjs" "$@" > /tmp/capture_sections.md || die "LOCATE_FAILED"
+  # The locator prints a block for every file, even one with no lessons section, so empty output is a
+  # failure, never "nothing found" — it once exited 0 silently when reached through a symlinked path.
+  [ -s /tmp/capture_sections.md ] && [ -s /tmp/capture_sections.json ] \
+    || die "LOCATE_FAILED — locate-sections.mjs printed nothing for $# post-mortem(s)."
   cat /tmp/capture_sections.md
 }
 

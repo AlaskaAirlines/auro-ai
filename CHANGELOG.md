@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.22.0...v1.23.0) (2026-10-21)
+
+
+### Features
+
+* **doc-review:** allow other skills to invoke doc-review ([6de4bbc](https://github.com/AlaskaAirlines/auro-ai/commit/6de4bbc48d0b3895906e31c11b1c847935357a8a))
+
 # [1.22.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.21.0...v1.22.0) (2026-10-21)
 
 

@@ -1,3 +1,10 @@
+# [1.24.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.23.0...v1.24.0) (2026-10-21)
+
+
+### Features
+
+* **doc-review:** extend sentence-case check to labels and control text ([d8769af](https://github.com/AlaskaAirlines/auro-ai/commit/d8769af5210a2366078cfa0a92fa4b17e4c26b56))
+
 # [1.23.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.22.0...v1.23.0) (2026-10-21)
 
 

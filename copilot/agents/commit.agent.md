@@ -1,19 +1,20 @@
 ---
 name: commit
-description: 'Guided commit workflow for auro-formkit — takes an ADO ticket or PR number as its argument (or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit once the user approves the message. Run when asked to commit the staged changes or amend the previous commit. Not for staging files, pushing, or opening a pull request.'
+description: 'Guided commit workflow for auro-formkit — takes an ADO ticket or PR number as its argument (or `skip` to commit without one, or `amend` to fold staged changes into the previous commit), checks you are not on dev/main/master, verifies the branch is synced, then builds a Conventional Commits message from the staged changes and creates the commit once the user approves the message. Run when asked to commit the staged changes or amend the previous commit. Not for staging files, pushing, or opening a pull request.'
 user-invocable: true
 ---
 
 <!-- Generated from plugins/auro/skills/commit/SKILL.md by scripts/build-copilot-agents.mjs. Do not edit by hand. -->
 
-> **Argument** (`${input}`): "<ADO ticket # | PR # | prev | amend>" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
+> **Argument** (`${input}`): "<ADO ticket # | PR # | prev | skip | amend>" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
 
 ## Task — start now
 
 You are executing the **commit** skill. The invocation is the request — whether it came from a `/commit` command, from another skill, or from the model acting on the user's request to commit: **begin the workflow immediately** and walk through the steps below **in order**. Do not skip a step, and do not reorder them. Some steps require a user prompt — ask it, wait for the reply, and branch on the answer before continuing. This skill's only mutating side effects are a `git pull` (Step 2, only if the user asks for it), a repo-local `git config` write recording the reference (Step 6), and the final `git commit` — either a new commit or, in **amend mode**, a `git commit --amend` that rewrites the previous commit (Step 6, only after the user confirms). Never push. Every prompt below needs the user's own reply — a calling skill, or the model, never answers one on the user's behalf.
 
 **The invocation takes one argument** — available as `${input}` (the text after `/commit`, trimmed; empty if none):
-- an **ADO ticket or PR number** (or `prev`) to associate with a **new** commit — the normal flow, resolved in **Step 3**; or
+- an **ADO ticket or PR number** (or `prev`) to associate with a **new** commit — the normal flow, resolved in **Step 3**;
+- **`skip`** — create a **new** commit with **no** ticket or PR reference (also resolved in **Step 3**); or
 - **`amend`** — fold the current staged changes into the **previous** commit and rewrite its message. This selects **amend mode**, determined in **Step 0**.
 
 Work through the steps below in order.
@@ -24,7 +25,7 @@ Work through the steps below in order.
 
 Inspect `${input}` (trimmed, case-insensitive):
 
-- If it is exactly **`amend`** (optionally followed by an explicit reference — e.g. `amend 1602084` — which overrides the reference resolved in Step 3), this is **amend mode**. Set `AMEND_MODE = true`. In amend mode the workflow folds the current staged changes into the **previous** commit (`git commit --amend`) and rewrites its message to describe the combined result, following the exact same subject/body rules as a normal commit.
+- If it is exactly **`amend`** (optionally followed by an explicit reference — e.g. `amend 1602084` — which overrides the reference resolved in Step 3, or by `skip` — `amend skip` — to amend with no reference), this is **amend mode**. Set `AMEND_MODE = true`. In amend mode the workflow folds the current staged changes into the **previous** commit (`git commit --amend`) and rewrites its message to describe the combined result, following the exact same subject/body rules as a normal commit.
   - Before continuing, confirm there is a commit to amend: run `git rev-parse --verify HEAD` (and note whether a parent exists with `git rev-parse --verify HEAD~1`). If `HEAD` does not resolve (no commits yet), stop and tell the user: "No commit to amend — the branch has no commits yet. Stage your changes and run `/commit <reference>` to create the first commit." Then end the workflow.
 - Otherwise `AMEND_MODE = false` — the **normal** new-commit flow.
 
@@ -84,15 +85,18 @@ Options: **Continue with amend** — proceed to Step 3; **Exit** — end the wor
 ## Step 3 — Ticket / PR reference (from the argument)
 
 **Amend mode.** If `AMEND_MODE` is true, do **not** prompt. The reference is inherited from the commit being amended so the rewritten subject keeps the same trailing reference:
-- If the invocation supplied an explicit reference after `amend` (e.g. `amend 1602084`), classify that number by the length rules in step 2 below and use it (it overrides the inherited one).
+- If the invocation supplied `skip` after `amend` (`amend skip`), the amended commit has **no reference**: don't inherit one, don't read `commit.skillLastRef`, and don't prompt. Drop any trailing reference from the rewritten subject.
+- If the invocation supplied an explicit reference after `amend` (e.g. `amend 1602084`), classify that number by the length rules in step 3 below and use it (it overrides the inherited one).
 - Otherwise read the previous commit's message (`git log -1 --pretty=%B`) and extract the trailing reference from its subject — the last `AB#<digits>` (ADO ticket) or `#<digits>` (PR) token. Reuse it verbatim (and remember whether it is an ADO ticket or PR, from the `AB#` vs `#` form).
-- If the previous subject has no such token, fall back to `git config --local --get commit.skillLastRef`. If that is also unset, prompt once with: "The previous commit has no ticket/PR reference. Enter the ADO ticket number (7 digits) or PR number (fewer than 7 digits) to add, or reply `none` to amend without one:" — classify the reply per step 2, or omit the reference on `none` or `skip`.
+- If the previous subject has no such token, fall back to `git config --local --get commit.skillLastRef`. If that is also unset, prompt once with: "The previous commit has no ticket/PR reference. Enter the ADO ticket number (7 digits) or PR number (fewer than 7 digits) to add, or reply `none` to amend without one:" — classify the reply per step 3, or omit the reference on `none` or `skip`.
 
-Then continue to Step 4. The rest of this step (the `prev` and explicit-number rules below) applies to the **normal** flow only.
+Then continue to Step 4. The rest of this step (the `skip`, `prev`, and explicit-number rules below) applies to the **normal** flow only.
 
 The reference comes from **`${input}`** — do **not** prompt for it in the normal case. Resolve it as follows.
 
-**1. `prev` / `previous`.** If `${input}` (trimmed, case-insensitive) is `prev` or `previous`, reuse the reference from the last time `/commit` was run in this repo. Read it with:
+**1. `skip`.** If `${input}` (trimmed, case-insensitive) is `skip`, the user is committing without a reference. Don't prompt for one. The commit has **no reference**: the subject omits it (Step 4), the post-mortem lookup is skipped (Step 5), and nothing is recorded for `prev` (Step 6). Continue to Step 4.
+
+**2. `prev` / `previous`.** If `${input}` (trimmed, case-insensitive) is `prev` or `previous`, reuse the reference from the last time `/commit` was run in this repo. Read it with:
 
 ```
 git config --local --get commit.skillLastRef
@@ -101,19 +105,17 @@ git config --local --get commit.skillLastRef
 - If it returns a value, use it verbatim as the resolved reference (it is already stored in final form — e.g. `AB#1602084` or `#123`) and skip the length classification below.
 - If it is unset (no prior run recorded), stop and tell the user: "No previous reference found — this looks like the first `/commit` run in this repo. Re-run `/commit <ADO ticket # | PR #>` with an explicit number." Then end the workflow.
 
-**2. An explicit number.** Otherwise classify `${input}` by its **character length** (trim whitespace; strip a leading `#` or `AB#` if present, then measure the remaining digits):
+**3. An explicit number.** Otherwise classify `${input}` by its **character length** (trim whitespace; strip a leading `#` or `AB#` if present, then measure the remaining digits):
 - **Exactly 7 characters** → **ADO ticket**. The subject will end with `AB#<number>`.
 - **Fewer than 7 characters** → **PR number**. The subject will end with `#<number>`.
 
-**3. Missing or invalid — prompt for a reference.** If `${input}` is empty, or is 8+ characters, or is not numeric after stripping, a reference is needed before continuing. Prompt with a plain-text message:
+**4. Missing or invalid — prompt for a reference.** If `${input}` is empty, or is 8+ characters, or is not numeric after stripping, a reference is needed before continuing. Prompt with a plain-text message:
 
 > A ticket or PR number is required. Enter the ADO ticket number (7 digits), a PR number (fewer than 7 digits), `prev` to reuse the last one, or `skip` to commit without one:
 
-If the reply is `skip` (trimmed, case-insensitive), waive the requirement: the commit has **no reference**. The subject omits it (Step 4), the post-mortem lookup is skipped (Step 5), and nothing is recorded for `prev` (Step 6). Continue to Step 4.
+Apply steps 1–3 to the reply (so `skip` waives the requirement, exactly as it does as an argument). If the reply is still empty or invalid, **re-prompt** — repeat until the user supplies a valid ADO ticket or PR number, `prev` that resolves, or `skip`. Do **not** proceed to Step 4 without a resolved reference or an explicit `skip`. (If the user clearly wants to abandon the commit — e.g. replies `cancel`/`exit`/`quit` — end the workflow without committing.)
 
-Otherwise apply steps 1–2 to the reply. If the reply is still empty or invalid, **re-prompt** — repeat until the user supplies a valid ADO ticket or PR number, `prev` that resolves, or `skip`. Do **not** proceed to Step 4 without a resolved reference or an explicit `skip`. (If the user clearly wants to abandon the commit — e.g. replies `cancel`/`exit`/`quit` — end the workflow without committing.)
-
-Remember the resolved reference (its final form and whether it is an ADO ticket or PR) for Step 4, and record it in Step 6. If the user replied `skip`, remember that there is no reference.
+Remember the resolved reference (its final form and whether it is an ADO ticket or PR) for Step 4, and record it in Step 6. If `skip` was given (as the argument or the reply), remember that there is no reference.
 
 ---
 

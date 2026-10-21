@@ -424,14 +424,20 @@ create_ticket(){ # $1=PR url
   DESC="Review the coding-standards capture pull request for \`$NAME\` \`$LABEL\`: $1
 
 Capture proposes rules distilled from the post-mortems this release carries. Each candidate in the PR body states its outcome and reason; check the flagged categories, derived candidates and escape stubs before approving. Nothing reaches the corpus until the PR is merged."
+  # The project's process rejects New -> Committed while Acceptance Criteria is empty (TF401320).
+  AC="- Every proposed rule and source-append in the capture pull request is approved, edited or rejected
+- Flagged arguable categories, derived candidates and escape stubs are each resolved
+- The capture pull request is merged or closed"
   jq -n --arg title "$TICKET_TITLE" --arg area "$AREA" --arg iter "$ITER" \
-        --arg tag "$TAG" --arg desc "$DESC" --arg url "$1" '
+        --arg tag "$TAG" --arg desc "$DESC" --arg ac "$AC" --arg url "$1" '
     [ {op:"add",path:"/fields/System.Title",value:$title},
       {op:"add",path:"/fields/System.AreaPath",value:$area},
       {op:"add",path:"/fields/System.IterationPath",value:$iter},
       {op:"add",path:"/fields/System.Tags",value:$tag},
       {op:"add",path:"/fields/System.Description",value:$desc},
       {op:"add",path:"/multilineFieldsFormat/System.Description",value:"Markdown"},
+      {op:"add",path:"/fields/Microsoft.VSTS.Common.AcceptanceCriteria",value:$ac},
+      {op:"add",path:"/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria",value:"Markdown"},
       {op:"add",path:"/relations/-",value:{rel:"Hyperlink",url:$url,attributes:{comment:"coding-standards capture PR"}}} ]' \
     > /tmp/capture_ticket.json
 
@@ -443,9 +449,14 @@ Capture proposes rules distilled from the post-mortems this release carries. Eac
     printf 'CREATE FAILED http=%s %s\n' "$CODE" "$(printf '%s' "$RESP" | sed '$d' | tr '\n' ' ' | cut -c1-200)" > /tmp/capture_ticket.log; return
   fi
   ID=$(printf '%s' "$RESP" | sed '$d' | jq -r .id)
-  CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+  # Keep the response body: a bare status code hid which process rule refused the move.
+  RESP=$(ado_curl -sS -w $'\n%{http_code}' -X PATCH -H "Content-Type: application/json-patch+json" \
     --data-binary '[{"op":"add","path":"/fields/System.State","value":"Committed"}]' "$ADO/workitems/$ID?api-version=7.1")
-  [ "$CODE" = "200" ] || echo "AB#$ID created but left New — moving it to Committed returned HTTP $CODE" > /tmp/capture_ticket.log
+  CODE=$(printf '%s' "$RESP" | sed -n '$p')
+  if [ "$CODE" != "200" ]; then
+    WHY=$(printf '%s' "$RESP" | sed '$d' | jq -r '.message // empty' 2>/dev/null | cut -c1-200)
+    echo "AB#$ID created but left New — moving it to Committed returned HTTP $CODE${WHY:+: $WHY}" > /tmp/capture_ticket.log
+  fi
   echo "$ID"
 }
 

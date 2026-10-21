@@ -398,9 +398,12 @@ create_ticket(){ # $1=PR url
 
   # An earlier run may have created the ticket and then failed to write it into the PR body, so the
   # body still says pending. Reuse that ticket rather than file a second one for the same capture.
+  # Only an open ticket counts: a Closed or Resolved one finished an earlier review (or a test) and
+  # must not be revived. This process has no Removed state; it stays excluded for other processes.
   jq -cn --arg t "$TICKET_TITLE" --arg tag "$TAG" '{query: (
       "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
-      + " AND [System.WorkItemType] = '\''User Story'\'' AND [System.State] <> '\''Removed'\''"
+      + " AND [System.WorkItemType] = '\''User Story'\''"
+      + " AND [System.State] NOT IN ('\''Closed'\'', '\''Resolved'\'', '\''Removed'\'')"
       + " AND [System.Tags] CONTAINS '\''" + $tag + "'\''"
       + " AND [System.Title] = '\''" + ($t | gsub("'\''"; "'\'''\''")) + "'\'' ORDER BY [System.Id]")}' \
     > /tmp/capture_ticket_query.json

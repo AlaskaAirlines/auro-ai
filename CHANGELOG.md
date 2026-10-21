@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.24.0...v1.25.0) (2026-10-21)
+
+
+### Features
+
+* **doc-review:** check API example markup against component docs guidance ([4193d5b](https://github.com/AlaskaAirlines/auro-ai/commit/4193d5b78849746a74452848171d63e93f84353f))
+
 # [1.24.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.23.0...v1.24.0) (2026-10-21)
 
 

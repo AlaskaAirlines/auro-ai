@@ -110,7 +110,7 @@ const CAVEATS = {
   'close-dependabot':
     'Requires the GitHub CLI (`gh`) with write access to the Auro repos, and `jq`; the terminal will ask to approve each command.',
   'doc-review':
-    'Requires the GitHub CLI (`gh`) to fetch the guidelines; fix mode also runs the repo\'s `npm run build`. The terminal will ask to approve each command.',
+    'Requires the GitHub CLI (`gh`) to fetch the guidelines; write mode also runs the repo\'s `npm run build`. The terminal will ask to approve each command.',
 };
 
 /** Where a skill's bundled scripts live once installed alongside its prompt file. */

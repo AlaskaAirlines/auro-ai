@@ -21,7 +21,7 @@ for skills. Use the marketplace flow below instead.
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 | `close-dependabot` | `/auro:close-dependabot` | Finds every open Dependabot PR across the Auro repos (the `auro-team` GitHub team's repos), shows a numbered summary, asks which to leave open (by number/range, repo, or title phrase), and **closes only the approved PRs**. Never merges, comments, or deletes branches |
-| `doc-review` | `/auro:doc-review [fix] [base branch]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings by default; `fix` applies the in-scope ones, rebuilds, and checks the generated docs. Never commits |
+| `doc-review` | `/auro:doc-review [write] [all \| base branch] [component …]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings only by default, changing no files; `write` applies the in-scope ones, rebuilds, and checks the generated docs, leaving the edits uncommitted. `all` reviews every doc source in the repo instead of only what the branch touches; a component name (e.g. `dropdown` in auro-formkit) limits either scope to that component. Never commits |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
@@ -147,7 +147,7 @@ review itself is done by two reviewer agents, one Opus and one Sonnet, at that e
 findings are reported: inaccurate claims and guideline issues as 📄 Documentation findings,
 and problems outside the change, shared template content, and open questions in a
 separate 📝 Documentation guidelines section. To apply its fixes, run
-`/auro:doc-review fix`. These agents are internal to the skill, so don't invoke
+`/auro:doc-review write`. These agents are internal to the skill, so don't invoke
 them directly. A PR
 review never writes to GitHub on its own: it saves its findings to
 `/tmp/code-review-<PR>-<head-sha>.json`, and a separate `post` run publishes that file.
@@ -370,7 +370,11 @@ repos (the `gh` CLI must be authenticated).
 ```shell
 /auro:doc-review                 # review the current branch against the default branch
 /auro:doc-review dev             # review against another base branch
-/auro:doc-review fix             # apply the in-scope fixes, rebuild, and verify
+/auro:doc-review write           # apply the in-scope fixes, rebuild, and verify (uncommitted)
+/auro:doc-review all             # review every doc source in the repository, report only
+/auro:doc-review write all       # apply fixes across the whole repository (uncommitted)
+/auro:doc-review dropdown        # auro-formkit: only the branch's changes in components/dropdown
+/auro:doc-review write all datepicker   # auro-formkit: fix every doc source in components/datepicker
 ```
 
 Checks a component's documentation against the
@@ -382,15 +386,24 @@ Every run gives the same scope, rules, and checks, no matter who runs it:
   it comes from.
 - **Scope:** follows the guidelines' "What to update" section. Every JSDoc block, README
   partial section, and demo example the branch touches is reviewed in full. Problems in
-  untouched content and shared template content are reported, not fixed.
+  untouched content and shared template content are reported, not fixed. With `all`, every
+  JSDoc block, partial section, and API example in the repository is in scope instead
+  (shared template content is still only reported). In a monorepo it works one component
+  at a time.
+- **Components:** in a monorepo with a `components/` folder (auro-formkit), add one or more
+  component names (`dropdown`, `datepicker`, or `auro-dropdown`) to limit the review, or
+  `write`, to those components. With `all` it covers the whole component; without `all`,
+  only what the branch changed in it. Names are matched against the `components/` folders,
+  and an unknown name lists the valid ones.
 - **Accuracy:** checks each claim (defaults, values, conditions, visual behavior) against
   the component's source and styles, and reports claims the code contradicts.
 
 Findings are grouped as inaccurate claims, guideline issues, outside this change, shared
 template content (to fix in `auro-templates`), and open questions the guidelines don't
-settle. With `fix`, it edits only the in-scope documentation sources, never generated
-files, then runs the build (and `cem:check` when the repo has it) and confirms the
-changes in `custom-elements.json` and `docs/api.md`. It never commits.
+settle. Without `write`, it only reports and changes no files. With `write`, it edits
+only the in-scope documentation sources, never generated files, then runs the build (and
+`cem:check` when the repo has it) and confirms the changes in `custom-elements.json` and
+`docs/api.md`. It leaves the edits uncommitted for you to review.
 
 ---
 

@@ -14,7 +14,7 @@ repository, with versioning and change history tracked in git.
 | `auro` | `pr` — open a PR for the current branch, assigned to you; prompts for base branch + draft/ready, applies component labels (auro-formkit), and adds each post-mortem ticket's Executive Summary + Discussion link | `/auro:pr [base branch]` |
 | `auro` | `ado` — draft a new Azure DevOps work item or refine an existing one (infers component, classifies bug vs. story, drafts title/description/acceptance criteria, then writes to ADO) | `/auro:ado <new \| ADO # >` |
 | `auro` | `close-dependabot` — list open Dependabot PRs across all Auro repos, pick which to keep, close the rest | `/auro:close-dependabot` |
-| `auro` | `doc-review` — check the branch's component docs (JSDoc, README partials, demo copy) against the Auro content guidelines, verifying each claim against the code; report findings or apply them with `fix` | `/auro:doc-review [fix] [base branch]` |
+| `auro` | `doc-review` — check the branch's component docs (JSDoc, README partials, demo copy) against the Auro content guidelines, verifying each claim against the code; reports only by default; `write` applies the fixes, uncommitted; `all` covers the whole repo instead of the branch; a component name (formkit) limits it to that component | `/auro:doc-review [write] [all \| base branch] [component …]` |
 
 > Plugin skills are **namespaced** by the plugin name, so `/commit` becomes
 > `/auro:commit`. Namespacing prevents collisions with other plugins.

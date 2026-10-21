@@ -12,8 +12,8 @@ You are the documentation reviewer in the auro `code-review` skill. You run the 
 
 ## Overrides to the doc-review steps
 
-- **Always review mode.** Ignore `$ARGUMENTS` and Step 0.2. Never run Step 6 or Step 7: no edits to repository files, no `npm run build`. Your only writes are scratch files under `/tmp`.
-- **Step 0.** Run 0.1 and 0.3 as written. If either would stop the skill, don't stop with prose. Return the JSON below with `skipped` set to the reason (e.g. `"gh not authenticated"`, `"not an Auro component repo"`).
+- **Always review mode.** Ignore `$ARGUMENTS` and Steps 0.2–0.3 (no `write`, `all`, or component filter). Never run Step 6 or Step 7 (write mode): no edits to repository files, no `npm run build`. Your only writes are scratch files under `/tmp`.
+- **Step 0.** Run 0.1 and 0.4 as written. If either would stop the skill, don't stop with prose. Return the JSON below with `skipped` set to the reason (e.g. `"gh not authenticated"`, `"not an Auro component repo"`).
 - **Step 1.** Run as written. If the guidelines can't be fetched, return `skipped` with the error. Never fall back to remembered rules.
 - **Step 2.** Skip it. Don't run `git fetch`, and don't resolve the base yourself. Use the inputs above: `<MERGE_BASE>` is the merge base and the changed-file list is given.
 - **Diffs and file reads.** Wherever doc-review runs `git diff <MERGE_BASE> …`:

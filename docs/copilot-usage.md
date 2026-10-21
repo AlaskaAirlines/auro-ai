@@ -29,7 +29,7 @@ as **GitHub Copilot prompt files** (`.prompt.md`). They live in
 | `sprint-report` | `/sprint-report` | Generates a read-only sprint report from the Auro ADO board, including per-bug root-cause analysis |
 | `create-rcs` | `/create-rcs` | Builds a Release Candidate Summary for a sprint (or one repo, given an npm package) and, after you confirm, creates the Release work items in ADO. Ships with a bundled script — see below |
 | `close-dependabot` | `/close-dependabot` | Lists open Dependabot PRs across the Auro repos, asks which to leave open, then closes the rest |
-| `doc-review` | `/doc-review` | Checks the branch's component docs against the Auro content guidelines, verifying claims against the code; reports findings, or applies them with `fix` |
+| `doc-review` | `/doc-review` | Checks the branch's component docs against the Auro content guidelines, verifying claims against the code; reports findings only, or applies them (uncommitted) with `write`; `all` covers the whole repo instead of the branch; a component name (formkit) limits it to that component |
 
 Each generated prompt begins with an **Argument** line (Copilot prompts you for it as
 `${input:args}`) and, where relevant, a **Copilot compatibility** note.

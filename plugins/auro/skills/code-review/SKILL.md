@@ -202,7 +202,7 @@ Context documents: <repo paths of post-mortem/context docs read in the pre-revie
 
 ### Documentation guidelines review
 
-The **doc-review** skill checks the component documentation a change touches (JSDoc, README partials, demo copy) against the Auro content guidelines and verifies each claim against the code. Every code review runs it on the same diff, in review mode only. It never edits files here; `/auro:doc-review fix` remains the way to apply its fixes.
+The **doc-review** skill checks the component documentation a change touches (JSDoc, README partials, demo copy) against the Auro content guidelines and verifies each claim against the code. Every code review runs it on the same diff, in review mode only. It never edits files here; `/auro:doc-review write` remains the way to apply its fixes.
 
 **1. Gate.** Spawn it only when the changed-file list (plus untracked files in local mode) contains a possible doc source: a `.js`, `.mjs`, or `.ts` file under a `src/` folder, a `docs/partials/*.md` file, an `apiExamples/*.html` file, or a `README.md`. Otherwise skip it, with no agent call, and note "ℹ️ No component documentation changed — doc-review skipped" in the output.
 
@@ -341,7 +341,7 @@ Present the review in chat, in this order:
 1. The **Review Quality** assessment (below).
 2. Every finding with its severity tag, file path, and line number, plus the reviewer(s) that raised it. Use code blocks for suggested fixes.
 3. The commit, post-mortem, and dependency validation results.
-4. The **📝 Documentation guidelines** result: the guidelines URL and version, the in-scope items, a count of the 📄 findings it contributed to item 2, then its report-only findings under **Outside this change**, **Shared template content (fix in auro-templates)**, and **Open questions**, leaving out empty groups. Format each as "`file:line`: what's wrong. *Rule: <rule>.*" When it was skipped, show only the ℹ️ note. End with "Run `/auro:doc-review fix` to apply the in-scope documentation fixes." when it reported any `inaccurate` or `guideline` findings.
+4. The **📝 Documentation guidelines** result: the guidelines URL and version, the in-scope items, a count of the 📄 findings it contributed to item 2, then its report-only findings under **Outside this change**, **Shared template content (fix in auro-templates)**, and **Open questions**, leaving out empty groups. Format each as "`file:line`: what's wrong. *Rule: <rule>.*" When it was skipped, show only the ℹ️ note. End with "Run `/auro:doc-review write` to apply the in-scope documentation fixes." when it reported any `inaccurate` or `guideline` findings.
 5. The **🎫 Ticket completeness** assessment for each linked ticket: the one-line summary plus the Resolved and Not-Resolved/Partial lists.
 6. The **📦 PR scope** result, when the change references two or more tickets.
 7. The **🔭 Recommended follow-up work** list (or "No additional follow-up work recommended"), kept visibly separate from the blocking findings.

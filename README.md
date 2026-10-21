@@ -9,7 +9,7 @@ repository, with versioning and change history tracked in git.
 | Plugin | Skill | Invocation |
 | ------ | ----- | ---------- |
 | `auro` | `commit` — guided Conventional Commits workflow (protected-branch/sync guards, ADO/PR reference, `amend` mode, post-mortem linking, AI + human co-author accreditation) | `/auro:commit <ADO # \| PR # \| prev \| amend>` |
-| `auro` | `code-review` — adversarial multi-model PR / local-branch review | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` |
+| `auro` | `code-review` — adversarial multi-model PR / local-branch review, plus a doc-review pass on changed component docs | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` |
 | `auro` | `release-notes` — derive the next version from Conventional Commits and author (or refresh) the release-notes doc | `/auro:release-notes [base ref]` |
 | `auro` | `pr` — open a PR for the current branch, assigned to you; prompts for base branch + draft/ready, applies component labels (auro-formkit), and adds each post-mortem ticket's Executive Summary + Discussion link | `/auro:pr [base branch]` |
 | `auro` | `ado` — draft a new Azure DevOps work item or refine an existing one (infers component, classifies bug vs. story, drafts title/description/acceptance criteria, then writes to ADO) | `/auro:ado <new \| ADO # >` |
@@ -48,10 +48,10 @@ auro-ai/
 │   └── auro/                     # one plugin
 │       ├── .claude-plugin/
 │       │   └── plugin.json       # plugin manifest (name, version)
-│       ├── agents/               # code-review reviewer agents (one per model × effort level)
+│       ├── agents/               # code-review reviewer agents (one per model × effort level) + doc-reviewer
 │       └── skills/               # SKILL.md sources — the single source of truth
 │           ├── commit/SKILL.md
-│           ├── code-review/      # SKILL.md + reviewer.md (reviewer criteria) + posting.md (post mode)
+│           ├── code-review/      # SKILL.md + reviewer.md (reviewer criteria) + doc-reviewer.md (doc-review adapter) + posting.md (post mode)
 │           ├── release-notes/SKILL.md
 │           ├── pr/SKILL.md
 │           ├── ado/SKILL.md

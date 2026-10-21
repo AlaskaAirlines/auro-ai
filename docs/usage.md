@@ -15,7 +15,7 @@ for skills. Use the marketplace flow below instead.
 | Skill | Invocation | What it does |
 | ----- | ---------- | ------------ |
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference (reply `skip` at the prompt to waive it), staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
-| `code-review` | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` | Adversarial multi-model review of a GitHub PR (previews findings, then posts them with `post`) or the current branch (chat output) |
+| `code-review` | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` | Adversarial multi-model review of a GitHub PR (previews findings, then posts them with `post`) or the current branch (chat output). Also runs the `doc-review` checks on any component documentation the change touches |
 | `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
 | `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
@@ -139,7 +139,13 @@ you're warned first — rewriting it needs a force-push (the skill never pushes)
 The skill runs in an isolated forked context and never asks questions. Without an effort
 argument it picks a level from the diff (usually `medium`) and says which it used. The
 review itself is done by two reviewer agents, one Opus and one Sonnet, at that effort
-(`auro:code-reviewer-<model>-<effort>`). These are internal to the skill, so don't invoke
+(`auro:code-reviewer-<model>-<effort>`). When the change touches component documentation
+(JSDoc, README partials, demo copy), a third agent, `auro:doc-reviewer`, runs the
+[`/auro:doc-review`](#aurodoc-review) checks on the same diff, in review mode. All of its
+findings are reported: inaccurate claims and guideline issues as 📄 Documentation findings,
+and problems outside the change, shared template content, and open questions in a
+separate 📝 Documentation guidelines section. To apply its fixes, run
+`/auro:doc-review fix`. These agents are internal to the skill, so don't invoke
 them directly. A PR
 review never writes to GitHub on its own: it saves its findings to
 `/tmp/code-review-<PR>-<head-sha>.json`, and a separate `post` run publishes that file.

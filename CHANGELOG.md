@@ -1,3 +1,15 @@
+# [1.21.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.20.0...v1.21.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **commit:** keep describing the commit skill as auro-formkit's ([3504e2c](https://github.com/AlaskaAirlines/auro-ai/commit/3504e2ce5f6148b78392f78d4e5e4af054b01937))
+
+
+### Features
+
+* **skills:** let the model invoke every skill except code-review AB[#1662667](https://github.com/AlaskaAirlines/auro-ai/issues/1662667) ([656bb46](https://github.com/AlaskaAirlines/auro-ai/commit/656bb46885ed182c5e3adbbfa02d5f7ac09ae8ce))
+
 # [1.20.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.19.0...v1.20.0) (2026-10-08)
 
 

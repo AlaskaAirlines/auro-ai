@@ -99,7 +99,7 @@ function mapTools(allowedTools) {
 // in the Copilot port. Keyed by skill name; omitted skills get only the base note.
 const CAVEATS = {
   'code-review':
-    "Claude runs this as an adversarial multi-model review via sub-agents; Copilot runs a single-model review. Posting findings to the GitHub PR still works through `gh` in the terminal.",
+    "Claude runs this as an adversarial multi-model review via sub-agents; Copilot runs a single-model review, and skips the doc-review pass unless the doc-review skill is installed next to it (run `/doc-review` separately). Posting findings to the GitHub PR still works through `gh` in the terminal.",
   ado: 'Requires the GitHub CLI (`gh`) and an Azure DevOps PAT in your environment; the terminal will ask to approve each command.',
   'post-mortem':
     'Requires the GitHub CLI (`gh`); Azure DevOps context needs an ADO PAT in your environment. The terminal will ask to approve each command.',
@@ -109,6 +109,8 @@ const CAVEATS = {
     'Requires an Azure DevOps PAT in your environment and shell tools (`bash`, `curl`, `jq`); repo mode also needs the GitHub CLI (`gh`). The terminal will ask to approve each command.',
   'close-dependabot':
     'Requires the GitHub CLI (`gh`) with write access to the Auro repos, and `jq`; the terminal will ask to approve each command.',
+  'doc-review':
+    'Requires the GitHub CLI (`gh`) to fetch the guidelines; write mode also runs the repo\'s `npm run build`. The terminal will ask to approve each command.',
 };
 
 /** Where a skill's bundled scripts live once installed alongside its prompt file. */

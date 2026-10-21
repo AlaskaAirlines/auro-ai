@@ -34,6 +34,7 @@ same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents`
 | `sprint-report` | `/agent sprint-report` | bootstrap (needs `AURO_AI_HOME`) |
 | `create-rcs` | `/agent create-rcs` | inline, runs a bundled script (needs `AURO_AI_HOME`) |
 | `close-dependabot` | `/agent close-dependabot` | inline |
+| `doc-review` | `/agent doc-review` | inline |
 
 **Inline** agents embed the full workflow and are self-contained. **Bootstrap**
 agents (whose inlined workflow would exceed the CLI's 30,000-character agent-prompt

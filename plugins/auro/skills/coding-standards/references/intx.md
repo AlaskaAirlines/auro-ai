@@ -19,3 +19,10 @@ A typeahead or selection buffer is scoped to the user's current interaction, and
 
 - **Sources:** auro-formkit#1532
 - **Since:** 2026-09-16
+
+### CS-INTX-003 — Guard an interaction in the method that performs it, not at one entry point
+
+A method called from a component's own event handler can still be a public integration point — `auro-select` and `auro-combobox` call `auro-menu.makeSelection()` directly, bypassing the menu's handler. Likewise `pointer-events: none` blocks only genuine pointer hit-testing; synthetic events, other event sources and test automation walk around it. Put the guard inside the method that performs the action, so every caller and every input channel meets it.
+
+- **Sources:** AB#1566578
+- **Since:** 2026-10-22

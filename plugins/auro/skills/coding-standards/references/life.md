@@ -12,3 +12,10 @@ Lit's `firstUpdated` runs once, ever, so an observer, listener or timer attached
 
 - **Sources:** auro-formkit#1511
 - **Since:** 2026-09-16
+
+### CS-LIFE-002 — Never write a container's state into its children's own properties
+
+`auro-menu` expressed its `disabled` state by setting `disabled` on every option, so re-enabling the menu wiped each option's own authored `disabled`. Derive the effective state where it is used instead, walking the whole ancestor chain — a deep query such as `this.items` spans nested submenus — and apply that check on every path that reaches the behavior (keyboard, pointer and programmatic `value=`) and in every class that asks the question. State that assistive technology reads straight off the DOM, such as `aria-disabled`, must still be pushed, with the same ancestor check and without clobbering the child's own value, on both triggers: the container's property changing and its children changing.
+
+- **Sources:** AB#1566578
+- **Since:** 2026-10-22

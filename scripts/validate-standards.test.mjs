@@ -159,6 +159,16 @@ async function expectPass(name, files, skill) {
   pass(name);
 }
 
+/** A valid build rule carrying `Enforced by: <value>`, under `## <section>`. */
+const enforcedRule = (section, value) => [
+  '# CS-BUILD', '', `## ${section}`, '',
+  '### CS-BUILD-001 — Pin the bundler target in the shared config', '',
+  'Body text.', '',
+  '- **Sources:** AB#1636704',
+  '- **Since:** 2026-10-22',
+  `- **Enforced by:** ${value}`, '',
+].join('\n');
+
 const tests = {
   // --- defect 4: unterminated fence ------------------------------------------
   async 'unterminated fence is reported rather than swallowing the file'() {
@@ -719,6 +729,41 @@ const tests = {
     await expectFail('a rule inside a blockquote is rejected, not skipped', {
       api: ['# CS-API', '', '## Rules', '', '> ### CS-API-001 — quoted, cites no source', '', 'Body text.', ''].join('\n'),
     }, 'is not a "###" heading');
+  },
+
+  // --- Enforced by (Phase 5a) ----------------------------------------------------
+  // One valid case and one rejection per guard. Each rejection fixture is
+  // otherwise a valid rule, so only the guard under test can fail it.
+  async 'a well-formed "Enforced by" passes'() {
+    await expectPass('a well-formed "Enforced by" passes', {
+      build: enforcedRule('Rules', 'lint — auro-formkit `eslint.config.mjs` (AB#1670001)'),
+    });
+  },
+
+  async 'a free-text "Enforced by" is rejected'() {
+    await expectFail('a free-text "Enforced by" is rejected', {
+      build: enforcedRule('Rules', 'the linter (see AB#1670001)'),
+    }, 'malformed "Enforced by');
+  },
+
+  async 'an "Enforced by" with an unknown kind is rejected'() {
+    await expectFail('an "Enforced by" with an unknown kind is rejected', {
+      build: enforcedRule('Rules', 'review — auro-formkit `eslint.config.mjs` (AB#1670001)'),
+    }, 'kind "review"');
+  },
+
+  async 'an "Enforced by" citing a short AB# is rejected'() {
+    await expectFail('an "Enforced by" citing a short AB# is rejected', {
+      build: enforcedRule('Rules', 'test — auro-formkit `test/a11y.test.js` (AB#1511)'),
+    }, '"Enforced by" ticket AB#1511');
+  },
+
+  async 'a retired rule\'s "Enforced by" is still validated'() {
+    // A rule is retired once its check ships, so the retired section is where
+    // this field matters most — the retired exemption must not cover it.
+    await expectFail('a retired rule\'s "Enforced by" is still validated', {
+      build: enforcedRule('Retired', 'the linter'),
+    }, 'malformed "Enforced by');
   },
 
   // --- the phase-1 invariant ----------------------------------------------------

@@ -88,6 +88,22 @@ expect "New → open"                               "$(printf '4\topen\tNew')" "
 expect "Code complete → shipped, no rule → -"     "$(printf '5\tshipped\tClosed\tCode complete and unit tests pass\t\t-\t-')" "$(row 5)"
 expect "a null (omitted) item is skipped"         "5" "$(printf '%s\n' "$C" | grep -c .)"
 rm -f /tmp/capture_t5a_batch.json
+
+echo "require_work_evidence"
+# Stub the ADO history lookup: ticket 1 was worked on, ticket 5 jumped New → Closed, 9 is unreadable.
+worked_on(){ case "$1" in 1) return 0 ;; 9) return 2 ;; *) return 1 ;; esac; }
+printf '%s\n' "$C" > /tmp/capture_check_tickets.tsv
+MSG=$(require_work_evidence); RC=$?
+C2=$(cat /tmp/capture_check_tickets.tsv)
+row2(){ printf '%s\n' "$C2" | awk -F'\t' -v i="$1" '$1==i'; }
+expect "worked-on shipped ticket stays shipped"   "$(printf '1\tshipped\tClosed\tAcceptance tests pass\t2026-11-02\tCS-BUILD-004\tlint — auro-formkit `eslint.config.mjs`')" "$(row2 1)"
+expect "New → Closed as done becomes unclear"     "$(printf '5\tunclear\tClosed\tCode complete and unit tests pass\t\t-\t-')" "$(row2 5)"
+expect "the downgrade is explained"               "AB#5 was closed as done without ever being Committed, Active or Resolved" "$MSG"
+expect "non-shipped rows are untouched"           "$(printf '2\tno-check\tClosed\tOut of scope')" "$(row2 2)"
+expect "an empty closed-date field survives"      "7" "$(printf '%s\n' "$C2" | awk -F'\t' '$1==5{print NF}')"
+printf '9\tshipped\tClosed\tAcceptance tests pass\t2026-11-02\tCS-X-001\t-\n' > /tmp/capture_check_tickets.tsv
+require_work_evidence >/dev/null; RC=$?
+expect "unreadable history fails the step"        "1" "$RC"
 echo
 echo "offline: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

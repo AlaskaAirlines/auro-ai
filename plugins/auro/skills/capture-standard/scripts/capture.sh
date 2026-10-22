@@ -364,6 +364,36 @@ classify_checks(){
     | "\(.id)\t\($status)\t\($st)\t\($rs)\t\(($f["Microsoft.VSTS.Common.ClosedDate"] // "")[:10])\t\($rule)\t\($plan | gsub("[\t\r]"; " "))"'
 }
 
+# Whether a ticket was ever worked on: Committed, Active or Resolved in any revision. Exit 2 when the
+# history cannot be read.
+worked_on(){ # $1=ticket id
+  CODE=$(ado_curl -sS -o /tmp/capture_check_revs.json -w "%{http_code}" "$ADO/workitems/$1/revisions?api-version=7.0")
+  [ "$CODE" = "200" ] || return 2
+  jq -e '[.value[].fields["System.State"]] | any(. == "Committed" or . == "Active" or . == "Resolved")' \
+    /tmp/capture_check_revs.json >/dev/null
+}
+
+# A done close reason is not enough on its own: closing a New ticket straight from the board can only
+# record "Acceptance tests pass" — it is also the default — so a check the team declined looks shipped.
+# Keep "shipped" only for a ticket that was worked on first; otherwise it is "unclear", shown and never
+# recorded as Enforced by.
+require_work_evidence(){
+  : > /tmp/capture_check_tickets.next
+  while IFS=$'\t' read -r ID STATUS REST; do
+    [ -z "$ID" ] && continue
+    if [ "$STATUS" = "shipped" ]; then
+      worked_on "$ID"; RC=$?
+      [ "$RC" -eq 2 ] && return 1
+      if [ "$RC" -ne 0 ]; then
+        STATUS="unclear"
+        echo "AB#$ID was closed as done without ever being Committed, Active or Resolved — treated as unclear, not shipped."
+      fi
+    fi
+    printf '%s\t%s\t%s\n' "$ID" "$STATUS" "$REST" >> /tmp/capture_check_tickets.next
+  done < /tmp/capture_check_tickets.tsv
+  mv /tmp/capture_check_tickets.next /tmp/capture_check_tickets.tsv
+}
+
 # Every coding-standards-check ticket, in any state. A Closed ticket only counts as a shipped check when
 # its close reason says the work was done; a ticket closed because the team decided against a check (or
 # rejected the rule in review) must never become an `Enforced by` record.
@@ -387,6 +417,7 @@ cmd_checks(){
     [ "$(printf '%s' "$RESP" | sed -n '$p')" = "200" ] || die "ADO_AUTH_FAILURE — check-ticket fields could not be read; re-run \`capture.sh checks\`."
     printf '%s' "$RESP" | sed '$d' | classify_checks >> /tmp/capture_check_tickets.tsv
   done
+  require_work_evidence || die "ADO_AUTH_FAILURE — check-ticket history could not be read; re-run \`capture.sh checks\`."
   echo "--- check tickets (id / status / state / reason / closed / rule / planned check) ---"
   if [ -s /tmp/capture_check_tickets.tsv ]; then cat /tmp/capture_check_tickets.tsv; else echo "none"; fi
   SHIPPED=$(awk -F'\t' '$2=="shipped"' /tmp/capture_check_tickets.tsv | grep -c .)
@@ -537,7 +568,7 @@ Capture proposes rules distilled from the post-mortems this release carries. Eac
   # The project's process rejects New -> Committed while Acceptance Criteria is empty (TF401320).
   AC="- Every proposed rule and source-append in the capture pull request is approved, edited or rejected
 - Flagged arguable categories, derived candidates and escape stubs are each resolved
-- The check tickets of any rules rejected in review are closed with reason Rejected
+- The check tickets of any rules rejected in review are closed
 - The capture pull request is merged or closed"
   jq -n --arg title "$TICKET_TITLE" --arg area "$AREA" --arg iter "$ITER" \
         --arg tag "$TAG" --arg desc "$DESC" --arg ac "$AC" --arg url "$1" '
@@ -613,7 +644,7 @@ create_check_ticket(){ # $1=rule $2=kind $3=repo $4=path $5=reason $6=review tic
 
 Proposed in the coding-standards capture pull request $7 and reviewed under AB#$6. The Auro team decides in refinement whether to build it; it is never folded into an unrelated pull request.
 
-When the check ships, close this ticket with reason **Acceptance tests pass**, and correct the Planned check line above if it landed somewhere else. The next release's capture then records \`Enforced by\` on $1. If the team decides against a check, close it as **Out of scope**; if the rule is rejected in review, close it as **Rejected**."
+Move it to Active when work starts. When the check ships, close it with reason **Acceptance tests pass**, and correct the Planned check line above if it landed somewhere else; the next release's capture then records \`Enforced by\` on $1. If the team decides against a check, or the rule is rejected in review, just close it, from any state. Capture treats only a ticket that was worked on (Committed, Active or Resolved) as shipped."
   CAC="- A $2 check in $3 \`$4\` fails on code that breaks $1, and passes on the current code
 - The check runs on pull requests, not only locally
 - The ticket is closed with reason Acceptance tests pass once the check has shipped"

@@ -437,8 +437,9 @@ Nothing is published until you say yes. On yes, it opens one PR against `auro-ai
 `capture/<repo>-<branch>`. Running it again for the same branch resets that PR instead of
 opening a second one. It also files a **Committed** User Story in the current sprint so the
 review is scheduled. For each machine-checkable rule it files a `coding-standards-check`
-User Story, New and unscheduled, for the Auro team to triage. When the team closes one as
-*Acceptance tests pass*, the next capture records the check on the rule as `Enforced by`.
+User Story, New and unscheduled, for the Auro team to triage. When the team works one and
+closes it as *Acceptance tests pass*, the next capture records the check on the rule as
+`Enforced by`. Declining one is just closing it.
 It is normally run by the release-prep skill, and a failure never
 blocks the release. Needs the `gh` CLI signed in, and the
 [ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates, the

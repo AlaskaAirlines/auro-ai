@@ -427,16 +427,22 @@ releasing repo and the branch about to merge into `main` (or an explicit range, 
 or recovery). It finds every `AB#` and merged PR in the commits not yet on `main`, reads the
 matching `docs/post-mortem/` files, and locates their lessons under any of the headings the
 team uses. Each lesson becomes a **new** rule, a **source-append** to an existing rule, or
-**no change** if the corpus already cites it, and each outcome comes with a reason. Before
-anything is written, the proposal passes the same validator CI runs.
+**no change** if the corpus already cites it, and each outcome comes with a reason. It also
+judges whether a machine could check each rule (a lint rule, a build setting, a test, or a
+shared helper), and the PR reports the release's **repeat lessons**: lessons an existing
+rule already taught. Before anything is written, the proposal passes the same validator CI
+runs.
 
 Nothing is published until you say yes. On yes, it opens one PR against `auro-ai` from
 `capture/<repo>-<branch>`. Running it again for the same branch resets that PR instead of
 opening a second one. It also files a **Committed** User Story in the current sprint so the
-review is scheduled. It is normally run by the release-prep skill, and a failure never
+review is scheduled. For each machine-checkable rule it files a `coding-standards-check`
+User Story, New and unscheduled, for the Auro team to triage. When the team closes one as
+*Acceptance tests pass*, the next capture records the check on the rule as `Enforced by`.
+It is normally run by the release-prep skill, and a failure never
 blocks the release. Needs the `gh` CLI signed in, and the
-[ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates and the
-review ticket. `--corpus-ref` defaults to `main`.
+[ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates, the
+review ticket, and the check tickets. `--corpus-ref` defaults to `main`.
 
 ---
 

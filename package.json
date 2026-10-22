@@ -15,6 +15,7 @@
     "validate:standards": "node scripts/validate-standards.mjs",
     "test:standards": "node scripts/validate-standards.test.mjs",
     "test:capture": "node scripts/capture-sections.test.mjs",
+    "test:capture-checks": "bash scripts/capture-checks.test.sh",
     "score:trigger": "node scripts/score-trigger-transcript.mjs",
     "test:trigger": "node scripts/score-trigger-transcript.test.mjs"
   },

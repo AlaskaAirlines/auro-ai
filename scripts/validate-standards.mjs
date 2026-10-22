@@ -38,6 +38,7 @@ const CATEGORIES = [
 const MAX_RULES_PER_FILE = 25; // parent §3.3 overflow rule
 const MAX_SKILL_LINES = 200;   // parent §3.1, D3
 const MAX_TITLE_CHARS = 80;    // parent §3.2
+const MAX_DESCRIPTION_CHARS = 1024; // Copilot drops a skill whose description is longer (Phase 4)
 
 const ID_RE = /^CS-([A-Z0-9]+)-(\d{3})$/;
 const HEADING_RE = /^###\s+(\S+)\s+—\s+(.+?)\s*$/;
@@ -595,6 +596,25 @@ async function validateSkill() {
     fail('SKILL.md', 'missing YAML frontmatter');
   } else if (/^disable-model-invocation:/m.test(frontmatter[1])) {
     fail('SKILL.md', 'sets disable-model-invocation — coding-standards must stay model-invocable');
+  } else {
+    // Phase 4: Copilot parses frontmatter as strict YAML and drops a skill it
+    // cannot parse without a word, so the skill never reaches Copilot users.
+    // Claude Code tolerates both shapes below, so only this check catches them.
+    // An unquoted value may not contain ": " (YAML reads a nested mapping) and
+    // must stay within Copilot's 1024-character description limit.
+    const description = frontmatter[1].match(/^description:[ \t]*(.*)$/m);
+    if (!description) {
+      fail('SKILL.md', 'frontmatter has no description — the description is the whole trigger surface');
+    } else {
+      const value = description[1].trim();
+      const quoted = /^(["']).*\1$/.test(value);
+      if (!quoted && value.includes(': ')) {
+        fail('SKILL.md', 'description contains ": " unquoted — strict YAML parsers (Copilot) reject the frontmatter and drop the skill; reword or quote it');
+      }
+      if (value.length > MAX_DESCRIPTION_CHARS) {
+        fail('SKILL.md', `description is ${value.length} chars (max ${MAX_DESCRIPTION_CHARS}) — Copilot drops longer descriptions`);
+      }
+    }
   }
 
   // Match any plausible filename rather than just the lowercase-alphanumeric

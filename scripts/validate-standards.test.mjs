@@ -643,6 +643,27 @@ const tests = {
       ['---', 'name: coding-standards', 'description: x', '---', '', ...ROUTES, '`references/nope.md`'].join('\n'));
   },
 
+  // --- Copilot-safe description (Phase 4) ----------------------------------------
+  // Copilot drops a skill whose frontmatter is not strict YAML, or whose
+  // description is over 1024 characters, without an error. Claude Code accepts
+  // both, so these are the only checks that see it.
+  async 'an unquoted ": " in the description is reported'() {
+    await expectFail('an unquoted ": " in the description is reported', {},
+      'description contains ": " unquoted',
+      ['---', 'name: coding-standards', 'description: Auro standards. Read-only: it advises.', '---', '', ...ROUTES].join('\n'));
+  },
+
+  async 'a quoted ": " in the description passes'() {
+    await expectPass('a quoted ": " in the description passes', {},
+      ['---', 'name: coding-standards', 'description: "Auro standards. Read-only: it advises."', '---', '', ...ROUTES].join('\n'));
+  },
+
+  async 'a description over 1024 characters is reported'() {
+    await expectFail('a description over 1024 characters is reported', {},
+      'description is 1025 chars (max 1024)',
+      ['---', 'name: coding-standards', `description: ${'a'.repeat(1025)}`, '---', '', ...ROUTES].join('\n'));
+  },
+
   async 'a SKILL.md over the line cap is reported'() {
     await expectFail('a SKILL.md over the line cap is reported', {},
       'max 200',

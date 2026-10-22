@@ -16,6 +16,8 @@ tools: ['runCommands', 'editFiles', 'search', 'codebase']
 
 You are executing the **code-review** skill. The invocation itself is the request: **begin the review immediately and autonomously.** Do not treat the text below as reference documentation — it is your procedure to follow now.
 
+**In Copilot,** the skill-directory variable at the start of the paths in this file is left unexpanded. If a path still begins with a `$`-variable, replace that variable with this skill's base directory, given at the top of the skill's context.
+
 **Never prompt the user — this skill is fully non-interactive.** It runs as a forked subagent (`context: fork`), which cannot ask questions (`AskUserQuestion` is unavailable to subagents) and ends as soon as it produces output. Every choice the skill needs is either an **argument** or has a **default**:
 - **Review effort** — an optional `low`/`medium`/`high`/`xhigh`/`max` argument; without one, the skill uses its recommended level and states which it picked (see "Choose the review effort level").
 - **Base branch (local mode)** — an optional branch argument after `local`; without one, the repo's default branch (see "Determine the base branch (local mode)").

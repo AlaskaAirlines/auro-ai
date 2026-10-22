@@ -32,6 +32,8 @@ A ticket failure after the PR opened is still a published result; the line says 
 
 **How to run each step.** All shell work lives in `${CLAUDE_SKILL_DIR}/scripts/capture.sh`; each step is one call to it. Run every command **exactly as written** — one call per Bash invocation, the path unquoted, nothing added: no `cd`, no `VAR=value` prefix, no `&&`/`;`, no pipes or redirects. That shape is all the permission rule approves. Put arguments in **single quotes** (branch names can contain `#`). State passes between steps through `/tmp/capture_*` files, so there is nothing to carry between calls. Never call `gh` or `curl` directly — if a step needs something the script does not do, stop and say so.
 
+**In Copilot,** the skill-directory variable at the start of the paths in this file is left unexpanded. If a path still begins with a `$`-variable, replace that variable with this skill's base directory, given at the top of the skill's context.
+
 **Access.** GitHub goes through the runner's own `gh` login, so the PR is theirs and CI runs on it. Azure DevOps uses `$ADO_PAT`. Without a token, Steps 1–6 still run, but escape detection (Step 5b) is skipped, shipped checks cannot be read, and no review or check ticket can be created — say so in the preview. Never print the token.
 
 ---

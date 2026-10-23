@@ -10,9 +10,11 @@ allowed-tools: Read, Glob, Grep
 
 This skill is selected by a fuzzy match against its description, so it will sometimes load on work it has no business in. That is expected and cheap — one read of this file — provided you exit here rather than further down.
 
-**Not code work, exit now:** writing a sprint report; drafting, grooming, or querying an ADO ticket; answering a question about repository or release history; renaming or moving files; authoring a post-mortem or TRD; summarizing a discussion or a pull-request thread.
+**Not code work, exit now:** writing a sprint report; drafting, grooming, or querying an ADO ticket when no code will change; answering a question about repository or release history; renaming or moving files; authoring a post-mortem or TRD; summarizing a discussion or a pull-request thread.
 
-**Code work, continue:** authoring or changing component source, styles, or tokens; writing or changing tests; changing build, bundler, dependency, or release configuration; authoring skill, agent, or hook instructions; reviewing a diff containing any of those.
+**Code work, continue:** authoring or changing component source, styles, or tokens; writing or changing tests; changing build, bundler, dependency, or release configuration; authoring skill, agent, or hook instructions; reviewing a diff containing any of those; implementing a ticket, even when the request is only its number.
+
+**A bare ticket is code work of unknown scope, not an exit.** When the task is only a ticket reference — `AB#1234567`, a work-item URL, or "implement <ticket>" — there is nothing yet to route on, so do not route and do not exit. Read the ticket first: its title, description, acceptance criteria, and any linked pull request or repro. If it turns out to need no code change (anything on the not-code list above), exit as for any other non-code task. Otherwise come back to the routing table below, evaluate it against what the ticket asks for, and `Read` every matched file **before your first edit**. If the ticket cannot be read, ask the engineer what it asks for, or what code it changes, rather than stopping or guessing a scope; then route on that answer — the named component, the symptom, the code you are about to change — still before the first edit. Never edit with no reference file open because the scope arrived late.
 
 ---
 

@@ -195,9 +195,12 @@ cmd_postmortems(){
   rm -rf /tmp/capture_pm; mkdir -p /tmp/capture_pm
   : > /tmp/capture_pm_index.tsv
 
-  # <repo>/docs/post-mortem/ at the head ref is canonical (OQ-3). A repo with none answers 404.
+  # <repo>/docs/post-mortem/ at the head ref is canonical (OQ-3). A repo with none answers 404. Any other
+  # error (5xx, timeout, rate limit, auth) fails: read as "no post-mortems" it would skip the release's lessons.
   if ! gh api "repos/$REPO/contents/docs/post-mortem?ref=$HEAD_SHA" --jq '.[] | select(.type=="file") | .name' \
-       > /tmp/capture_pm_names.txt 2>/dev/null; then
+       > /tmp/capture_pm_names.txt 2> /tmp/capture_pm_names.err; then
+    grep -q 'HTTP 404' /tmp/capture_pm_names.err \
+      || die "GITHUB_FAILED — could not list docs/post-mortem/ on $HEAD; re-run \`capture.sh postmortems\`."
     : > /tmp/capture_pm_names.txt
     echo "no docs/post-mortem/ directory on $HEAD"
   fi
@@ -208,7 +211,8 @@ cmd_postmortems(){
     if [ ${#KEY} -eq 7 ]; then LIST=/tmp/capture_ado_ids.txt; KIND=ticket; else LIST=/tmp/capture_pr_ids.txt; KIND=pr; fi
     grep -qxF "$KEY" "$LIST" || continue
     gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/docs/post-mortem/$NAME?ref=$HEAD_SHA" \
-      > "/tmp/capture_pm/$NAME" || { echo "FETCH_FAILED — $NAME"; rm -f "/tmp/capture_pm/$NAME"; continue; }
+      > "/tmp/capture_pm/$NAME" \
+      || { rm -f "/tmp/capture_pm/$NAME"; die "GITHUB_FAILED — could not fetch docs/post-mortem/$NAME on $HEAD; re-run \`capture.sh postmortems\`."; }
     printf '%s\t%s\n' "$NAME" "$KIND" >> /tmp/capture_pm_index.tsv
   done < /tmp/capture_pm_names.txt
 

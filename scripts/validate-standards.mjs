@@ -119,6 +119,12 @@ const MAX_STRUCTURE_INDENT = 3;
 // open, which surfaces as the unterminated-fence error rather than silently.
 const FENCE_RE = new RegExp(`^ {0,${MAX_STRUCTURE_INDENT}}(\`{3,}|~{3,})`);
 
+// A heading that names something shaped like a rule ID but is not a plain
+// `###` — see parseRules. Group 1 is a blockquote prefix, group 2 the hashes.
+const RULE_ID_LIKE_RE = /^(?:>\s*)*CS-[A-Za-z0-9]+-\d+\b/;
+const STRAY_RULE_HEADING_RE = /^((?:>\s*)+)?(#{1,6})\s+CS-[A-Za-z0-9]+-\d+\b/;
+const SETEXT_UNDERLINE_RE = /^(?:>\s*)*(?:=+|-+)\s*$/;
+
 /**
  * Advance fence state by one line. `open` is the currently open fence
  * descriptor (`{ char, len }`) or null. Returns the new state plus whether this
@@ -232,6 +238,7 @@ function parseRules(source, file) {
   let current = null;
   let fence = null;
   let inComment = false;
+  let previous = { index: -1, line: '' };
   const flush = () => {
     if (current) rules.push(current);
     current = null;
@@ -288,6 +295,21 @@ function parseRules(source, file) {
       return;
     }
     const line = visible.trimStart();
+    const above = previous;
+    previous = { index, line };
+
+    // Only a `###` heading opens a rule block, so a rule written as `####`,
+    // `##`, a setext heading or a `> ###` blockquote was never parsed at all —
+    // it rendered and was served to the model with no source, ID or category
+    // check, and the run exited 0. Anything that looks like a rule ID in a
+    // heading of any other shape is an error rather than silently skipped.
+    const strayAtx = line.match(STRAY_RULE_HEADING_RE);
+    const setext = SETEXT_UNDERLINE_RE.test(line) && above.index === index - 1 && RULE_ID_LIKE_RE.test(above.line);
+    if ((strayAtx && (strayAtx[1] || strayAtx[2].length !== 3)) || setext) {
+      const shown = setext ? above.line : line;
+      fail(`${file}:${(setext ? above.index : index) + 1}`, `"${shown}" looks like a rule but is not a "###" heading, so it is never validated — write it as "### CS-<CAT>-<NNN> — <title>"`);
+      return;
+    }
 
     const h3 = line.match(/^###\s+(.*)$/);
     if (h3) {
@@ -357,7 +379,10 @@ function uniqueSources(value) {
   }
   for (const m of text.matchAll(REPO_SOURCE_RE)) {
     if (m[1].toUpperCase() === 'AB') continue; // already captured as an ADO work item
-    found.set(`${m[1]}#${m[2]}`, { kind: 'repo', repo: m[1], id: m[2], cite: `${m[1]}#${m[2]}` });
+    // Keyed case-insensitively, as AB# already is: GitHub repo names are, so
+    // `Auro-Formkit#1` is the same citation as `auro-formkit#1` and must not
+    // inflate the distinct count that `Learned` is checked against.
+    found.set(`${m[1].toLowerCase()}#${m[2]}`, { kind: 'repo', repo: m[1], id: m[2], cite: `${m[1]}#${m[2]}` });
   }
   return [...found.values()];
 }
@@ -563,7 +588,16 @@ async function validateSkill() {
       fail('SKILL.md', `routing table points at references/${name}.md, which is not a known category`);
     }
   }
-  return referenced;
+
+  // Reachability is decided by the routing table alone — the File cell of each
+  // row. Counting every mention made prose a route: always-on directive 4
+  // names `references/tool.md`, so deleting the tool row went unreported.
+  const routed = new Set();
+  for (const row of scannable.split('\n')) {
+    const cell = row.trim().startsWith('|') ? row.trim().split('|')[1] : '';
+    for (const m of cell.matchAll(/references\/([A-Za-z0-9_-]+)\.md/g)) routed.add(m[1]);
+  }
+  return routed;
 }
 
 // --- main --------------------------------------------------------------------

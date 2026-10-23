@@ -13,6 +13,7 @@
 // in error is visible in the PR body and costs a reviewer one glance.
 //
 // Dependency-free and read-only, like validate-standards.mjs.
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -180,7 +181,19 @@ async function main(argv) {
   else console.log(results.map((r) => render(r.file, r)).join('\n\n'));
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Run as a script, not when imported by the test suite. Compare real paths: Node resolves symlinks in
+// import.meta.url but not in argv[1], so reached through a symlink (macOS /tmp → /private/tmp, a
+// symlinked plugin or home directory) a plain comparison is false and the script exits 0 printing
+// nothing — which capture.sh would read as "no lessons in any post-mortem".
+const isMain = () => {
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (process.argv[1] && isMain()) {
   main(process.argv.slice(2)).catch((err) => {
     console.error(err);
     process.exitCode = 1;

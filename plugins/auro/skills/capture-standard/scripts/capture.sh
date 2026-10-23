@@ -195,9 +195,12 @@ cmd_postmortems(){
   rm -rf /tmp/capture_pm; mkdir -p /tmp/capture_pm
   : > /tmp/capture_pm_index.tsv
 
-  # <repo>/docs/post-mortem/ at the head ref is canonical (OQ-3). A repo with none answers 404.
+  # <repo>/docs/post-mortem/ at the head ref is canonical (OQ-3). A repo with none answers 404. Any other
+  # error (5xx, timeout, rate limit, auth) fails: read as "no post-mortems" it would skip the release's lessons.
   if ! gh api "repos/$REPO/contents/docs/post-mortem?ref=$HEAD_SHA" --jq '.[] | select(.type=="file") | .name' \
-       > /tmp/capture_pm_names.txt 2>/dev/null; then
+       > /tmp/capture_pm_names.txt 2> /tmp/capture_pm_names.err; then
+    grep -q 'HTTP 404' /tmp/capture_pm_names.err \
+      || die "GITHUB_FAILED — could not list docs/post-mortem/ on $HEAD; re-run \`capture.sh postmortems\`."
     : > /tmp/capture_pm_names.txt
     echo "no docs/post-mortem/ directory on $HEAD"
   fi
@@ -208,7 +211,8 @@ cmd_postmortems(){
     if [ ${#KEY} -eq 7 ]; then LIST=/tmp/capture_ado_ids.txt; KIND=ticket; else LIST=/tmp/capture_pr_ids.txt; KIND=pr; fi
     grep -qxF "$KEY" "$LIST" || continue
     gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/docs/post-mortem/$NAME?ref=$HEAD_SHA" \
-      > "/tmp/capture_pm/$NAME" || { echo "FETCH_FAILED — $NAME"; rm -f "/tmp/capture_pm/$NAME"; continue; }
+      > "/tmp/capture_pm/$NAME" \
+      || { rm -f "/tmp/capture_pm/$NAME"; die "GITHUB_FAILED — could not fetch docs/post-mortem/$NAME on $HEAD; re-run \`capture.sh postmortems\`."; }
     printf '%s\t%s\n' "$NAME" "$KIND" >> /tmp/capture_pm_index.tsv
   done < /tmp/capture_pm_names.txt
 
@@ -230,6 +234,10 @@ cmd_sections(){
   [ -e "$1" ] || die "NO_POSTMORTEMS — nothing extractable from this range."
   node "$DIR/locate-sections.mjs" --json "$@" > /tmp/capture_sections.json || die "LOCATE_FAILED"
   node "$DIR/locate-sections.mjs" "$@" > /tmp/capture_sections.md || die "LOCATE_FAILED"
+  # The locator prints a block for every file, even one with no lessons section, so empty output is a
+  # failure, never "nothing found" — it once exited 0 silently when reached through a symlinked path.
+  [ -s /tmp/capture_sections.md ] && [ -s /tmp/capture_sections.json ] \
+    || die "LOCATE_FAILED — locate-sections.mjs printed nothing for $# post-mortem(s)."
   cat /tmp/capture_sections.md
 }
 
@@ -394,9 +402,12 @@ create_ticket(){ # $1=PR url
 
   # An earlier run may have created the ticket and then failed to write it into the PR body, so the
   # body still says pending. Reuse that ticket rather than file a second one for the same capture.
+  # Only an open ticket counts: a Closed or Resolved one finished an earlier review (or a test) and
+  # must not be revived. This process has no Removed state; it stays excluded for other processes.
   jq -cn --arg t "$TICKET_TITLE" --arg tag "$TAG" '{query: (
       "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
-      + " AND [System.WorkItemType] = '\''User Story'\'' AND [System.State] <> '\''Removed'\''"
+      + " AND [System.WorkItemType] = '\''User Story'\''"
+      + " AND [System.State] NOT IN ('\''Closed'\'', '\''Resolved'\'', '\''Removed'\'')"
       + " AND [System.Tags] CONTAINS '\''" + $tag + "'\''"
       + " AND [System.Title] = '\''" + ($t | gsub("'\''"; "'\'''\''")) + "'\'' ORDER BY [System.Id]")}' \
     > /tmp/capture_ticket_query.json
@@ -405,7 +416,28 @@ create_ticket(){ # $1=PR url
   if [ "$CODE" = "200" ]; then
     FOUND=$(jq -r '.workItems[0].id // empty' /tmp/capture_ticket_found.json)
     if [ -n "$FOUND" ]; then
-      echo "reused AB#$FOUND from an earlier run" > /tmp/capture_ticket.log
+      REUSED="reused AB#$FOUND from an earlier run"
+      # The earlier run's PR may have been closed and this one opened in its place: link this PR too,
+      # and finish the Committed move if that run left the story New. Separate calls, so a refused move
+      # cannot block the link; neither failure loses the ticket, it is only noted on the result line.
+      CODE=$(ado_curl -sS -o /tmp/capture_ticket_reused.json -w "%{http_code}" "$ADO/workitems/$FOUND?\$expand=relations&api-version=7.1")
+      if [ "$CODE" = "200" ]; then
+        if ! jq -e --arg url "$1" 'any(.relations[]?; .rel == "Hyperlink" and .url == $url)' /tmp/capture_ticket_reused.json >/dev/null; then
+          jq -n --arg url "$1" '[{op:"add",path:"/relations/-",value:{rel:"Hyperlink",url:$url,attributes:{comment:"coding-standards capture PR"}}}]' \
+            > /tmp/capture_ticket_link.json
+          CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+            --data-binary @/tmp/capture_ticket_link.json "$ADO/workitems/$FOUND?api-version=7.1")
+          [ "$CODE" = "200" ] || REUSED="$REUSED; linking it to this PR returned HTTP $CODE"
+        fi
+        if [ "$(jq -r '.fields["System.State"] // empty' /tmp/capture_ticket_reused.json)" = "New" ]; then
+          CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+            --data-binary '[{"op":"add","path":"/fields/System.State","value":"Committed"}]' "$ADO/workitems/$FOUND?api-version=7.1")
+          [ "$CODE" = "200" ] || REUSED="$REUSED; left New — moving it to Committed returned HTTP $CODE"
+        fi
+      else
+        REUSED="$REUSED; could not read it to link this PR (HTTP $CODE)"
+      fi
+      echo "$REUSED" > /tmp/capture_ticket.log
       echo "$FOUND"; return
     fi
   fi
@@ -420,14 +452,20 @@ create_ticket(){ # $1=PR url
   DESC="Review the coding-standards capture pull request for \`$NAME\` \`$LABEL\`: $1
 
 Capture proposes rules distilled from the post-mortems this release carries. Each candidate in the PR body states its outcome and reason; check the flagged categories, derived candidates and escape stubs before approving. Nothing reaches the corpus until the PR is merged."
+  # The project's process rejects New -> Committed while Acceptance Criteria is empty (TF401320).
+  AC="- Every proposed rule and source-append in the capture pull request is approved, edited or rejected
+- Flagged arguable categories, derived candidates and escape stubs are each resolved
+- The capture pull request is merged or closed"
   jq -n --arg title "$TICKET_TITLE" --arg area "$AREA" --arg iter "$ITER" \
-        --arg tag "$TAG" --arg desc "$DESC" --arg url "$1" '
+        --arg tag "$TAG" --arg desc "$DESC" --arg ac "$AC" --arg url "$1" '
     [ {op:"add",path:"/fields/System.Title",value:$title},
       {op:"add",path:"/fields/System.AreaPath",value:$area},
       {op:"add",path:"/fields/System.IterationPath",value:$iter},
       {op:"add",path:"/fields/System.Tags",value:$tag},
       {op:"add",path:"/fields/System.Description",value:$desc},
       {op:"add",path:"/multilineFieldsFormat/System.Description",value:"Markdown"},
+      {op:"add",path:"/fields/Microsoft.VSTS.Common.AcceptanceCriteria",value:$ac},
+      {op:"add",path:"/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria",value:"Markdown"},
       {op:"add",path:"/relations/-",value:{rel:"Hyperlink",url:$url,attributes:{comment:"coding-standards capture PR"}}} ]' \
     > /tmp/capture_ticket.json
 
@@ -439,9 +477,14 @@ Capture proposes rules distilled from the post-mortems this release carries. Eac
     printf 'CREATE FAILED http=%s %s\n' "$CODE" "$(printf '%s' "$RESP" | sed '$d' | tr '\n' ' ' | cut -c1-200)" > /tmp/capture_ticket.log; return
   fi
   ID=$(printf '%s' "$RESP" | sed '$d' | jq -r .id)
-  CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+  # Keep the response body: a bare status code hid which process rule refused the move.
+  RESP=$(ado_curl -sS -w $'\n%{http_code}' -X PATCH -H "Content-Type: application/json-patch+json" \
     --data-binary '[{"op":"add","path":"/fields/System.State","value":"Committed"}]' "$ADO/workitems/$ID?api-version=7.1")
-  [ "$CODE" = "200" ] || echo "AB#$ID created but left New — moving it to Committed returned HTTP $CODE" > /tmp/capture_ticket.log
+  CODE=$(printf '%s' "$RESP" | sed -n '$p')
+  if [ "$CODE" != "200" ]; then
+    WHY=$(printf '%s' "$RESP" | sed '$d' | jq -r '.message // empty' 2>/dev/null | cut -c1-200)
+    echo "AB#$ID created but left New — moving it to Committed returned HTTP $CODE${WHY:+: $WHY}" > /tmp/capture_ticket.log
+  fi
   echo "$ID"
 }
 

@@ -44,8 +44,9 @@ Verified in Copilot CLI 1.0.103. See
   `az devops configure --defaults organization=https://dev.azure.com/itsals project=E_Retain_Content`.
   Without it, Copilot can't read the ticket. It then asks you for the scope rather
   than editing without the rules.
-- The plugin's slash-command workflows (`commit`, `pr`, …) are not offered to the
-  model automatically. Keep using the agents below for those.
+- **Copilot skips some workflow skills.** It drops any skill whose description is over
+  1024 characters, which today includes `ado`, `post-mortem`, `pr`, `doc-review`,
+  `create-rcs` and `sprint-report`. Keep using the agents below for those.
 - **Not covered:** Copilot **code review on GitHub** reads only files in the
   repository, so it does not see these standards.
 

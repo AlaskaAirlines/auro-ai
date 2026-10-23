@@ -183,5 +183,5 @@ Phase 4 ([AB#1668633](https://itsals.visualstudio.com/E_Retain_Content/_workitem
 | `${CLAUDE_SKILL_DIR}` expands | ❌ left literal. Fixed: the skills that use it fall back to the skill's base directory, which Copilot provides | _pending_ |
 
 Two Copilot behaviours to know about:
-- **Copilot drops a skill whose frontmatter is not strict YAML, without any error.** An unquoted `: ` in the description, or a description over 1024 characters, hides the skill. `coding-standards` was invisible until its description was fixed, and `validate-standards` now guards both cases. `create-rcs` and `sprint-report` still have this problem, so use their generated prompt files or agents in Copilot.
-- **Skills marked `disable-model-invocation` are not offered to the model.** That is expected: they are the slash-command workflows, and they ship to Copilot as the prompt files above.
+- **Copilot drops a skill whose frontmatter is not strict YAML, or whose description is over 1024 characters, without any error.** `coding-standards` was invisible until its description was fixed, and `validate-standards` now guards it. Several workflow skills have descriptions over 1024 characters: on `main`, `ado`, `post-mortem`, `pr`, `doc-review`, `create-rcs` and `sprint-report`. So Copilot does not load those from the plugin. Use their generated prompt files or agents in Copilot.
+- **Skills marked `disable-model-invocation` are not offered to the model** (on `main`, only `code-review`). That is expected for a workflow you start yourself.

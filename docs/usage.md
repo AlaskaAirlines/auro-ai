@@ -30,7 +30,7 @@ for skills. Use the marketplace flow below instead.
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 | `close-dependabot` | `/auro:close-dependabot` | Finds every open Dependabot PR across the Auro repos (the `auro-team` GitHub team's repos), shows a numbered summary, asks which to leave open (by number/range, repo, or title phrase), and **closes only the approved PRs**. Never merges, comments, or deletes branches |
 | `doc-review` | `/auro:doc-review [write] [all \| base branch] [component …]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings only by default, changing no files; `write` applies the in-scope ones, rebuilds, and checks the generated docs, leaving the edits uncommitted. `all` reviews every doc source in the repo instead of only what the branch touches; a component name (e.g. `dropdown` in auro-formkit) limits either scope to that component. Never commits |
-| `capture-standard` | `/auro:capture-standard <repo> <branch \| from..to> [--corpus-ref <branch>]` | Run while preparing a release (normally by release prep, as an `rc` branch merges into `main`): reads the post-mortems the release carries, extracts their lessons, dedupes them against each other and the `coding-standards` corpus, and previews the proposed rules. On **one** confirmation it opens — or on a re-run, replaces — a single PR against `auro-ai` and a Committed review ticket. Never blocks the release; ends with one `CAPTURE_RESULT:` line |
+| `capture-standard` | `/auro:capture-standard <repo> <branch \| from..to> [--corpus-ref <branch>]` | Run while preparing a release (normally by release prep, as an `rc` branch merges into `main`): reads the post-mortems the release carries, extracts their lessons, dedupes them against each other and the `coding-standards` corpus, and previews the proposed rules. On **one** confirmation it opens — or on a re-run, replaces — a single PR against `auro-ai`, a Committed review ticket, and a New check ticket for each machine-checkable rule (reusing an open one). Never blocks the release; ends with one `CAPTURE_RESULT:` line |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
@@ -427,16 +427,24 @@ releasing repo and the branch about to merge into `main` (or an explicit range, 
 or recovery). It finds every `AB#` and merged PR in the commits not yet on `main`, reads the
 matching `docs/post-mortem/` files, and locates their lessons under any of the headings the
 team uses. Each lesson becomes a **new** rule, a **source-append** to an existing rule, or
-**no change** if the corpus already cites it, and each outcome comes with a reason. Before
-anything is written, the proposal passes the same validator CI runs.
+**no change** if the corpus already cites it, and each outcome comes with a reason. It also
+judges whether a machine could check each rule (a lint rule, a build setting, a test, or a
+shared helper), and the PR reports the release's **repeat lessons**: lessons an existing
+rule already taught. Before anything is written, the proposal passes the same validator CI
+runs.
 
 Nothing is published until you say yes. On yes, it opens one PR against `auro-ai` from
 `capture/<repo>-<branch>`. Running it again for the same branch resets that PR instead of
 opening a second one. It also files a **Committed** User Story in the current sprint so the
-review is scheduled. It is normally run by the release-prep skill, and a failure never
+review is scheduled. For each machine-checkable rule it files a `coding-standards-check`
+User Story, New and unscheduled, for the Auro team to triage. When the team works one and
+closes it as *Acceptance tests pass*, the next capture records the check on the rule as
+`Enforced by`. To decline one, close it as *Abandoned* or *Out of scope*: once a ticket
+has been worked on, a close with any other reason reads as shipped.
+It is normally run by the release-prep skill, and a failure never
 blocks the release. Needs the `gh` CLI signed in, and the
-[ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates and the
-review ticket. `--corpus-ref` defaults to `main`.
+[ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates, the
+review ticket, and the check tickets. `--corpus-ref` defaults to `main`.
 
 ---
 

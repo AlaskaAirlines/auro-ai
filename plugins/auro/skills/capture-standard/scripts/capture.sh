@@ -17,8 +17,13 @@
 #   /tmp/capture_corpus/        the coding-standards reference files at that sha
 #   /tmp/capture_next_ids.tsv   next free ID per category
 #   /tmp/capture_pr.tsv         the open capture PR for this branch, if any: number, url, review ticket
+#   /tmp/capture_check_tickets.tsv  every coding-standards-check ticket: id, status (open|shipped|no-check|
+#                               unclear), state, reason, closed date, rule ID, planned check
 #   /tmp/capture_out/           WRITTEN BY THE MODEL: the full proposed text of each changed category file
-#   /tmp/capture_pr_body.md     WRITTEN BY THE MODEL: the PR body, with a {{REVIEW_TICKET}} placeholder
+#   /tmp/capture_checks.tsv     WRITTEN BY THE MODEL: one line per machine-checkable rule to raise a check
+#                               ticket for: rule ID, kind, target repo, target path, one-line reason
+#   /tmp/capture_pr_body.md     WRITTEN BY THE MODEL: the PR body, with {{REVIEW_TICKET}} and
+#                               {{CHECK_TICKETS}} placeholders
 #   /tmp/capture_result.txt     the one-line result release prep shows
 #
 # Commands, in skill order:
@@ -29,8 +34,10 @@
 #   corpus [<ref>]                     Step 4 — fetch the corpus from auro-ai at <ref> (default main)
 #   next-ids                           Step 4 — next free ID per category (corpus + other open capture PRs)
 #   open-pr                            Step 4 — find this branch's open capture PR and its review ticket
+#   checks                             Step 4 — every coding-standards-check ticket, and which have shipped
 #   check                              Step 5 — run the corpus ref's validator over /tmp/capture_out
-#   publish                            Step 6 — the ONLY command that writes: branch, PR, review ticket
+#   publish                            Step 7 — the ONLY command that writes: branch, PR, review ticket,
+#                                      check tickets
 #
 # Auth: GitHub through the runner's `gh` login; ADO through $ADO_PAT (HTTP Basic, empty username).
 # The token is never printed. Written for macOS's bash 3.2: no associative arrays, no mapfile.
@@ -41,11 +48,16 @@ AI_REPO="AlaskaAirlines/auro-ai"
 REFS="plugins/auro/skills/coding-standards/references"
 SKILL_MD="plugins/auro/skills/coding-standards/SKILL.md"
 VALIDATOR="scripts/validate-standards.mjs"
-ADO="https://itsals.visualstudio.com/E_Retain_Content/_apis/wit"
+ADO_ORG="https://itsals.visualstudio.com"
+ADO="$ADO_ORG/E_Retain_Content/_apis/wit"
 AREA='E_Retain_Content\Auro Design System\auro-ai'
+TEAM_AREA='E_Retain_Content\Auro Design System'
 ROOT_ITER='E_Retain_Content'
 TAG="coding-standards-capture"
+CHECK_TAG="coding-standards-check"
+CHECK_KINDS="lint build test helper"
 PLACEHOLDER='{{REVIEW_TICKET}}'
+CHECKS_PLACEHOLDER='{{CHECK_TICKETS}}'
 
 # During publish, every exit must end with the CAPTURE_RESULT line release prep reads (SKILL.md calling
 # contract) — a bare marker would leave the caller with no result at all.
@@ -265,16 +277,17 @@ cmd_corpus(){
   printf '%s\t%s\n' "$REF" "$SHA" > /tmp/capture_corpus_ref.tsv
 
   echo "corpus: $AI_REPO @ $REF ($(printf '%s' "$SHA" | cut -c1-7)) — $(grep -c . /tmp/capture_corpus_names.txt) category files"
-  echo "--- rules (id / section / title / sources / since) ---"
+  echo "--- rules (id / section / title / sources / since / enforced by) ---"
   for F in /tmp/capture_corpus/*.md; do
     awk '
       /^##[[:space:]]+Rules[[:space:]]*$/   { sec="active"; next }
       /^##[[:space:]]+Retired[[:space:]]*$/ { sec="retired"; next }
       /^##[[:space:]]/                      { sec=""; next }
-      function emit(){ if (id!="") printf "%s\t%s\t%s\t%s\t%s\n", id, s, title, src, since; id="" }
-      /^###[[:space:]]+CS-/ { emit(); id=$2; s=sec; title=$0; sub(/^###[[:space:]]+[^[:space:]]+[[:space:]]+—[[:space:]]+/, "", title); src=""; since=""; next }
+      function emit(){ if (id!="") printf "%s\t%s\t%s\t%s\t%s\t%s\n", id, s, title, src, since, enf; id="" }
+      /^###[[:space:]]+CS-/ { emit(); id=$2; s=sec; title=$0; sub(/^###[[:space:]]+[^[:space:]]+[[:space:]]+—[[:space:]]+/, "", title); src=""; since=""; enf="-"; next }
       /^- \*\*Sources:\*\*/ { src=$0; sub(/^- \*\*Sources:\*\*[[:space:]]*/, "", src); next }
       /^- \*\*Since:\*\*/   { since=$0; sub(/^- \*\*Since:\*\*[[:space:]]*/, "", since); next }
+      /^- \*\*Enforced by:\*\*/ { enf=$0; sub(/^- \*\*Enforced by:\*\*[[:space:]]*/, "", enf); next }
       END { emit() }' "$F"
   done
   echo "Read /tmp/capture_corpus/<category>.md for a rule's full text."
@@ -334,6 +347,83 @@ cmd_open_pr(){
   return 0
 }
 
+# A workitemsbatch response (stdin) as /tmp/capture_check_tickets.tsv rows. Only the reasons that mean the
+# work was done count as shipped; a reason this list does not know is "unclear", shown to the person
+# rather than guessed.
+classify_checks(){
+  jq -r '.value[] | select(. != null) | .fields as $f
+    | ($f["System.State"] // "") as $st | ($f["System.Reason"] // "") as $rs
+    | (if $st == "Closed" then
+         (if ($rs | test("^(Acceptance tests pass|Code complete and unit tests pass)$")) then "shipped"
+          elif ($rs | test("^(Abandoned|Out of scope|Rejected|Closed in error|Removed from the backlog)$")) then "no-check"
+          else "unclear" end)
+       elif ($st | test("^(Rejected|Removed)$")) then "no-check"
+       else "open" end) as $status
+    | (($f["System.Title"] // "") | [match("CS-[A-Z0-9]+-[0-9]{3}").string] | .[0] // "-") as $rule
+    | (($f["System.Description"] // "") | [match("Planned check:\\*\\* *([^\\n]*)").captures[0].string] | .[0] // "-") as $plan
+    | "\(.id)\t\($status)\t\($st)\t\($rs)\t\(($f["Microsoft.VSTS.Common.ClosedDate"] // "")[:10])\t\($rule)\t\($plan | gsub("[\t\r]"; " "))"'
+}
+
+# Whether a ticket was ever worked on: Committed, Active or Resolved in any revision. Exit 2 when the
+# history cannot be read.
+worked_on(){ # $1=ticket id
+  CODE=$(ado_curl -sS -o /tmp/capture_check_revs.json -w "%{http_code}" "$ADO/workitems/$1/revisions?api-version=7.0")
+  [ "$CODE" = "200" ] || return 2
+  jq -e '[.value[].fields["System.State"]] | any(. == "Committed" or . == "Active" or . == "Resolved")' \
+    /tmp/capture_check_revs.json >/dev/null
+}
+
+# A done close reason is not enough on its own: closing a New ticket straight from the board can only
+# record "Acceptance tests pass" — it is also the default — so a check the team declined looks shipped.
+# Keep "shipped" only for a ticket that was worked on first; otherwise it is "unclear", shown and never
+# recorded as Enforced by.
+require_work_evidence(){
+  : > /tmp/capture_check_tickets.next
+  while IFS=$'\t' read -r ID STATUS REST; do
+    [ -z "$ID" ] && continue
+    if [ "$STATUS" = "shipped" ]; then
+      worked_on "$ID"; RC=$?
+      [ "$RC" -eq 2 ] && return 1
+      if [ "$RC" -ne 0 ]; then
+        STATUS="unclear"
+        echo "AB#$ID was closed as done without ever being Committed, Active or Resolved — treated as unclear, not shipped."
+      fi
+    fi
+    printf '%s\t%s\t%s\n' "$ID" "$STATUS" "$REST" >> /tmp/capture_check_tickets.next
+  done < /tmp/capture_check_tickets.tsv
+  mv /tmp/capture_check_tickets.next /tmp/capture_check_tickets.tsv
+}
+
+# Every coding-standards-check ticket, in any state. A Closed ticket only counts as a shipped check when
+# its close reason says the work was done; a ticket closed because the team decided against a check (or
+# rejected the rule in review) must never become an `Enforced by` record.
+cmd_checks(){
+  : > /tmp/capture_check_tickets.tsv
+  if [ -z "$ADO_PAT" ]; then
+    echo "ADO_PAT_MISSING — check tickets cannot be listed; no Enforced by can be recorded and none can be raised."
+    return 0
+  fi
+  jq -cn --arg tag "$CHECK_TAG" '{query: ("SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
+      + " AND [System.Tags] CONTAINS '\''" + $tag + "'\'' ORDER BY [System.Id]")}' > /tmp/capture_checks_query.json
+  CODE=$(ado_curl -sS -o /tmp/capture_checks_found.json -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+    --data-binary @/tmp/capture_checks_query.json "$ADO/wiql?api-version=7.0")
+  [ "$CODE" = "200" ] || die "ADO_AUTH_FAILURE — check-ticket query returned HTTP $CODE; re-run \`capture.sh checks\`."
+  IDS=$(jq -c '[.workItems[].id]' /tmp/capture_checks_found.json)
+  TOTAL=$(jq length <<<"$IDS")
+  for S in $( [ "$TOTAL" -gt 0 ] && seq 0 200 $((TOTAL-1)) ); do
+    CHUNK=$(jq -c --argjson s "$S" '{ids:.[$s:$s+200], errorPolicy:"omit", fields:["System.State","System.Reason","Microsoft.VSTS.Common.ClosedDate","System.Title","System.Description"]}' <<<"$IDS")
+    RESP=$(ado_curl -sS -w $'\n%{http_code}' -X POST -H "Content-Type: application/json" \
+      --data-binary "$CHUNK" "$ADO/workitemsbatch?api-version=7.0")
+    [ "$(printf '%s' "$RESP" | sed -n '$p')" = "200" ] || die "ADO_AUTH_FAILURE — check-ticket fields could not be read; re-run \`capture.sh checks\`."
+    printf '%s' "$RESP" | sed '$d' | classify_checks >> /tmp/capture_check_tickets.tsv
+  done
+  require_work_evidence || die "ADO_AUTH_FAILURE — check-ticket history could not be read; re-run \`capture.sh checks\`."
+  echo "--- check tickets (id / status / state / reason / closed / rule / planned check) ---"
+  if [ -s /tmp/capture_check_tickets.tsv ]; then cat /tmp/capture_check_tickets.tsv; else echo "none"; fi
+  SHIPPED=$(awk -F'\t' '$2=="shipped"' /tmp/capture_check_tickets.tsv | grep -c .)
+  echo "shipped: $SHIPPED   open: $(awk -F'\t' '$2=="open"' /tmp/capture_check_tickets.tsv | grep -c .)   unclear: $(awk -F'\t' '$2=="unclear"' /tmp/capture_check_tickets.tsv | grep -c .)"
+}
+
 # ---------------------------------------------------------------------------------------------
 # Step 5 — check (local, no writes outside /tmp)
 # ---------------------------------------------------------------------------------------------
@@ -348,9 +438,32 @@ changed_files(){
   done
 }
 
+# The machine-checkable judgments (Step 5a). Required even when empty, so "nothing is machine-checkable"
+# is a recorded decision rather than a skipped step. Each line names a rule this run proposes or touches.
+validate_checks(){
+  [ -f /tmp/capture_checks.tsv ] || die "NO_CHECKS_FILE — write /tmp/capture_checks.tsv (empty if no rule is machine-checkable)."
+  BAD=$(awk -F'\t' -v kinds=" $CHECK_KINDS " '
+    NF == 0 || /^[[:space:]]*$/ { next }
+    { where = "capture_checks.tsv line " NR ": " }
+    NF != 5                                { print where "expected 5 tab-separated fields, got " NF; next }
+    $1 !~ /^CS-[A-Z0-9]+-[0-9][0-9][0-9]$/ { print where "bad rule ID \"" $1 "\"" }
+    index(kinds, " " $2 " ") == 0          { print where "kind \"" $2 "\" is not one of" kinds }
+    $3 !~ /^[A-Za-z0-9._-]+$/              { print where "bad target repo \"" $3 "\"" }
+    $4 == "" || $4 ~ /`/                   { print where "target path is empty or contains a backtick" }
+    $5 == ""                               { print where "no reason given" }
+    seen[$1]++                             { print where $1 " is listed twice" }' /tmp/capture_checks.tsv)
+  [ -z "$BAD" ] || die "CHECKS_INVALID — $BAD"
+  for ID in $(awk -F'\t' 'NF==5{print $1}' /tmp/capture_checks.tsv); do
+    cat /tmp/capture_out/*.md /tmp/capture_corpus/*.md 2>/dev/null | grep -qE "^###[[:space:]]+$ID[[:space:]]" \
+      || die "CHECKS_INVALID — $ID is flagged machine-checkable but is in neither the proposal nor the corpus."
+  done
+  echo "check tickets to raise: $(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv | grep -c .) (an open ticket for the same rule is reused)"
+}
+
 cmd_check(){
   need_corpus
   [ -d /tmp/capture_out ] || die "NO_PROPOSAL — write the proposed category files to /tmp/capture_out/ first."
+  validate_checks
   CHANGED=$(changed_files)
   printf '%s\n' "$CHANGED" | grep -q '^UNKNOWN_CATEGORY' && die "$(printf '%s\n' "$CHANGED" | grep '^UNKNOWN_CATEGORY')"
   [ -n "$CHANGED" ] || die "NO_CHANGES — every proposed file matches the corpus; there is nothing to publish."
@@ -379,7 +492,7 @@ cmd_check(){
 }
 
 # ---------------------------------------------------------------------------------------------
-# Step 6 — publish (the only writes; run only after the user's explicit yes)
+# Step 7 — publish (the only writes; run only after the user's explicit yes)
 # ---------------------------------------------------------------------------------------------
 
 # The sprint whose dates contain today, as an Iteration Path; the project root if none does (D14).
@@ -455,6 +568,7 @@ Capture proposes rules distilled from the post-mortems this release carries. Eac
   # The project's process rejects New -> Committed while Acceptance Criteria is empty (TF401320).
   AC="- Every proposed rule and source-append in the capture pull request is approved, edited or rejected
 - Flagged arguable categories, derived candidates and escape stubs are each resolved
+- The check tickets of any rules rejected in review are closed
 - The capture pull request is merged or closed"
   jq -n --arg title "$TICKET_TITLE" --arg area "$AREA" --arg iter "$ITER" \
         --arg tag "$TAG" --arg desc "$DESC" --arg ac "$AC" --arg url "$1" '
@@ -488,6 +602,113 @@ Capture proposes rules distilled from the post-mortems this release carries. Eac
   echo "$ID"
 }
 
+# The area a check is built in: the target repo's own area under the Auro team when it has one, else the
+# team's root area. Both sit on the team backlog, so the team triages them in refinement either way.
+check_area(){ # $1=target repo
+  CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" \
+    "$ADO/classificationnodes/Areas/Auro%20Design%20System/$(enc "$1")?api-version=7.0")
+  if [ "$CODE" = "200" ]; then printf '%s\\%s' "$TEAM_AREA" "$1"; else printf '%s' "$TEAM_AREA"; fi
+}
+
+# A rule's title, from the proposal if this run changed its file, else from the corpus.
+rule_title(){ # $1=rule ID
+  cat /tmp/capture_out/*.md /tmp/capture_corpus/*.md 2>/dev/null \
+    | awk -v id="$1" '$1=="###" && $2==id { sub(/^###[[:space:]]+[^[:space:]]+[[:space:]]+—[[:space:]]+/, ""); print; exit }'
+}
+
+# Raise (or reuse) the check ticket for one flagged rule. Prints `<id>\t<new|existing>`; prints nothing on
+# failure, with the reason appended to /tmp/capture_checks.log. State New, no sprint: the team decides in
+# refinement whether and when the check is built.
+create_check_ticket(){ # $1=rule $2=kind $3=repo $4=path $5=reason $6=review ticket id $7=PR url
+  # Reuse an open ticket for the same rule, so a re-run never files a second one. Keyed on the tag and the
+  # rule ID in the title; a closed ticket is never revived (that rule's check shipped or was declined).
+  # Open is what classify_checks calls open, so a Resolved ticket is reused rather than duplicated.
+  jq -cn --arg tag "$CHECK_TAG" --arg rule "$1" '{query: (
+      "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
+      + " AND [System.State] NOT IN ('\''Closed'\'', '\''Removed'\'', '\''Rejected'\'')"
+      + " AND [System.Tags] CONTAINS '\''" + $tag + "'\''"
+      + " AND [System.Title] CONTAINS '\''" + $rule + "'\'' ORDER BY [System.Id]")}' > /tmp/capture_check_query.json
+  CODE=$(ado_curl -sS -o /tmp/capture_check_found.json -w "%{http_code}" -X POST -H "Content-Type: application/json" \
+    --data-binary @/tmp/capture_check_query.json "$ADO/wiql?api-version=7.0")
+  if [ "$CODE" != "200" ]; then echo "$1: lookup returned HTTP $CODE" >> /tmp/capture_checks.log; return; fi
+  FOUND=$(jq -r '.workItems[0].id // empty' /tmp/capture_check_found.json)
+  if [ -n "$FOUND" ]; then printf '%s\texisting\n' "$FOUND"; return; fi
+
+  # No angle brackets anywhere: ADO strips anything shaped like an HTML tag from Markdown fields.
+  RTITLE=$(rule_title "$1" | tr -d '<>')
+  WHY=$(printf '%s' "$5" | tr -d '<>')
+  CTITLE=$(printf 'Build a %s check for %s — %s' "$2" "$1" "$RTITLE" | cut -c1-250)
+  CAREA=$(check_area "$3")
+  CDESC="Capture judged coding standard **$1** ($RTITLE) machine-checkable: $WHY
+
+**Planned check:** $2 — $3 \`$4\`
+
+Proposed in the coding-standards capture pull request $7 and reviewed under AB#$6. The Auro team decides in refinement whether to build it; it is never folded into an unrelated pull request.
+
+Move it to Active when work starts. When the check ships, close it with reason **Acceptance tests pass**, and correct the Planned check line above if it landed somewhere else; the next release's capture then records \`Enforced by\` on $1. If the team decides against a check, or the rule is rejected in review, close it with reason **Abandoned** or **Out of scope**. Once the ticket has been Committed, Active or Resolved, capture reads a close with any other reason as shipped; a ticket closed straight from New is never read as shipped."
+  CAC="- A $2 check in $3 \`$4\` fails on code that breaks $1, and passes on the current code
+- The check runs on pull requests, not only locally
+- The ticket is closed with reason Acceptance tests pass once the check has shipped"
+  jq -n --arg title "$CTITLE" --arg area "$CAREA" --arg iter "$ROOT_ITER" --arg tag "$CHECK_TAG" \
+        --arg desc "$CDESC" --arg ac "$CAC" --arg review "$ADO_ORG/_apis/wit/workItems/$6" --arg url "$7" '
+    [ {op:"add",path:"/fields/System.Title",value:$title},
+      {op:"add",path:"/fields/System.AreaPath",value:$area},
+      {op:"add",path:"/fields/System.IterationPath",value:$iter},
+      {op:"add",path:"/fields/System.Tags",value:$tag},
+      {op:"add",path:"/fields/System.Description",value:$desc},
+      {op:"add",path:"/multilineFieldsFormat/System.Description",value:"Markdown"},
+      {op:"add",path:"/fields/Microsoft.VSTS.Common.AcceptanceCriteria",value:$ac},
+      {op:"add",path:"/multilineFieldsFormat/Microsoft.VSTS.Common.AcceptanceCriteria",value:"Markdown"},
+      {op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Related",url:$review,attributes:{comment:"coding-standards capture review"}}},
+      {op:"add",path:"/relations/-",value:{rel:"Hyperlink",url:$url,attributes:{comment:"coding-standards capture PR"}}} ]' \
+    > /tmp/capture_check_ticket.json
+  RESP=$(ado_curl -sS -w $'\n%{http_code}' -X POST -H "Content-Type: application/json-patch+json" \
+    --data-binary @/tmp/capture_check_ticket.json "$ADO/workitems/\$User%20Story?api-version=7.1")
+  CODE=$(printf '%s' "$RESP" | sed -n '$p')
+  if [ "$CODE" != "200" ]; then
+    printf '%s: create returned HTTP %s %s\n' "$1" "$CODE" "$(printf '%s' "$RESP" | sed '$d' | jq -r '.message // empty' 2>/dev/null | cut -c1-160)" \
+      >> /tmp/capture_checks.log
+    return
+  fi
+  printf '%s\tnew\n' "$(printf '%s' "$RESP" | sed '$d' | jq -r .id)"
+}
+
+# Raise every flagged rule's check ticket. Fills /tmp/capture_check_result.tsv (rule, id, new|existing)
+# and prints the summary that goes into CAPTURE_RESULT.
+raise_check_tickets(){ # $1=review ticket id  $2=PR url
+  : > /tmp/capture_check_result.tsv; : > /tmp/capture_checks.log
+  N=$(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv | grep -c .)
+  if [ "$N" = "0" ]; then echo "check tickets: none flagged"; return; fi
+  if [ -z "$ADO_PAT" ]; then echo "check tickets: $N not raised (ADO_PAT_MISSING) — re-run publish to retry"; return; fi
+  # The loop reads the same awk filter as the count, so it sees exactly those N lines; awk also ends an
+  # unterminated last line, which a bare `read` would drop.
+  while IFS=$'\t' read -r RULE KIND TREPO TPATH WHY; do
+    OUT=$(create_check_ticket "$RULE" "$KIND" "$TREPO" "$TPATH" "$WHY" "$1" "$2")
+    [ -n "$OUT" ] && printf '%s\t%s\n' "$RULE" "$OUT" >> /tmp/capture_check_result.tsv
+  done < <(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv)
+  LIST=$(awk -F'\t' '{ printf "%sAB#%s %s (%s)", (NR>1 ? ", " : ""), $2, $1, $3 }' /tmp/capture_check_result.tsv)
+  FAILED=$(grep -c . /tmp/capture_checks.log)
+  SUMMARY="check tickets: ${LIST:-none raised}"
+  [ "$FAILED" -gt 0 ] && SUMMARY="$SUMMARY · $FAILED check ticket(s) FAILED: $(tr '\n' ';' < /tmp/capture_checks.log) — re-run publish to retry"
+  echo "$SUMMARY"
+}
+
+# The check-ticket list that replaces {{CHECK_TICKETS}} in the PR body.
+check_tickets_md(){
+  if [ ! -s /tmp/capture_check_result.tsv ]; then printf '%s' "${1:-none raised}"; return; fi
+  awk -F'\t' -v base="$ADO_ORG/E_Retain_Content/_workitems/edit/" \
+    '{ printf "%s`%s` → [AB#%s](%s%s)%s", (NR>1 ? " · " : ""), $1, $2, base, $2, ($3=="existing" ? " (existing)" : "") }' \
+    /tmp/capture_check_result.tsv
+}
+
+# The PR body with both placeholders filled in.
+render_body(){ # $1=review-ticket text  $2=check-tickets text
+  awk -v p="$PLACEHOLDER" -v r="$1" -v cp="$CHECKS_PLACEHOLDER" -v cr="$2" '{
+      while ((i = index($0, p)) > 0) $0 = substr($0, 1, i-1) r substr($0, i+length(p))
+      while ((i = index($0, cp)) > 0) $0 = substr($0, 1, i-1) cr substr($0, i+length(cp))
+      print }' /tmp/capture_pr_body.md > /tmp/capture_pr_body.out
+}
+
 # Replace the PR body (REST PATCH, never `gh pr edit` — see the pr skill).
 patch_body(){ # $1=PR number  $2=body file
   gh api --method PATCH "repos/$AI_REPO/pulls/$1" -F "body=@$2" --jq .number >/dev/null
@@ -498,6 +719,7 @@ cmd_publish(){
   need_run; need_corpus
   [ -s /tmp/capture_pr_body.md ] || die "NO_PR_BODY — write the PR body to /tmp/capture_pr_body.md first."
   grep -qF "$PLACEHOLDER" /tmp/capture_pr_body.md || die "NO_PLACEHOLDER — the PR body must carry **Review ticket:** $PLACEHOLDER."
+  grep -qF "$CHECKS_PLACEHOLDER" /tmp/capture_pr_body.md || die "NO_PLACEHOLDER — the PR body's Machine-checkable section must carry **Check tickets:** $CHECKS_PLACEHOLDER."
   cmd_check || exit 1
   CHANGED=$(changed_files)
   NAME="${REPO#*/}"
@@ -540,8 +762,8 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
     TID=$(jq -r .body /tmp/capture_pr.json | ticket_in_body)
   fi
   if [ -n "$TID" ]; then REPL="AB#$TID"; else REPL="_pending — created when this PR is published_"; fi
-  awk -v p="$PLACEHOLDER" -v r="$REPL" '{ while ((i = index($0, p)) > 0) $0 = substr($0, 1, i-1) r substr($0, i+length(p)); print }' \
-    /tmp/capture_pr_body.md > /tmp/capture_pr_body.out
+  PENDING_CHECKS="_pending — raised when this PR is published_"
+  render_body "$REPL" "$PENDING_CHECKS"
   if [ -n "$NUM" ]; then
     # A re-run against a different corpus ref has just reset the branch onto that ref, so the PR must
     # target it too — on its old base the diff would show the corpus difference as the proposal.
@@ -562,22 +784,44 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
 
   # 4. The review ticket (D14) — only when the PR has none. A ticket failure never undoes the PR.
   RESULT="PR $URL"
+  RID=""; NOTE="$REPL"
   if [ -n "$TID" ]; then
+    RID="$TID"
     RESULT="$RESULT · review ticket AB#$TID (existing)"
   else
     NEWID=$(create_ticket "$URL")
     if [ -n "$NEWID" ]; then
-      NOTE="AB#$NEWID"
+      RID="$NEWID"; NOTE="AB#$NEWID"
       grep -q ROOT_ITERATION /tmp/capture_ticket_iter.txt 2>/dev/null && NOTE="$NOTE — no sprint covers $(date +%Y-%m-%d), so it is on the project's root iteration"
-      awk -v p="$PLACEHOLDER" -v r="$NOTE" '{ while ((i = index($0, p)) > 0) $0 = substr($0, 1, i-1) r substr($0, i+length(p)); print }' \
-        /tmp/capture_pr_body.md > /tmp/capture_pr_body.out
-      patch_body "$NUM" /tmp/capture_pr_body.out || echo "WARNING — AB#$NEWID created but the PR body could not be updated; add it by hand."
       RESULT="$RESULT · review ticket AB#$NEWID"
       [ -s /tmp/capture_ticket.log ] && RESULT="$RESULT ($(cat /tmp/capture_ticket.log))"
     else
       RESULT="$RESULT · NO review ticket: $(cat /tmp/capture_ticket.log) — re-run publish to retry"
     fi
   fi
+
+  # 5. Check tickets (Phase 5a) — one per flagged rule, each linked to the review ticket, so they wait for
+  # it. A failure here never undoes the PR either; a re-run reuses what was raised and retries the rest.
+  : > /tmp/capture_check_result.tsv
+  if [ -n "$RID" ]; then
+    CHECKS=$(raise_check_tickets "$RID" "$URL")
+    CHECKS_MD=$(check_tickets_md "none raised")
+  else
+    CHECKS="check tickets: not raised (no review ticket to link them to) — re-run publish to retry"
+    CHECKS_MD="$PENDING_CHECKS"
+  fi
+  # The body must not read "none raised" when tickets were flagged but not (all) raised — that would say
+  # nothing was machine-checkable.
+  case "$CHECKS" in
+    "check tickets: none flagged") CHECKS_MD="none — no rule in this capture is machine-checkable" ;;
+    *"not raised"*)                CHECKS_MD="$PENDING_CHECKS" ;;
+    *FAILED*)                      CHECKS_MD="$CHECKS_MD · _some could not be raised — re-run publish to retry_" ;;
+  esac
+  RESULT="$RESULT · $CHECKS"
+
+  # 6. One final body with both placeholders resolved.
+  render_body "$NOTE" "$CHECKS_MD"
+  patch_body "$NUM" /tmp/capture_pr_body.out || echo "WARNING — the PR body could not be updated with its tickets; add them by hand."
   [ -n "$OPENED" ] || RESULT="$RESULT · re-run: branch reset, body replaced"
   printf 'CAPTURE_RESULT: %s\n' "$RESULT" | tee /tmp/capture_result.txt
 }
@@ -593,7 +837,8 @@ case "$CMD" in
   corpus)      cmd_corpus "$@" ;;
   next-ids)    cmd_next_ids ;;
   open-pr)     cmd_open_pr ;;
+  checks)      cmd_checks ;;
   check)       cmd_check ;;
   publish)     cmd_publish ;;
-  *) die "usage: capture.sh range|tickets|postmortems|sections|corpus|next-ids|open-pr|check|publish [args]" ;;
+  *) die "usage: capture.sh range|tickets|postmortems|sections|corpus|next-ids|open-pr|checks|check|publish [args]" ;;
 esac

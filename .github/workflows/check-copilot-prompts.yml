@@ -22,6 +22,8 @@ jobs:
         run: node scripts/score-trigger-transcript.test.mjs
       - name: Test the capture-standard section locator
         run: node scripts/capture-sections.test.mjs
+      - name: Test capture.sh check-ticket functions
+        run: bash scripts/capture-checks.test.sh
       - name: Regenerate Copilot prompt files
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date

@@ -71,6 +71,12 @@ const SOURCE_SEPARATOR_RE = /[\s,]+/;
 const ADO_ID_DIGITS = 7; // every real work item in this org is 7 digits
 const LEARNED_RE = /^×(\d+)$/;
 const SINCE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// `Enforced by` (Phase 5a) records the shipped check that now enforces a rule:
+// `lint — auro-formkit `eslint.config.mjs` (AB#1670001)`. Anchored end to end
+// so a free-text value ("the linter", "see ticket") cannot pass as a record of
+// where the check lives and which ticket built it.
+const ENFORCED_KINDS = ['lint', 'build', 'test', 'helper'];
+const ENFORCED_RE = /^([a-z]+) — ([A-Za-z0-9._-]+) `([^`]+)` \(AB#(\d+)\)$/;
 
 const errors = [];
 const fail = (where, message) => errors.push(`${where}: ${message}`);
@@ -446,6 +452,24 @@ function validateRule(file, segment, rule, seenIds) {
 
   const sources = uniqueSources(rule.fields.sources);
 
+  // Checked before the retired exemption: a rule is retired only after its
+  // check ships (parent §3.5), so a retired rule is exactly where an
+  // `Enforced by` record must stay accurate.
+  const enforcedBy = rule.fields['enforced by'];
+  if (enforcedBy !== undefined) {
+    const match = enforcedBy.match(ENFORCED_RE);
+    if (!match) {
+      fail(where, `${id} has malformed "Enforced by: ${enforcedBy}" — expected <kind> — <repo> \`<path>\` (AB#1234567)`);
+    } else {
+      if (!ENFORCED_KINDS.includes(match[1])) {
+        fail(where, `${id} has "Enforced by" kind "${match[1]}" — expected one of ${ENFORCED_KINDS.join(', ')}`);
+      }
+      if (match[4].length !== ADO_ID_DIGITS) {
+        fail(where, `${id} has "Enforced by" ticket AB#${match[4]}, which is not a ${ADO_ID_DIGITS}-digit work item`);
+      }
+    }
+  }
+
   // Retired rules stay traceable but are not loaded, so they are exempt from
   // the field requirements that exist to make a rule actionable.
   if (retired) {
@@ -507,7 +531,7 @@ function validateRule(file, segment, rule, seenIds) {
     fail(where, `${id} has malformed "Since: ${since}" — expected YYYY-MM-DD`);
   }
 
-  return { id, retired: false, sources, since, appliesTo: rule.fields['applies to'] };
+  return { id, retired: false, sources, since, appliesTo: rule.fields['applies to'], enforcedBy };
 }
 
 /**
@@ -665,7 +689,8 @@ async function main() {
     console.log(`validate-standards:   ${entry.file.padEnd(22)} ${entry.active.length} rule(s)${suffix}`);
     for (const rule of entry.active) {
       const scoped = rule.appliesTo ? ' scoped' : '';
-      console.log(`validate-standards:     ${rule.id}  sources=${rule.sources.length}  since=${rule.since || 'unknown'}  cited=n/a (Phase 5)${scoped}`);
+      const enforced = rule.enforcedBy ? ' enforced' : '';
+      console.log(`validate-standards:     ${rule.id}  sources=${rule.sources.length}  since=${rule.since || 'unknown'}  cited=n/a (Phase 5)${scoped}${enforced}`);
     }
   }
   console.log(`validate-standards:   total ${total} rule(s) across ${CATEGORIES.length} categories`);

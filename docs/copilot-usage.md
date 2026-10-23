@@ -56,7 +56,8 @@ with `"chat.pluginLocations": { "<checkout>/plugins/auro": true }` (experimental
 - **It cites a rule by ID**, such as `CS-A11Y-001`, when the rule changes the code.
 - **It stays silent on non-code work**, such as a sprint report.
 
-**Verified** on 2026-10-22: see [Verification](#verification-2026-10-22) below.
+**Verified in Copilot CLI** on 2026-10-22. VS Code agent mode is not verified yet; see
+[Verification](#verification-2026-10-22) below.
 
 **Not covered:** Copilot **code review on GitHub** (the PR reviewer on github.com)
 reads only files in the repository, not plugins, so it does not see these standards.
@@ -177,10 +178,14 @@ Phase 4 ([AB#1668633](https://itsals.visualstudio.com/E_Retain_Content/_workitem
 
 | Check | Copilot CLI 1.0.103 | VS Code agent mode |
 |---|---|---|
-| `coding-standards` loads on a coding prompt | ✅ 4/4, at the first tool call | _pending: manual check_ |
-| Opens the matching rule files before the first edit | ✅ 4/4 (a11y, form and test for aria-invalid; life, a11y and test for a DOM move) | _pending_ |
-| Stays out of unrelated work (sprint report, ticket question) | ✅ 2/2 | _pending_ |
-| `${CLAUDE_SKILL_DIR}` expands | ❌ left literal. Fixed: the skills that use it fall back to the skill's base directory, which Copilot provides | _pending_ |
+| `coding-standards` loads on a coding prompt | ✅ 4/4, at the first tool call | not run |
+| Opens the matching rule files before the first edit | ✅ 4/4 (a11y, form and test for aria-invalid; life, a11y and test for a DOM move) | not run |
+| Stays out of unrelated work (sprint report, ticket question) | ✅ 2/2 | not run |
+| `${CLAUDE_SKILL_DIR}` expands | ❌ left literal. Fixed: the skills that use it fall back to the skill's base directory, which Copilot provides | not run |
+
+VS Code agent mode was not run: Copilot Chat in VS Code 1.143 had no language model
+available on the test machine ("Language model unavailable"). The plugin settings
+above are untested in VS Code until someone runs the check.
 
 Two Copilot behaviours to know about:
 - **Copilot drops a skill whose frontmatter is not strict YAML, or whose description is over 1024 characters, without any error.** `coding-standards` was invisible until its description was fixed, and `validate-standards` now guards it. Several workflow skills have descriptions over 1024 characters: on `main`, `ado`, `post-mortem`, `pr`, `doc-review`, `create-rcs` and `sprint-report`. So Copilot does not load those from the plugin. Use their generated prompt files or agents in Copilot.

@@ -18,6 +18,8 @@ jobs:
         run: node scripts/validate-standards.mjs
       - name: Test the coding-standards validator
         run: node scripts/validate-standards.test.mjs
+      - name: Test the trigger transcript scorer
+        run: node scripts/score-trigger-transcript.test.mjs
       - name: Regenerate Copilot prompt files
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date

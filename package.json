@@ -11,7 +11,9 @@
   "scripts": {
     "build:copilot": "node scripts/build-copilot-prompts.mjs",
     "build:copilot:agents": "node scripts/build-copilot-agents.mjs",
-    "build:copilot:all": "npm run build:copilot && npm run build:copilot:agents"
+    "build:copilot:all": "npm run build:copilot && npm run build:copilot:agents",
+    "validate:standards": "node scripts/validate-standards.mjs",
+    "test:standards": "node scripts/validate-standards.test.mjs"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",

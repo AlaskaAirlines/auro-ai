@@ -416,7 +416,28 @@ create_ticket(){ # $1=PR url
   if [ "$CODE" = "200" ]; then
     FOUND=$(jq -r '.workItems[0].id // empty' /tmp/capture_ticket_found.json)
     if [ -n "$FOUND" ]; then
-      echo "reused AB#$FOUND from an earlier run" > /tmp/capture_ticket.log
+      REUSED="reused AB#$FOUND from an earlier run"
+      # The earlier run's PR may have been closed and this one opened in its place: link this PR too,
+      # and finish the Committed move if that run left the story New. Separate calls, so a refused move
+      # cannot block the link; neither failure loses the ticket, it is only noted on the result line.
+      CODE=$(ado_curl -sS -o /tmp/capture_ticket_reused.json -w "%{http_code}" "$ADO/workitems/$FOUND?\$expand=relations&api-version=7.1")
+      if [ "$CODE" = "200" ]; then
+        if ! jq -e --arg url "$1" 'any(.relations[]?; .rel == "Hyperlink" and .url == $url)' /tmp/capture_ticket_reused.json >/dev/null; then
+          jq -n --arg url "$1" '[{op:"add",path:"/relations/-",value:{rel:"Hyperlink",url:$url,attributes:{comment:"coding-standards capture PR"}}}]' \
+            > /tmp/capture_ticket_link.json
+          CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+            --data-binary @/tmp/capture_ticket_link.json "$ADO/workitems/$FOUND?api-version=7.1")
+          [ "$CODE" = "200" ] || REUSED="$REUSED; linking it to this PR returned HTTP $CODE"
+        fi
+        if [ "$(jq -r '.fields["System.State"] // empty' /tmp/capture_ticket_reused.json)" = "New" ]; then
+          CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+            --data-binary '[{"op":"add","path":"/fields/System.State","value":"Committed"}]' "$ADO/workitems/$FOUND?api-version=7.1")
+          [ "$CODE" = "200" ] || REUSED="$REUSED; left New — moving it to Committed returned HTTP $CODE"
+        fi
+      else
+        REUSED="$REUSED; could not read it to link this PR (HTTP $CODE)"
+      fi
+      echo "$REUSED" > /tmp/capture_ticket.log
       echo "$FOUND"; return
     fi
   fi

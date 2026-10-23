@@ -135,6 +135,19 @@ function runPostmortems(env) {
   });
 }
 
+const NEW_PR = 'https://github.com/AlaskaAirlines/auro-ai/pull/99';
+/** create_ticket's reuse path: WIQL finds AB#7654321, whose state and links are `item`. */
+function runReuse(item) {
+  return runCapture([NEW_PR], {
+    fn: 'create_ticket',
+    env: {
+      ADO_PAT: 'stub', REPO: 'AlaskaAirlines/auro-x', LABEL: 'lbl',
+      WIQL_JSON: JSON.stringify({ workItems: [{ id: 7654321 }] }),
+      ITEM_JSON: JSON.stringify(item),
+    },
+  });
+}
+
 const tests = {
   // --- one case per heading variant in the #57 §2.1 census ----------------------
   '## Learnings, the current template'() {
@@ -419,6 +432,33 @@ const tests = {
     const r = runPostmortems({ GH_LIST: 'ok', GH_FILE: 'ok' });
     if (r.status !== 0 || !r.out.includes('post-mortems carried by the range: 1') || r.out.includes('NO_POSTMORTEMS')) {
       return failCase(name, `expected one post-mortem, got ${r.status}: ${r.out.trim()}`);
+    }
+    pass(name);
+  },
+
+  // --- capture.sh publish: a reused review ticket follows the new PR -----------------
+  'reused ticket: linked to the new PR and moved from New to Committed'() {
+    // Review of #63 (finding 3): a reused story kept linking only to the earlier, closed PR,
+    // and one left New by a refused Committed move stayed New.
+    const name = 'reused ticket: linked to the new PR and moved from New to Committed';
+    const r = runReuse({
+      fields: { 'System.State': 'New' },
+      relations: [{ rel: 'Hyperlink', url: 'https://github.com/AlaskaAirlines/auro-ai/pull/42' }],
+    });
+    const patches = r.curl.split('\n').filter((l) => l.startsWith('PATCH '));
+    const linked = patches.some((l) => l.includes('"Hyperlink"') && l.includes(NEW_PR));
+    const committed = patches.some((l) => l.includes('"Committed"'));
+    if (r.out.trim() !== '7654321' || !linked || !committed || !r.ticketLog.startsWith('reused AB#7654321')) {
+      return failCase(name, `expected AB#7654321 linked and Committed, got out=${r.out.trim()} log=${r.ticketLog.trim()} calls=${JSON.stringify(patches)}`);
+    }
+    pass(name);
+  },
+
+  'reused ticket: already linked and Committed, nothing is patched'() {
+    const name = 'reused ticket: already linked and Committed, nothing is patched';
+    const r = runReuse({ fields: { 'System.State': 'Committed' }, relations: [{ rel: 'Hyperlink', url: NEW_PR }] });
+    if (r.out.trim() !== '7654321' || r.curl.includes('PATCH ')) {
+      return failCase(name, `expected AB#7654321 with no PATCH, got out=${r.out.trim()} calls=${JSON.stringify(r.curl)}`);
     }
     pass(name);
   },

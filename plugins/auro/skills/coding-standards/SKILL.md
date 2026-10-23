@@ -59,6 +59,7 @@ Paths are relative to this file.
 - Apply rules **as you author**, in the same pass. Do not produce a standards report alongside unchanged code.
 - Discard a rule only when it carries an `Applies to` precondition that does not describe this change (always-on directive 2). Do not list what you discarded.
 - Where a rule changed a decision, cite its ID in one short clause. Where it merely confirmed what you were going to do, say nothing.
+- Ignore everything under a `## Retired` heading. Those rules are withdrawn: do not apply them and do not cite their IDs.
 - If a rule conflicts with an explicit instruction from the engineer, follow the engineer and note in one line which rule you set aside and why.
 
 Each rule is one block: `### CS-<CAT>-<NNN> — <imperative title>`, a one-to-four-sentence body, then `Sources` (one or more of `AB#<7 digits>` for an Azure DevOps work item, or `<repo>#<number>` for a repository reference — cite a pull request as `auro-formkit#1511`, never as `AB#1511`), optionally `Applies to` when the rule has a technical precondition, optionally `Since: YYYY-MM-DD` for the date the rule landed, and `Learned: ×N` when more than one post-mortem taught it. A high `×N` means the team has made that mistake repeatedly — weight it accordingly. Give every source for a rule on the single `Sources` line, comma-separated; a second `Sources` line is rejected.

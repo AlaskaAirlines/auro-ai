@@ -6,7 +6,7 @@
 // devDependency, no config. Each case writes a fixture corpus to a temp
 // directory, runs the linter against it, and asserts on exit code and stderr.
 //
-// WHY THIS EXISTS. Sixteen separate fail-open defects have been found in
+// WHY THIS EXISTS. Nineteen separate fail-open defects have been found in
 // validate-standards.mjs, every one by review and none by CI. The first seven,
 // which this suite was built to pin:
 //
@@ -52,7 +52,16 @@
 //   16. A repeated field overwrote the first, so a second `Sources` line
 //       silently discarded the rule's original provenance.
 //
-// All sixteen share a shape: the linter accepts bad input and exits 0. That
+// Three more were found by the code review of PR #50:
+//
+//   17. Only a `###` heading was parsed, so a rule written as `####`, as a
+//       setext heading or inside a blockquote was skipped, not checked.
+//   18. Repo citations were deduplicated case-sensitively, so
+//       `Auro-Formkit#1` and `auro-formkit#1` inflated the Learned count.
+//   19. Reachability counted prose mentions, so the tool.md row could be
+//       deleted from the routing table unreported.
+//
+// All nineteen share a shape: the linter accepts bad input and exits 0. That
 // is the worst direction for a check that is the only automated safety net
 // this system has — a rule with no traceable source ships and nothing says so.
 // The cases below pin each one, so the next parser change cannot quietly
@@ -606,6 +615,87 @@ const tests = {
       'max 200',
       ['---', 'name: coding-standards', 'description: x', '---', '', ...ROUTES,
         ...Array.from({ length: 200 }, (_, i) => `filler ${i}`)].join('\n'));
+  },
+
+  async 'a category named only in prose is still unreachable'() {
+    // Always-on directive 4 names `references/tool.md` in prose. Counting that
+    // as a route meant deleting the tool row went unreported.
+    await expectFail('a category named only in prose is still unreachable', {},
+      'never points at references/tool.md',
+      ['---', 'name: coding-standards', 'description: x', '---', '',
+        'Open `references/tool.md` whenever the task will produce a commit.', '',
+        ...ROUTES.filter((r) => !r.includes('tool.md'))].join('\n'));
+  },
+
+  // --- the checks the ticket names, pinned against the next parser refactor ----
+  async 'a duplicate rule ID is rejected'() {
+    await expectFail('a duplicate rule ID is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — First use of the ID', '', '- **Sources:** AB#1636704', '- **Since:** 2026-09-16', '', 'Body text.', '',
+        '### CS-API-001 — Second use of the ID', '', '- **Sources:** AB#1344690', '- **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'duplicate rule ID CS-API-001');
+  },
+
+  async 'a rule in the wrong category file is rejected'() {
+    await expectFail('a rule in the wrong category file is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-FORM-001 — A form rule filed under api', '', '- **Sources:** AB#1636704', '- **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'has category segment FORM');
+  },
+
+  async 'a Learned count that disagrees with the sources is rejected'() {
+    await expectFail('a Learned count that disagrees with the sources is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Learned twice, claimed three times', '',
+        '- **Sources:** AB#1636704, AB#1344690', '- **Learned:** ×3', '- **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'says Learned ×3 but cites 2 distinct sources');
+  },
+
+  async 'a category over the active-rule cap is rejected'() {
+    // 26 rules, one over the cap. Retired rules do not count, so they are all
+    // under `## Rules`.
+    const rules = Array.from({ length: 26 }, (_, i) => {
+      const n = String(i + 1).padStart(3, '0');
+      return [`### CS-API-${n} — Rule ${n}`, '', '- **Sources:** AB#1636704', '- **Since:** 2026-09-16', '', 'Body text.', ''];
+    }).flat();
+    await expectFail('a category over the active-rule cap is rejected', {
+      api: ['# CS-API', '', '## Rules', '', ...rules].join('\n'),
+    }, 'has 26 active rules (max 25)');
+  },
+
+  async 'repo citations differing only in case count as one source'() {
+    await expectFail('repo citations differing only in case count as one source', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — One pull request cited twice', '',
+        '- **Sources:** AB#1636704, auro-formkit#1, Auro-Formkit#1', '- **Learned:** ×3', '- **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'says Learned ×3 but cites 2 distinct sources');
+  },
+
+  // --- a rule-ID heading that is not `###` was never parsed -------------------
+  async 'a rule written as "####" is rejected, not skipped'() {
+    await expectFail('a rule written as "####" is rejected, not skipped', {
+      api: ['# CS-API', '', '## Rules', '', '#### CS-API-001 — h4, cites no source', '', 'Body text.', ''].join('\n'),
+    }, 'is not a "###" heading');
+  },
+
+  async 'a rule written as a setext heading is rejected, not skipped'() {
+    await expectFail('a rule written as a setext heading is rejected, not skipped', {
+      api: ['# CS-API', '', '## Rules', '', 'CS-API-001 — setext, cites no source', '---', '', 'Body text.', ''].join('\n'),
+    }, 'is not a "###" heading');
+  },
+
+  async 'a rule inside a blockquote is rejected, not skipped'() {
+    await expectFail('a rule inside a blockquote is rejected, not skipped', {
+      api: ['# CS-API', '', '## Rules', '', '> ### CS-API-001 — quoted, cites no source', '', 'Body text.', ''].join('\n'),
+    }, 'is not a "###" heading');
   },
 
   // --- the phase-1 invariant ----------------------------------------------------

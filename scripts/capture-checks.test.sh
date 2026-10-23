@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Offline checks for the Phase 5a additions to capture.sh: validate_checks, rule_title,
-# check_tickets_md, render_body, and the check-ticket status classification.
+# check_tickets_md, render_body, the check-ticket status classification, and the check-ticket reuse
+# lookup and raising loop (with ADO stubbed).
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LIB=$(mktemp "${TMPDIR:-/tmp}/capture_lib.XXXXXX") || exit 1
 # capture.sh keeps its state in fixed /tmp/capture_* paths, which these fixtures overwrite. Save any
-# real run's state first and put it back afterwards, so running this mid-capture loses nothing.
-SAVED=$(mktemp -d "${TMPDIR:-/tmp}/capture_saved.XXXXXX") || exit 1
+# real run's state first and put it back afterwards, so running this mid-capture loses nothing. The
+# test's own files use another prefix: with TMPDIR unset, a capture_* name would be swept up as state.
+LIB=$(mktemp "${TMPDIR:-/tmp}/cschk_lib.XXXXXX") || exit 1
+SAVED=$(mktemp -d "${TMPDIR:-/tmp}/cschk_saved.XXXXXX") || exit 1
 for P in /tmp/capture_*; do [ -e "$P" ] && mv "$P" "$SAVED/"; done
 restore(){ rm -rf /tmp/capture_*; for P in "$SAVED"/capture_*; do [ -e "$P" ] && mv "$P" /tmp/; done; rm -rf "$SAVED" "$LIB"; }
 trap restore EXIT
@@ -76,6 +78,7 @@ cat > /tmp/capture_t5a_batch.json <<'JSON'
  {"id":3,"fields":{"System.State":"Closed","System.Reason":"Moved to the backlog","System.Title":"Build a test check for CS-A11Y-002 — z"}},
  {"id":4,"fields":{"System.State":"New","System.Reason":"New","System.Title":"Build a helper check for CS-FORM-001 — w"}},
  {"id":5,"fields":{"System.State":"Closed","System.Reason":"Code complete and unit tests pass","System.Title":"no rule id here"}},
+ {"id":6,"fields":{"System.State":"Resolved","System.Reason":"Code complete","System.Title":"Build a lint check for CS-FORM-002 — v"}},
  null
 ]}
 JSON
@@ -86,7 +89,8 @@ expect "Out of scope → no-check"                  "$(printf '2\tno-check\tClos
 expect "unknown close reason → unclear"           "$(printf '3\tunclear\tClosed\tMoved to the backlog')" "$(row 3)"
 expect "New → open"                               "$(printf '4\topen\tNew')" "$(row 4)"
 expect "Code complete → shipped, no rule → -"     "$(printf '5\tshipped\tClosed\tCode complete and unit tests pass\t\t-\t-')" "$(row 5)"
-expect "a null (omitted) item is skipped"         "5" "$(printf '%s\n' "$C" | grep -c .)"
+expect "Resolved → open"                          "$(printf '6\topen\tResolved')" "$(row 6)"
+expect "a null (omitted) item is skipped"         "6" "$(printf '%s\n' "$C" | grep -c .)"
 rm -f /tmp/capture_t5a_batch.json
 
 echo "require_work_evidence"
@@ -104,6 +108,24 @@ expect "an empty closed-date field survives"      "7" "$(printf '%s\n' "$C2" | a
 printf '9\tshipped\tClosed\tAcceptance tests pass\t2026-11-02\tCS-X-001\t-\n' > /tmp/capture_check_tickets.tsv
 require_work_evidence >/dev/null; RC=$?
 expect "unreadable history fails the step"        "1" "$RC"
+
+echo "create_check_ticket reuse"
+# Stub ADO: the lookup finds ticket 1670009. The query must treat as open what classify_checks calls
+# open, so a Resolved ticket is reused rather than filed a second time.
+ado_curl(){ while [ $# -gt 0 ]; do [ "$1" = "-o" ] && printf '{"workItems":[{"id":1670009}]}' > "$2"; shift; done; printf 200; }
+OUT=$(create_check_ticket CS-BUILD-004 lint auro-formkit x.js why 1668644 https://example.test/pr/1)
+expect "a found ticket is reused"                 "$(printf '1670009\texisting')" "$OUT"
+expect "the lookup excludes only closed states"   "NOT IN ('Closed', 'Removed', 'Rejected')" "$(cat /tmp/capture_check_query.json)"
+
+echo "raise_check_tickets"
+# Stub the per-rule call; the file's last line has no trailing newline, as the Write tool may leave it.
+create_check_ticket(){ case "$1" in CS-BUILD-004) printf '1670101\tnew\n' ;; *) printf '1670102\tnew\n' ;; esac; }
+printf 'CS-BUILD-004\tlint\tauro-formkit\tx.js\twhy\nCS-BUILD-001\tbuild\tauro-formkit\tpackage.json\twhy' > /tmp/capture_checks.tsv
+expect "count includes the unterminated line"     "check tickets to raise: 2" "$(run validate_checks)"
+OUT=$(ADO_PAT=offline raise_check_tickets 1668644 https://example.test/pr/1)
+expect "the unterminated last line is raised"     "AB#1670102 CS-BUILD-001 (new)" "$OUT"
+expect "every counted line is raised"             "2" "$(grep -c . /tmp/capture_check_result.tsv)"
+rm -f /tmp/capture_checks.log /tmp/capture_check_query.json /tmp/capture_check_found.json
 echo
 echo "offline: $ok passed, $bad failed"
 [ "$bad" -eq 0 ]

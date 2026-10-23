@@ -622,9 +622,10 @@ rule_title(){ # $1=rule ID
 create_check_ticket(){ # $1=rule $2=kind $3=repo $4=path $5=reason $6=review ticket id $7=PR url
   # Reuse an open ticket for the same rule, so a re-run never files a second one. Keyed on the tag and the
   # rule ID in the title; a closed ticket is never revived (that rule's check shipped or was declined).
+  # Open is what classify_checks calls open, so a Resolved ticket is reused rather than duplicated.
   jq -cn --arg tag "$CHECK_TAG" --arg rule "$1" '{query: (
       "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project"
-      + " AND [System.State] NOT IN ('\''Closed'\'', '\''Resolved'\'', '\''Removed'\'', '\''Rejected'\'')"
+      + " AND [System.State] NOT IN ('\''Closed'\'', '\''Removed'\'', '\''Rejected'\'')"
       + " AND [System.Tags] CONTAINS '\''" + $tag + "'\''"
       + " AND [System.Title] CONTAINS '\''" + $rule + "'\'' ORDER BY [System.Id]")}' > /tmp/capture_check_query.json
   CODE=$(ado_curl -sS -o /tmp/capture_check_found.json -w "%{http_code}" -X POST -H "Content-Type: application/json" \
@@ -644,7 +645,7 @@ create_check_ticket(){ # $1=rule $2=kind $3=repo $4=path $5=reason $6=review tic
 
 Proposed in the coding-standards capture pull request $7 and reviewed under AB#$6. The Auro team decides in refinement whether to build it; it is never folded into an unrelated pull request.
 
-Move it to Active when work starts. When the check ships, close it with reason **Acceptance tests pass**, and correct the Planned check line above if it landed somewhere else; the next release's capture then records \`Enforced by\` on $1. If the team decides against a check, or the rule is rejected in review, just close it, from any state. Capture treats only a ticket that was worked on (Committed, Active or Resolved) as shipped."
+Move it to Active when work starts. When the check ships, close it with reason **Acceptance tests pass**, and correct the Planned check line above if it landed somewhere else; the next release's capture then records \`Enforced by\` on $1. If the team decides against a check, or the rule is rejected in review, close it with reason **Abandoned** or **Out of scope**. Once the ticket has been Committed, Active or Resolved, capture reads a close with any other reason as shipped; a ticket closed straight from New is never read as shipped."
   CAC="- A $2 check in $3 \`$4\` fails on code that breaks $1, and passes on the current code
 - The check runs on pull requests, not only locally
 - The ticket is closed with reason Acceptance tests pass once the check has shipped"
@@ -679,11 +680,12 @@ raise_check_tickets(){ # $1=review ticket id  $2=PR url
   N=$(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv | grep -c .)
   if [ "$N" = "0" ]; then echo "check tickets: none flagged"; return; fi
   if [ -z "$ADO_PAT" ]; then echo "check tickets: $N not raised (ADO_PAT_MISSING) — re-run publish to retry"; return; fi
+  # The loop reads the same awk filter as the count, so it sees exactly those N lines; awk also ends an
+  # unterminated last line, which a bare `read` would drop.
   while IFS=$'\t' read -r RULE KIND TREPO TPATH WHY; do
-    [ -z "$RULE" ] && continue
     OUT=$(create_check_ticket "$RULE" "$KIND" "$TREPO" "$TPATH" "$WHY" "$1" "$2")
     [ -n "$OUT" ] && printf '%s\t%s\n' "$RULE" "$OUT" >> /tmp/capture_check_result.tsv
-  done < /tmp/capture_checks.tsv
+  done < <(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv)
   LIST=$(awk -F'\t' '{ printf "%sAB#%s %s (%s)", (NR>1 ? ", " : ""), $2, $1, $3 }' /tmp/capture_check_result.tsv)
   FAILED=$(grep -c . /tmp/capture_checks.log)
   SUMMARY="check tickets: ${LIST:-none raised}"

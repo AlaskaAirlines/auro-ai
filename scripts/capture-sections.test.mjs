@@ -65,7 +65,7 @@ const doc = (...lines) => lines.join('\n');
 // touched) and with a stub `gh` first on PATH, so nothing reaches GitHub.
 const CAPTURE_SH = join(ROOT, 'plugins/auro/skills/capture-standard/scripts/capture.sh');
 
-const GH_STUB = `#!/usr/bin/env bash
+const GH_STATE_STUB = `#!/usr/bin/env bash
 # Answers the range and corpus calls, logging each URL. Once a URL matches $RO_AT,
 # the state directory and its files turn read-only, as under the Claude Code sandbox.
 [ "$1" = auth ] && exit 0
@@ -84,15 +84,15 @@ case "$url" in
 esac
 `;
 
-/** Run `capture.sh <args>` with its state in a scratch dir; `readOnly` locks that dir up front. */
-function runCapture(args, { readOnly = false, roAt = '' } = {}) {
+/** Run `capture.sh <args>` with its state in a scratch dir (the state-writability tests); `readOnly` locks that dir up front. */
+function runCaptureState(args, { readOnly = false, roAt = '' } = {}) {
   const scratch = mkdtempSync(join(tmpdir(), 'capture-sh-'));
   const state = join(scratch, 'state');
   try {
     const bin = join(scratch, 'bin');
     mkdirSync(bin);
     mkdirSync(state);
-    writeFileSync(join(bin, 'gh'), GH_STUB, { mode: 0o755 });
+    writeFileSync(join(bin, 'gh'), GH_STATE_STUB, { mode: 0o755 });
     const script = readFileSync(CAPTURE_SH, 'utf8').replaceAll('/tmp/capture_', `${state}/capture_`);
     writeFileSync(join(scratch, 'capture.sh'), script, { mode: 0o755 });
     const ghLog = join(scratch, 'gh.log');
@@ -109,12 +109,84 @@ function runCapture(args, { readOnly = false, roAt = '' } = {}) {
   }
 }
 
+// those paths moved into a scratch directory (so a real run's state is never touched)
+// and with stub `gh` and `curl` first on PATH, so nothing reaches GitHub or ADO.
+const GH_STUB = `#!/usr/bin/env bash
+# Answers the two post-mortem calls: the directory listing and a file fetch.
+for a; do case "$a" in repos/*) url="$a" ;; esac; done
+case "$url" in
+  */docs/post-mortem\\?*) mode="$GH_LIST" ;;
+  *) mode="$GH_FILE" ;;
+esac
+case "$mode" in
+  ok)   case "$url" in */docs/post-mortem\\?*) echo 1234567.md ;; *) printf '# AB#1234567\\n## Learnings\\n- a lesson\\n' ;; esac ;;
+  404)  echo '{"message":"Not Found","status":"404"}'; echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
+  *)    echo '{"message":"Server Error"}'; echo "gh: Server Error (HTTP $mode)" >&2; exit 1 ;;
+esac
+`;
+
+const CURL_STUB = `#!/usr/bin/env bash
+# Logs every ADO call as "<METHOD> <url> <body>" and answers from $WIQL_JSON / $ITEM_JSON.
+cat >/dev/null # the PAT config line ado_curl pipes in
+out=/dev/stdout; method=GET; data=""; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift ;; -X) method="$2"; shift ;; --data-binary) data="$2"; shift ;;
+    -w|-H|-K) shift ;; -*) ;; *) url="$1" ;;
+  esac; shift
+done
+case "$data" in @*) data=$(tr '\\n' ' ' < "\${data#@}") ;; esac
+printf '%s %s %s\\n' "$method" "$url" "$data" >> "$CURL_LOG"
+case "$method $url" in
+  "POST "*wiql*)           printf '%s' "$WIQL_JSON" > "$out" ;;
+  "GET "*expand=relations*) printf '%s' "$ITEM_JSON" > "$out" ;;
+esac
+printf 200
+`;
+
+/** Run `capture.sh <args>` (or, with `fn`, one of its functions) in a scratch dir. */
+function runCapture(args, { env = {}, setup = () => {}, fn } = {}) {
+  const scratch = mkdtempSync(join(tmpdir(), 'capture-sh-'));
+  try {
+    const bin = join(scratch, 'bin');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'gh'), GH_STUB, { mode: 0o755 });
+    writeFileSync(join(bin, 'curl'), CURL_STUB, { mode: 0o755 });
+    let script = readFileSync(CAPTURE_SH, 'utf8').replaceAll('/tmp/capture_', `${scratch}/capture_`);
+    if (fn) script = `${script.slice(0, script.indexOf('\nCMD="$1"'))}\n${fn} "$@"\n`;
+    writeFileSync(join(scratch, 'capture.sh'), script, { mode: 0o755 });
+    setup(scratch);
+    const curlLog = join(scratch, 'curl.log');
+    writeFileSync(curlLog, '');
+    const r = spawnSync('bash', [join(scratch, 'capture.sh'), ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CURL_LOG: curlLog, ...env },
+    });
+    const read = (f) => (existsSync(join(scratch, f)) ? readFileSync(join(scratch, f), 'utf8') : '');
+    return { status: r.status, out: r.stdout + r.stderr, curl: read('curl.log'), ticketLog: read('capture_ticket.log') };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 /** Assert a run stopped on STATE_NOT_WRITABLE without printing `notPrinted`. */
 function expectUnwritable(name, r, notPrinted) {
   if (r.status !== 1 || !r.out.includes('STATE_NOT_WRITABLE') || r.out.includes(notPrinted)) {
     return failCase(name, `expected STATE_NOT_WRITABLE and no ${notPrinted}, got status ${r.status}: ${r.out.trim()}`);
   }
   return true;
+}
+
+/** `capture.sh postmortems` for one ticket, AB#1234567, with the given stub answers. */
+function runPostmortems(env) {
+  return runCapture(['postmortems'], {
+    env,
+    setup: (s) => {
+      writeFileSync(join(s, 'capture_run.tsv'), 'AlaskaAirlines/auro-x\tlbl\tmain\trc\tcapture/auro-x-lbl\taaa\tbbb\n');
+      writeFileSync(join(s, 'capture_ado_ids.txt'), '1234567\n');
+      writeFileSync(join(s, 'capture_pr_ids.txt'), '');
+    },
+  });
 }
 
 const tests = {
@@ -363,7 +435,7 @@ const tests = {
   // `range` still printed RANGE_OK; the next step then failed with a misleading NO_RANGE.
   'range: an unwritable state dir fails before any GitHub call'() {
     const name = 'range: an unwritable state dir fails before any GitHub call';
-    const r = runCapture(['range', 'auro-x', 'rc'], { readOnly: true });
+    const r = runCaptureState(['range', 'auro-x', 'rc'], { readOnly: true });
     if (!expectUnwritable(name, r, 'RANGE_OK')) return;
     if (r.gh.trim()) return failCase(name, `expected no GitHub call, got ${JSON.stringify(r.gh)}`);
     pass(name);
@@ -371,13 +443,13 @@ const tests = {
 
   'range: a failed run-state write fails instead of reporting RANGE_OK'() {
     const name = 'range: a failed run-state write fails instead of reporting RANGE_OK';
-    const r = runCapture(['range', 'auro-x', 'rc'], { roAt: '/commits/' });
+    const r = runCaptureState(['range', 'auro-x', 'rc'], { roAt: '/commits/' });
     if (expectUnwritable(name, r, 'RANGE_OK')) pass(name);
   },
 
   'corpus: a failed corpus-ref write fails instead of printing the corpus'() {
     const name = 'corpus: a failed corpus-ref write fails instead of printing the corpus';
-    const r = runCapture(['corpus', 'main'], { roAt: '.md?ref=' });
+    const r = runCaptureState(['corpus', 'main'], { roAt: '.md?ref=' });
     if (expectUnwritable(name, r, 'corpus: ')) pass(name);
   },
 
@@ -401,6 +473,47 @@ const tests = {
     } finally {
       rmSync(scratch, { recursive: true, force: true });
     }
+  },
+
+  // --- capture.sh postmortems: a GitHub error is a failure, not "no post-mortems" -----
+  'postmortems: a 404 on docs/post-mortem/ means the repo has none'() {
+    const name = 'postmortems: a 404 on docs/post-mortem/ means the repo has none';
+    const r = runPostmortems({ GH_LIST: '404' });
+    if (r.status !== 0 || !r.out.includes('NO_POSTMORTEMS') || r.out.includes('GITHUB_FAILED')) {
+      return failCase(name, `expected exit 0 and NO_POSTMORTEMS, got ${r.status}: ${r.out.trim()}`);
+    }
+    pass(name);
+  },
+
+  'postmortems: any other listing error fails with GITHUB_FAILED'() {
+    // Review of #60 (finding 5): a 5xx, timeout or rate limit was read as "no directory", so
+    // the release's lessons were skipped behind a clean "nothing extractable" result.
+    const name = 'postmortems: any other listing error fails with GITHUB_FAILED';
+    for (const code of ['502', '403']) {
+      const r = runPostmortems({ GH_LIST: code });
+      if (r.status === 0 || !r.out.includes('GITHUB_FAILED') || r.out.includes('NO_POSTMORTEMS')) {
+        return failCase(name, `HTTP ${code}: expected a GITHUB_FAILED exit, got ${r.status}: ${r.out.trim()}`);
+      }
+    }
+    pass(name);
+  },
+
+  'postmortems: a failed post-mortem fetch fails with GITHUB_FAILED'() {
+    const name = 'postmortems: a failed post-mortem fetch fails with GITHUB_FAILED';
+    const r = runPostmortems({ GH_LIST: 'ok', GH_FILE: '502' });
+    if (r.status === 0 || !r.out.includes('GITHUB_FAILED') || r.out.includes('NO_POSTMORTEMS')) {
+      return failCase(name, `expected a GITHUB_FAILED exit, got ${r.status}: ${r.out.trim()}`);
+    }
+    pass(name);
+  },
+
+  'postmortems: a fetched post-mortem is counted'() {
+    const name = 'postmortems: a fetched post-mortem is counted';
+    const r = runPostmortems({ GH_LIST: 'ok', GH_FILE: 'ok' });
+    if (r.status !== 0 || !r.out.includes('post-mortems carried by the range: 1') || r.out.includes('NO_POSTMORTEMS')) {
+      return failCase(name, `expected one post-mortem, got ${r.status}: ${r.out.trim()}`);
+    }
+    pass(name);
   },
 };
 

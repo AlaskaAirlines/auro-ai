@@ -51,7 +51,7 @@ ${CLAUDE_SKILL_DIR}/scripts/capture.sh tickets
 ${CLAUDE_SKILL_DIR}/scripts/capture.sh postmortems
 ```
 
-`tickets` finds every `AB#` in the range's commit messages and every merged PR number, with each ticket's ADO state and **closed date**. `postmortems` fetches `docs/post-mortem/<id>.md` from the head of the range for each one — by ticket, or by PR number for post-mortems named that way. Over-inclusion is harmless: a post-mortem whose lessons are already in the corpus produces no change. `NO_POSTMORTEMS` → result `nothing extractable — no post-mortems in this release`. `WARNING_INCOMPLETE` goes into the PR body.
+`tickets` finds every `AB#` in the range's commit messages and every merged PR number, with each ticket's ADO state and **closed date**. `postmortems` fetches `docs/post-mortem/<id>.md` from the head of the range for each one — by ticket, or by PR number for post-mortems named that way. Over-inclusion is harmless: a post-mortem whose lessons are already in the corpus produces no change. `NO_POSTMORTEMS` → result `nothing extractable — no post-mortems in this release`. `GITHUB_FAILED` (the post-mortem list or a post-mortem could not be read; only a missing `docs/post-mortem/` counts as none) → result `failed`, never "nothing extractable". `WARNING_INCOMPLETE` goes into the PR body.
 
 ## Step 3 — Locate the lessons
 

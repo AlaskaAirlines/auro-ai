@@ -507,7 +507,8 @@ opening a second one. It also files a **Committed** User Story in the current sp
 review is scheduled. For each machine-checkable rule it files a `coding-standards-check`
 User Story, New and unscheduled, for the Auro team to triage. When the team works one and
 closes it as *Acceptance tests pass*, the next capture records the check on the rule as
-`Enforced by`. Declining one is just closing it.
+`Enforced by`. To decline one, close it as *Abandoned* or *Out of scope*: once a ticket
+has been worked on, a close with any other reason reads as shipped.
 It is normally run by the release-prep skill, and a failure never
 blocks the release. Needs the `gh` CLI signed in, and the
 [ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates, the

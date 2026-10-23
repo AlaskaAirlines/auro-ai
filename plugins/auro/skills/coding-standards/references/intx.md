@@ -12,3 +12,10 @@ A keyboard handler that treats any single-character `evt.key` as printable will 
 
 - **Sources:** auro-formkit#1532
 - **Since:** 2026-09-18
+
+### CS-INTX-002 — Clear interaction buffers on programmatic value change and reset()
+
+A typeahead or selection buffer is scoped to the user's current interaction, and focus loss is a proxy for "the interaction ended", not the definition of it. `hideBib()` closes the dropdown without blurring the host, so a blur-keyed clear never fires and the next keystroke concatenates onto stale characters, matching the wrong option. Clear in the value-change branch of `updated()` and again in `reset()` — the second covers the `undefined → undefined` case, where the value-change branch never runs at all.
+
+- **Sources:** auro-formkit#1532
+- **Since:** 2026-09-16

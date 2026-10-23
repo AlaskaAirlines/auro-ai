@@ -45,8 +45,12 @@ Verified in Copilot CLI 1.0.103. See
   Without it, Copilot can't read the ticket. It then asks you for the scope rather
   than editing without the rules.
 - **Copilot skips some workflow skills.** It drops any skill whose description is over
-  1024 characters, which today includes `ado`, `post-mortem`, `pr`, `doc-review`,
-  `create-rcs` and `sprint-report`. Keep using the agents below for those.
+  1024 characters or whose frontmatter is not strict YAML. On `main`, that drops `ado`,
+  `post-mortem` and `pr` (over 1024 characters) and `create-rcs` and `sprint-report`
+  (an unquoted `: ` in the description, which is not valid YAML). Keep using the agents
+  below for those. `doc-review` on `main` is not dropped, but its description contains
+  `#660`, and YAML reads a space then `#` as the start of a comment, so Copilot most
+  likely sees only its first 147 characters.
 - **Not covered:** Copilot **code review on GitHub** reads only files in the
   repository, so it does not see these standards.
 

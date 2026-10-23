@@ -221,7 +221,7 @@ const tests = {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Throw on unresolved imports', '',
-        '- **Sources:** AB#1575423', '',
+        '- **Sources:** AB#1575423', '- **Since:** 2026-09-16', '',
         '```js', "if (w.code === 'UNRESOLVED_IMPORT') throw new Error(w.message);", '```', '',
       ].join('\n'),
     });
@@ -340,10 +340,10 @@ const tests = {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — A rule documenting the Phase 4 scope header', '',
-        '- **Sources:** AB#1636704', '',
+        '- **Sources:** AB#1636704', '- **Since:** 2026-09-16', '',
         '```markdown', '<!-- scope: paths=src/**', '```', '',
         '### CS-API-002 — Active, and properly sourced', '',
-        '- **Sources:** AB#1344690', '', 'Body text.', '',
+        '- **Sources:** AB#1344690', '- **Since:** 2026-09-16', '', 'Body text.', '',
       ].join('\n'),
     });
   },
@@ -359,7 +359,7 @@ const tests = {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Throw on unresolved imports <!-- reworded 2026-09-18 -->', '',
-        '- **Sources:** AB#1575423 <!-- superseded AB#7654321, kept for history -->', '',
+        '- **Sources:** AB#1575423 <!-- superseded AB#7654321, kept for history -->', '- **Since:** 2026-09-16', '',
         'Body text.', '',
       ].join('\n'),
     });
@@ -370,7 +370,7 @@ const tests = {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Learned from AI review on a formkit pull request', '',
-        '- **Sources:** auro-formkit#1511', '', 'Body text.', '',
+        '- **Sources:** auro-formkit#1511', '- **Since:** 2026-09-16', '', 'Body text.', '',
       ].join('\n'),
     });
   },
@@ -393,7 +393,7 @@ const tests = {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Shows a rule heading by example', '',
-        '- **Sources:** AB#1636704', '',
+        '- **Sources:** AB#1636704', '- **Since:** 2026-09-16', '',
         'Like this:', '',
         '    ### CS-API-900 — not a real rule', '',
       ].join('\n'),
@@ -524,7 +524,7 @@ const tests = {
       api: [
         '# CS-API', '', '## Rules', '',
         '### CS-API-001 — Learned from a ticket and a pull request', '',
-        '- **Sources:** AB#1636704, auro-formkit#1511', '- **Learned:** ×2', '', 'Body text.', '',
+        '- **Sources:** AB#1636704, auro-formkit#1511', '- **Since:** 2026-09-16', '- **Learned:** ×2', '', 'Body text.', '',
       ].join('\n'),
     });
   },
@@ -538,6 +538,29 @@ const tests = {
         '- **Sources:** AB#1636704', '- **Sources:** AB#1344690', '', 'Body text.', '',
       ].join('\n'),
     }, 'repeats the "Sources" field');
+  },
+
+  // --- Since, required from Phase 2 -------------------------------------------
+  async 'an active rule with no Since is rejected'() {
+    await expectFail('an active rule with no Since is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Sourced, but undated', '',
+        '- **Sources:** AB#1636704', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'is missing "Since"');
+  },
+
+  async 'a retired rule needs no Since'() {
+    // Retirement exempts a rule from the field checks that make it actionable,
+    // and a withdrawn rule is never compared against a new source.
+    await expectPass('a retired rule needs no Since', {
+      api: [
+        '# CS-API', '', '## Retired', '',
+        '### CS-API-001 — Withdrawn before Since was required', '',
+        '- **Sources:** AB#1636704', '', 'Body text.', '',
+      ].join('\n'),
+    });
   },
 
   // --- tombstone placement and casing -----------------------------------------
@@ -571,7 +594,7 @@ const tests = {
     await expectPass('a merge chain ending at a live rule passes', {
       api: [
         '# CS-API', '', '## Rules', '',
-        '### CS-API-003 — The live target', '', '- **Sources:** AB#1636704', '', 'Body text.', '',
+        '### CS-API-003 — The live target', '', '- **Sources:** AB#1636704', '- **Since:** 2026-09-16', '', 'Body text.', '',
         '## Retired', '',
         '### CS-API-001 — merged into CS-API-002', '',
         '### CS-API-002 — merged into CS-API-003', '',

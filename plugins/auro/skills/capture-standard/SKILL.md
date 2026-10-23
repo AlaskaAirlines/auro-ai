@@ -2,7 +2,7 @@
 name: capture-standard
 description: Capture coding standards from the post-mortems a release carries, while preparing that release. Run when asked to capture coding standards or lessons from a release, an rc branch, or a commit range into the Auro coding-standards corpus — usually by the release-prep skill as an rc branch is merged into main. Proposes new rules and source-appends, previews them, and on one confirmation opens a pull request against auro-ai plus a review ticket. Not for writing or reviewing code, writing post-mortems, or release notes.
 argument-hint: "<repo> <branch | from..to> [--corpus-ref <branch>]"
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh), Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *), Read, Edit(//tmp/**), AskUserQuestion
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh), Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *), Read, Edit(//tmp/capture_out/**), Edit(//tmp/capture_pr_body.md), AskUserQuestion
 ---
 
 ## Task — start now
@@ -114,7 +114,7 @@ Equivalence is about the **lesson**, not the wording. When unsure between *new* 
 
 ### 5c. Write the proposal
 
-For each category that changes, **Read** `/tmp/capture_corpus/<cat>.md` and **Write** the full new file to `/tmp/capture_out/<cat>.md` — the corpus text with new rules appended under `## Rules` and source-appends edited in place. Only changed categories; nothing else in the file moves. Use the **Write** tool, never a shell `mkdir`/`cp` (Write creates `/tmp/capture_out/`; the frontmatter's `Edit(//tmp/**)` is the grant that covers it — Claude Code matches file permissions only through `Edit(path)` rules). Each rule block:
+For each category that changes, **Read** `/tmp/capture_corpus/<cat>.md` and **Write** the full new file to `/tmp/capture_out/<cat>.md` — the corpus text with new rules appended under `## Rules` and source-appends edited in place. Only changed categories; nothing else in the file moves. Use the **Write** tool, never a shell `mkdir`/`cp` (Write creates `/tmp/capture_out/`; the frontmatter's `Edit(//tmp/capture_out/**)` is the grant that covers it — Claude Code matches file permissions only through `Edit(path)` rules). Each rule block:
 
 ```markdown
 ### CS-<CAT>-<NNN> — <imperative title>

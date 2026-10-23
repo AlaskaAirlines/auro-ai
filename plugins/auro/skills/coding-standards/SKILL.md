@@ -1,6 +1,6 @@
 ---
 name: coding-standards
-description: Auro design-system coding standards distilled from team post-mortems. Consult before writing, modifying, or reviewing code in any Auro repository — component source, styles, tests, build/release config, or plugin tooling — to apply the rules the team has already learned. Read-only: it advises, it never edits.
+description: Auro design-system coding standards distilled from team post-mortems. Consult before writing, modifying, reviewing, debugging, or fixing code in any Auro repository — component source, styles, tests, build/release config, or plugin tooling — to apply the rules the team has already learned. Also consult when the work starts from an Azure DevOps ticket reference rather than a described change (AB#1234567, a work-item URL, or "implement <ticket>"), and when a component is described as misbehaving in plain language — not working, not updating, breaking or regressing after a change, wrong in one browser, or wrong with a screen reader — including any task naming an auro- element. Read-only: it advises, it never edits.
 allowed-tools: Read, Glob, Grep
 ---
 

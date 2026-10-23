@@ -38,6 +38,7 @@ const CATEGORIES = [
 const MAX_RULES_PER_FILE = 25; // parent §3.3 overflow rule
 const MAX_SKILL_LINES = 200;   // parent §3.1, D3
 const MAX_TITLE_CHARS = 80;    // parent §3.2
+const MAX_DESCRIPTION_CHARS = 1024; // Copilot drops a skill whose description is longer (Phase 4)
 
 const ID_RE = /^CS-([A-Z0-9]+)-(\d{3})$/;
 const HEADING_RE = /^###\s+(\S+)\s+—\s+(.+?)\s*$/;
@@ -595,6 +596,48 @@ async function validateSkill() {
     fail('SKILL.md', 'missing YAML frontmatter');
   } else if (/^disable-model-invocation:/m.test(frontmatter[1])) {
     fail('SKILL.md', 'sets disable-model-invocation — coding-standards must stay model-invocable');
+  } else {
+    // Phase 4: Copilot parses frontmatter as strict YAML and drops a skill it
+    // cannot parse without a word, so the skill never reaches Copilot users.
+    // Claude Code tolerates the shapes below, so only this check catches them.
+    // The description must be one line, so this check sees all of it. An
+    // unquoted value may not contain ": " or ":<tab>" or end in ":" (YAML reads
+    // a nested mapping), may not contain " #" (YAML reads the rest as a comment
+    // and silently cuts the description short), and may not start with a YAML
+    // indicator. The value YAML yields must stay within Copilot's
+    // 1024-character description limit.
+    const description = frontmatter[1].match(/^description:[ \t]*(.*)$\n?([ \t]+\S)?/m);
+    if (!description) {
+      fail('SKILL.md', 'frontmatter has no description — the description is the whole trigger surface');
+    } else {
+      const value = description[1].trim();
+      const quoted = /^(["']).*\1$/.test(value);
+      if (/^[|>]/.test(value)) {
+        fail('SKILL.md', 'description is a YAML block scalar ("|" or ">") — keep it on one line so its length can be checked');
+      } else if (description[2]) {
+        fail('SKILL.md', 'description continues onto the next line — keep it on one line so its length can be checked');
+      } else if (!quoted) {
+        if (/:[ \t]/.test(value)) {
+          fail('SKILL.md', 'description contains ": " unquoted — strict YAML parsers (Copilot) reject the frontmatter and drop the skill; reword or quote it');
+        }
+        if (value.endsWith(':')) {
+          fail('SKILL.md', 'description ends with ":" unquoted — strict YAML parsers (Copilot) reject the frontmatter and drop the skill; reword or quote it');
+        }
+        if (/(^|[ \t])#/.test(value)) {
+          fail('SKILL.md', 'description contains " #" unquoted — YAML reads the rest as a comment and cuts the description short; reword or quote it');
+        }
+        if (/^[[\]{},*&!%@`]/.test(value)) {
+          fail('SKILL.md', 'description starts with a YAML indicator character unquoted — strict YAML parsers (Copilot) reject or change it; reword or quote it');
+        }
+      }
+      // Measure the value YAML yields: quotes stripped and escapes undone.
+      const parsed = !quoted ? value
+        : value[0] === "'" ? value.slice(1, -1).replace(/''/g, "'")
+        : value.slice(1, -1).replace(/\\(.)/g, '$1');
+      if (parsed.length > MAX_DESCRIPTION_CHARS) {
+        fail('SKILL.md', `description is ${parsed.length} chars (max ${MAX_DESCRIPTION_CHARS}) — Copilot drops longer descriptions`);
+      }
+    }
   }
 
   // Match any plausible filename rather than just the lowercase-alphanumeric

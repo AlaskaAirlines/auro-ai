@@ -171,9 +171,18 @@ function transformBody(name, body) {
   // Claude exposes the invocation argument as `$ARGUMENTS`; Copilot uses the
   // `${input:...}` variable syntax and prompts for it on invocation. Claude also
   // resolves `${CLAUDE_SKILL_DIR}` to the skill's folder; Copilot has no
-  // equivalent, so point it at the installed copy instead.
-  return body.replace(/\$ARGUMENTS/g, '${input:args}').replace(/\$\{CLAUDE_SKILL_DIR\}/g, installDir(name));
+  // equivalent, so point it at the installed copy instead. The skill's
+  // "In Copilot," note about the unexpanded variable goes with it, since the
+  // paths here no longer start with that variable.
+  return body
+    .replace(/\$ARGUMENTS/g, '${input:args}')
+    .replace(COPILOT_SKILL_DIR_NOTE, '')
+    .replace(/\$\{CLAUDE_SKILL_DIR\}/g, installDir(name));
 }
+
+/** The plugin skills' note telling Copilot to resolve the unexpanded skill-directory
+ *  variable itself: that one paragraph, plus the blank line after it. */
+const COPILOT_SKILL_DIR_NOTE = /^\*\*In Copilot,\*\* the skill-directory variable [^\n]*\n(?:\n|$)/gm;
 
 // --- emit --------------------------------------------------------------------
 

@@ -15,6 +15,47 @@ The Auro workflows are packaged three ways, one per product:
 > `/agent` or `copilot --agent <name>`), so the skills are generated into that format
 > in [`../copilot/agents/`](../copilot/agents/).
 
+## Coding standards: install the `auro` plugin
+
+The Auro **coding standards** (`coding-standards`) are not an agent. They load
+automatically when you write or change code, and that only works as a skill. The
+Copilot CLI installs Claude-format plugins, so it reads the standards straight from
+the same `auro` plugin Claude Code uses. There is one copy of every rule, and nothing
+is generated.
+
+```shell
+copilot plugin marketplace add AlaskaAirlines/auro-ai
+copilot plugin install auro@auro-ai
+copilot plugin list                      # shows auro@auro-ai
+```
+
+To try an unreleased branch, point a session at a checkout instead:
+`copilot --plugin-dir <checkout>/plugins/auro`.
+
+After that, work as normal. The skill loads on its own when a task involves Auro code
+(a described change, a bug symptom, or a bare ticket number). It opens the rule
+categories that task needs before editing, and it stays silent on non-code work.
+Verified in Copilot CLI 1.0.103. See
+[`copilot-usage.md` § Verification](./copilot-usage.md#verification-2026-10-22).
+
+- **`GH_TOKEN` must not be a classic PAT.** Copilot refuses to start if `GH_TOKEN`
+  holds a `ghp_` token. Clear it for Copilot, or use a fine-grained token.
+- **Bare ticket numbers need a default ADO organization**:
+  `az devops configure --defaults organization=https://dev.azure.com/itsals project=E_Retain_Content`.
+  Without it, Copilot can't read the ticket. It then asks you for the scope rather
+  than editing without the rules.
+- **Copilot skips some workflow skills.** It drops any skill whose description is over
+  1024 characters or whose frontmatter is not strict YAML. On `main`, that drops `ado`,
+  `post-mortem` and `pr` (over 1024 characters) and `create-rcs` and `sprint-report`
+  (an unquoted `: ` in the description, which is not valid YAML). Keep using the agents
+  below for those. `doc-review` on `main` is not dropped, but its description contains
+  `#660`, and YAML reads a space then `#` as the start of a comment, so Copilot most
+  likely sees only its first 147 characters.
+- **Not covered:** Copilot **code review on GitHub** reads only files in the
+  repository, so it does not see these standards.
+
+---
+
 This guide is written for **Windows** (PowerShell). macOS/Linux users can follow the
 same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents` and
 `export VAR=…` for `setx`.

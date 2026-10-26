@@ -70,7 +70,7 @@ reads only files in the repository, not plugins, so it does not see these standa
 | ----- | --------------- | ------------ |
 | `commit` | `/commit` | Guided Conventional Commits workflow: protected-branch guard, sync check, ADO/PR reference, staged-diff message, co-author accreditation; `amend` folds staged changes into the previous commit |
 | `code-review` | `/code-review` | Reviews a GitHub PR (posts comments after you confirm) or the current branch in chat, and cross-checks the linked ADO ticket's requirements |
-| `release-notes` | `/release-notes` | Derives the next semantic version from Conventional Commits and authors/refreshes the release-notes doc; stages, never commits |
+| `release-notes` | `/release-notes` | Derives the next semantic version with the repo's own semantic-release commit analyzer (needs `npm ci` in the repo) and authors/refreshes the release-notes doc; stages, never commits. Ships with a bundled script — see below |
 | `pr` | `/pr` | Opens a GitHub PR for the current branch, assigned to you; prompts for base + draft/ready, applies component labels, adds per-ticket Executive Summary + Discussion link. Never pushes |
 | `ado` | `/ado` | Drafts a new Azure DevOps work item or refines an existing one, then writes it to ADO |
 | `post-mortem` | `/post-mortem` | Authors a structured post-mortem for a ticket, writes `docs/post-mortem/<ticket>.md`, and publishes a GitHub Discussion |
@@ -93,8 +93,8 @@ commit them so everyone on the repo gets the commands:
 mkdir -p .github/prompts
 # from a checkout of AlaskaAirlines/auro-ai:
 cp /path/to/auro-ai/copilot/prompts/*.prompt.md .github/prompts/
-# skills that bundle helper scripts (currently create-rcs) need their folder too:
-cp -R /path/to/auro-ai/copilot/prompts/create-rcs .github/prompts/
+# skills that bundle helper scripts (currently create-rcs and release-notes) need their folder too:
+cp -R /path/to/auro-ai/copilot/prompts/create-rcs /path/to/auro-ai/copilot/prompts/release-notes .github/prompts/
 git add .github/prompts && git commit -m "chore: add Auro Copilot prompt files"
 ```
 
@@ -126,11 +126,11 @@ commands are available in every workspace for your account:
 > the location, then copy the files there — but pointing at a checkout keeps them
 > updatable with `git pull`.
 
-> **`create-rcs` at user level:** its prompt runs a bundled script from
-> `.github/prompts/create-rcs/scripts/`, relative to the open workspace. With a
+> **`create-rcs` and `release-notes` at user level:** each prompt runs a bundled script from
+> `.github/prompts/<name>/scripts/`, relative to the open workspace. With a
 > user-level install that folder isn't in your workspace, so either copy
-> `copilot/prompts/create-rcs/` into the workspace's `.github/prompts/`, or tell
-> Copilot to use `/absolute/path/to/auro-ai/copilot/prompts/create-rcs` instead.
+> `copilot/prompts/<name>/` into the workspace's `.github/prompts/`, or tell
+> Copilot to use `/absolute/path/to/auro-ai/copilot/prompts/<name>` instead.
 
 ---
 

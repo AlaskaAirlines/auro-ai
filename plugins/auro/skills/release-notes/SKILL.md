@@ -1,8 +1,8 @@
 ---
 name: release-notes
-description: Generate or update the next release-notes document for auro-formkit. Run when asked to write, generate, or update the release notes for the next auro-formkit release. Determines the next semantic version from the Conventional Commits since the last released version (BREAKING CHANGE → major, feat → minor, fix/perf → patch), exits with an explanation if nothing release-worthy has landed. After the user confirms the version and target file, if a release-notes file for the current in-progress release already exists on this branch it refreshes that file in place; otherwise it generates a rich new file from the repo's Release_Guide_TEMPLATE.md. Either way it wires the release into docs/templates/RELEASE_NOTES.md as the sole expanded accordion and stages the changed files (never commits). Exits early with instructions if the repo lacks the required release-notes folders/templates. Not for CHANGELOG.md, Release tickets, tagging, publishing, or running a release.
+description: Generate or update the next release-notes document for auro-formkit. Run when asked to write, generate, or update the release notes for the next auro-formkit release. Determines the next semantic version with the repo's own semantic-release commit analyzer and release config, so it matches the real release, and exits with an explanation if nothing release-worthy has landed. After the user confirms the version and target file, if a release-notes file for the current in-progress release already exists on this branch it refreshes that file in place; otherwise it generates a rich new file from the repo's Release_Guide_TEMPLATE.md. Either way it wires the release into docs/templates/RELEASE_NOTES.md as the sole expanded accordion and stages the changed files (never commits). Exits early with instructions if the repo lacks the required release-notes folders/templates. Not for CHANGELOG.md, Release tickets, tagging, publishing, or running a release.
 argument-hint: "[base ref]"
-allowed-tools: Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git log *), Bash(git tag -l *), Bash(git diff *), Bash(git show *), Bash(git status *), Bash(git add *), Read, Glob, Grep, Write, Edit, AskUserQuestion
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/next-release.mjs), Bash(${CLAUDE_SKILL_DIR}/scripts/next-release.mjs *), Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git log *), Bash(git tag -l *), Bash(git diff *), Bash(git show *), Bash(git status *), Bash(git add *), Read, Glob, Grep, Write, Edit, AskUserQuestion
 ---
 
 ## Task — start now
@@ -13,12 +13,28 @@ You are executing the **release-notes** skill. The invocation itself is the requ
 > - commit, push, or open a PR;
 > - create, move, or delete git tags (the `git tag -l` allowance is read-only listing — never `git tag <name>`);
 > - edit `package.json` / version fields, lockfiles, or any changelog other than the release-notes files named in this skill;
-> - run `npm version`/`npm publish`/`semantic-release`, create GitHub Releases, or trigger/dispatch any CI or release workflow;
+> - run `npm version`/`npm publish`/`semantic-release`, create GitHub Releases, or trigger/dispatch any CI or release workflow (Step 3's helper only loads semantic-release's commit analyzer to read the version; it never runs a release);
 > - touch build config, `.github/`, or anything outside `docs/releases/` and `docs/templates/RELEASE_NOTES.md`.
 >
 > Everything above is handled by the release workflow. If any step seems to call for one of these actions, stop and hand control back to the user instead.
 
 **The invocation takes one optional argument** — available as `$ARGUMENTS` (the text after `/release-notes`, trimmed; empty if none): an explicit **base ref** (tag, branch, or commit) to use as the start of the commit range, overriding the automatic boundary detection in Step 2. Leave it empty for the normal flow.
+
+**Every run ends with exactly one result line** — see *Calling contract*.
+
+## Calling contract
+
+Release prep (or a person) calls this skill with the optional base ref above, from a checkout of the repo being released. The caller gets back **exactly one** line, always the last thing this skill prints, starting `RELEASE_NOTES_RESULT:`:
+
+- `RELEASE_NOTES_RESULT: written docs/releases/<padded>.md — <semver> (<bump>), created · staged, not committed` — a new notes file;
+- `RELEASE_NOTES_RESULT: written docs/releases/<padded>.md — <semver> (<bump>), updated · staged, not committed` — the branch's in-progress file refreshed in place. If the commits now call for a different version (Step 3), add ` · version mismatch: the commits now give <semver>`;
+- `RELEASE_NOTES_RESULT: no release notes needed — <reason>` — nothing release-worthy since the last release, or no commits at all. This is a result, not a failure;
+- `RELEASE_NOTES_RESULT: cancelled — nothing written` — the user chose **Cancel** in Step 3;
+- `RELEASE_NOTES_RESULT: failed — <step and reason>` — anything else, including a Step 0 stop (`failed — repo not set up for release-notes (missing <paths>)`) and Step 3's `npm ci` stop.
+
+Print it after any other output, on its own line, even when you stop early. The segments after the first ` · ` may grow; a caller that needs only the file and version should read up to it.
+
+**In Copilot,** the skill-directory variable at the start of the paths in this file is left unexpanded. If a path still begins with a `$`-variable, replace that variable with this skill's base directory, given at the top of the skill's context.
 
 Work through the steps below in order.
 
@@ -41,7 +57,7 @@ Use `Glob`/`Read` to verify each. If **any** are missing, **stop immediately** a
 >
 > Create the missing folder(s) and copy the template file(s) from a repo that has them (e.g. `auro-formkit`), then re-run `/release-notes`.
 
-Do not run any further steps, and do not create these files yourself — the templates carry repo-specific structure the user must supply.
+Do not run any further steps, and do not create these files yourself — the templates carry repo-specific structure the user must supply. End with `RELEASE_NOTES_RESULT: failed — repo not set up for release-notes (missing <the missing paths>)`.
 
 ---
 
@@ -72,7 +88,7 @@ Ignore `Release_Guide_TEMPLATE.md`. Call the result the **in-progress set** (nor
 
 You need every commit that has landed **since the base release was cut**, up to `HEAD`.
 
-**If `$ARGUMENTS` is non-empty**, treat it as an explicit base ref and use the range `<$ARGUMENTS>..HEAD` (verify it resolves with `git rev-parse --verify <ref>`; if it doesn't, tell the user the ref is invalid and stop). Skip the automatic detection below.
+**If `$ARGUMENTS` is non-empty**, treat it as an explicit base ref and use the range `<$ARGUMENTS>..HEAD` (verify it resolves with `git rev-parse --verify <ref>`; if it doesn't, tell the user the ref is invalid and stop with `RELEASE_NOTES_RESULT: failed — base ref <ref> does not resolve`). Skip the automatic detection below.
 
 **Otherwise**, detect the boundary automatically, in this order:
 
@@ -92,31 +108,31 @@ git log --format=%H%x1f%s <range>
 ```
 git log -E --grep='^BREAKING[ -]CHANGE:' --format=%H <range>
 ```
-Call this the **breaking-change set**. If the classification range is **empty** (no commits), stop and report: "No commits since the base release (`<base semver>`) — nothing to release."
+Call this the **breaking-change set**. If the classification range is **empty** (no commits), stop and report: "No commits since the base release (`<base semver>`) — nothing to release." and end with `RELEASE_NOTES_RESULT: no release notes needed — no commits since <base semver>`.
 
 ---
 
-## Step 3 — Classify commits and compute the new version
+## Step 3 — Decide the bump and the new version
 
-Classify **each** commit in the range by Conventional Commits, using the subjects from Step 2 and the breaking-change set:
+The version comes from the **same tool the real release uses**: semantic-release's commit analyzer, loaded from the repo's own `node_modules`, with the repo's own release config (`.releaserc`, `release.config.*`, or `package.json` `"release"`), over the commits since the last release tag. That way the notes and the release cannot disagree — `auro-formkit`'s `.releaserc`, for example, makes `refactor`, `style` and `docs(README)` patch releases. Do **not** classify the commits yourself. Run the bundled helper from the repo — with no arguments, or, when `$ARGUMENTS` gave a base ref, with that ref:
+```
+${CLAUDE_SKILL_DIR}/scripts/next-release.mjs
+${CLAUDE_SKILL_DIR}/scripts/next-release.mjs --from '<$ARGUMENTS>'
+```
+Run it **exactly as written** — one call, the path unquoted, nothing added (no `cd`, no `&&`, no pipes or redirects); that is the shape the skill's permission rule approves. It only reads git, the release config and the installed analyzer. It prints one JSON object: `releaseType` (`major`/`minor`/`patch`/`none`), `lastTag` and `lastVersion` (the highest stable release tag, or the `--from` ref when that is a release tag), `nextVersion`, the `range` it analyzed, `commitCount`, `triggers` (each release-worthy commit's short hash, subject and type), and the `config` file it read.
 
-- **major** — the subject type has a `!` (e.g. `feat!:`, `fix!:`) **or** the commit hash is in the **breaking-change set** from Step 2 (the `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer grep).
-- **minor** — subject type is `feat` (and not major).
-- **patch** — subject type is `fix` or `perf` (and not major/minor).
-- **none** — any other type (`docs`, `chore`, `ci`, `test`, `refactor`, `style`, `build`) or an unparseable subject.
+**If it prints an `error`, stop** — never fall back to classifying the commits yourself, because that is the disagreement this step exists to prevent. Tell the user its `message` plainly, and end with `RELEASE_NOTES_RESULT: failed — <message>`:
+- **`NOT_INSTALLED`** — the checkout has no `node_modules` (or no semantic-release in it). Tell the user to run `npm ci` in the repo root and re-run.
+- **`NO_RELEASE_TAG`** — no release tag is in this checkout. Tell the user to run `git fetch --tags`, or to re-run with an explicit base ref.
+- **`NO_ANALYZER`**, **`BAD_REF`**, **`ANALYZER_FAILED`**, or anything else — report the message as-is.
 
-Take the **highest-precedence** bump across all commits: **major > minor > patch > none.**
+**No-op exit.** If `releaseType` is **`none`**, **stop and report why** — do not create a release notes document. Message shape:
 
-**No-op exit.** If the highest bump is **none** (every commit is docs/chore/ci/etc.), **stop and report why** — do not create a release notes document. Message shape:
+> No release-worthy changes since `<lastTag>`. The repo's release rules make none of the <commitCount> commit(s) in `<range>` a release, so no release notes are needed. If you expected a release, check that your release-worthy commits are on this branch.
 
-> No release-worthy changes since `<base semver>`. The <N> commit(s) in range are all non-release types (docs/chore/ci/test/refactor/style/build), so no release notes are needed. If you expected a release, check that your `feat`/`fix`/`perf` commits are on this branch.
+Briefly list the commit subjects you assessed so the user can verify. End with `RELEASE_NOTES_RESULT: no release notes needed — none of the <commitCount> commit(s) since <lastTag> is release-worthy`.
 
-Briefly list the commit subjects you assessed so the user can verify.
-
-**Compute the new version** from the base version and the bump:
-- major → `(base.major + 1).0.0`
-- minor → `base.major.(base.minor + 1).0`
-- patch → `base.major.base.minor.(base.patch + 1)`
+**The new version** is the helper's `nextVersion` — `lastVersion` bumped by `releaseType`, exactly as the release will compute it. If `lastVersion` differs from Step 1's base version (the last release has no notes file, or the files are ahead of the tags), say so in the confirmation below so the user can check it. Name the bump's reason from `triggers` (e.g. "minor: `feat(select): add multiselect AB#123`").
 
 Record the new semver (e.g. `6.1.0`) and its zero-padded filename form (`06.01.00`).
 
@@ -124,7 +140,7 @@ Record the new semver (e.g. `6.1.0`) and its zero-padded filename form (`06.01.0
 
 **Confirm before writing.** Nothing has been written yet. Show the user the plan: the commit range, the bump and new version (and, in update mode, any mismatch with the existing file's version), the target release-notes path and whether it will be **created** or **overwritten**, and that `docs/templates/RELEASE_NOTES.md` will be edited and both files staged. Ask with `AskUserQuestion`:
 - **Write and stage** → continue to Step 4.
-- **Cancel** → stop. Nothing is written or staged; say so.
+- **Cancel** → stop. Nothing is written or staged; say so, and end with `RELEASE_NOTES_RESULT: cancelled — nothing written`.
 
 ---
 
@@ -143,7 +159,7 @@ Write the file to the target path, following the template and honoring its inclu
 - **Breaking Changes + Migration** — only for a **major** bump.
 - **Features** — only if there are `feat` commits. Group items under `### AURO-<COMPONENT>`.
 - **Bug Fixes** — if there are `fix` commits. Keep the template's `_Note: ..._` line verbatim.
-- **Improvements** — if there are `perf` commits. Keep the template's `_Note: ..._` line verbatim.
+- **Improvements** — if there are `perf` commits, or other commits the repo's release rules make release-worthy (in `auro-formkit`, `refactor` and `style`). Keep the template's `_Note: ..._` line verbatim.
 - **Build & Packaging / Test Coverage / Documentation** — include only when the commit set has relevant `build`/`ci`, test, or docs changes worth surfacing.
 
 **Per-item shape** (matching recent notes):
@@ -163,7 +179,7 @@ Write the file to the target path, following the template and honoring its inclu
   - `AB#<7 digits>` (ADO work item) → `[AB#<n>](https://itsals.visualstudio.com/5e9f12eb-f830-406f-bee9-be25938f7aaa/_workitems/edit/<n>)`
   - `#<n>` (GitHub PR) → `[#<n>](https://github.com/AlaskaAirlines/auro-formkit/pull/<n>)`
   - If a commit has no reference, omit the link (just the bold summary + detail).
-- **Detail paragraph** — pull bodies for **only the release-worthy commits** (the `feat`/`fix`/`perf` ones that will appear in the notes), not the whole range — batch them in one call: `git show -s --format='%x1e%H%n%b' <hash> <hash> …`. Synthesize the detail from the subject and body. When the body is thin, you already have the commit's file list from the component-grouping call above; only when subject + body + file list still don't explain the change, pull the patch **scoped to the relevant path** (`git show <hash> -- <path>`). Do not pull full, unscoped diffs, and do not invent behavior you can't see in the commit.
+- **Detail paragraph** — pull bodies for **only the release-worthy commits** (the helper's `triggers`, which are the ones that will appear in the notes), not the whole range — batch them in one call: `git show -s --format='%x1e%H%n%b' <hash> <hash> …`. Synthesize the detail from the subject and body. When the body is thin, you already have the commit's file list from the component-grouping call above; only when subject + body + file list still don't explain the change, pull the patch **scoped to the relevant path** (`git show <hash> -- <path>`). Do not pull full, unscoped diffs, and do not invent behavior you can't see in the commit.
 - **Post-mortems** — if the range added files under `docs/post-mortem/`, link them from the Documentation section (match the existing notes' style).
 
 Keep the writing at the altitude of the recent notes: precise, consumer-facing, no filler.
@@ -214,5 +230,7 @@ Tell the user concisely:
 - In update mode, **if the recomputed version differed** from the existing file's version, say so plainly and note the options (delete the stale file and re-run, or pass an explicit base ref) so the number can be corrected.
 - A one-line summary of what each section of the generated file covers.
 - The path of the file written (`docs/releases/<target padded>.md`) and that it plus `docs/templates/RELEASE_NOTES.md` are **staged and ready to commit** (suggest `/commit` to finalize).
+
+Then print the result line as the very last line — `RELEASE_NOTES_RESULT: written docs/releases/<target padded>.md — <target semver> (<bump>), created · staged, not committed`, or `…, updated · staged, not committed` in update mode, with ` · version mismatch: the commits now give <semver>` when Step 3 found one (see *Calling contract*). If Step 4, 5 or 6 failed, the line is `RELEASE_NOTES_RESULT: failed — <step and reason>` instead, and the report says which files were left written or staged.
 
 Do not commit or push — hand control back to the user.

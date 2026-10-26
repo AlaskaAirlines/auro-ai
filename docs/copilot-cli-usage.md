@@ -68,7 +68,7 @@ same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents`
 | ----- | ------------- | ----- |
 | `commit` | `/agent commit` · `copilot --agent commit` | inline |
 | `pr` | `/agent pr` · `copilot --agent pr` | inline |
-| `release-notes` | `/agent release-notes` | inline |
+| `release-notes` | `/agent release-notes` | inline, runs a bundled script (needs `AURO_AI_HOME`) |
 | `post-mortem` | `/agent post-mortem` | inline |
 | `ado` | `/agent ado` | bootstrap (needs `AURO_AI_HOME`) |
 | `code-review` | `/agent code-review` | bootstrap (needs `AURO_AI_HOME`) |
@@ -80,9 +80,9 @@ same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents`
 **Inline** agents embed the full workflow and are self-contained. **Bootstrap**
 agents (whose inlined workflow would exceed the CLI's 30,000-character agent-prompt
 cap) read their `SKILL.md` from your local `auro-ai` checkout at runtime — so those
-three require the `AURO_AI_HOME` step below. `create-rcs` is inline but runs its
-helper script from the checkout (`$AURO_AI_HOME/plugins/auro/skills/create-rcs/scripts/`),
-so it needs `AURO_AI_HOME` too.
+three require the `AURO_AI_HOME` step below. `create-rcs` and `release-notes` are inline but run
+their helper script from the checkout (`$AURO_AI_HOME/plugins/auro/skills/<name>/scripts/`),
+so they need `AURO_AI_HOME` too.
 
 > **Copilot CLI vs. Claude Code.** These are mechanical ports of the same skills, so
 > Claude-only features degrade: `code-review` runs single-model (no adversarial

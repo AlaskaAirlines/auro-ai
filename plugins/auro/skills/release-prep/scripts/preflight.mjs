@@ -44,6 +44,19 @@ function tryRun(cmd, args, cwd) {
   }
 }
 
+// Every value preflight prints into CAPTURE_ARGS or NOTES_ARGS is passed on to
+// another skill and from there to a shell script, and a branch name can come
+// from any PR into main. Git allows `$`, `;`, `(` and backticks in a branch
+// name, so only these characters pass; anything else is reported as INVALID,
+// without echoing the value, and the skill asks the person instead.
+const SAFE_REF = /^(?!-)[A-Za-z0-9._/#-]+$/;
+const SAFE_REPO = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+const isSafeRef = (ref) => SAFE_REF.test(ref) && !ref.includes('..');
+const isSafeReleased = (value) => {
+  const range = value.match(/^(.+?)\.\.(.+)$/);
+  return range ? isSafeRef(range[1]) && isSafeRef(range[2]) : isSafeRef(value);
+};
+
 const isRepoArg = (arg) => /^auro-[\w.-]+$/.test(arg) || new RegExp(`^${OWNER}/[\\w.-]+$`, 'i').test(arg);
 const fullRepo = (arg) => (arg.includes('/') ? arg : `${OWNER}/${arg}`);
 const sameRepo = (a, b) => Boolean(a && b) && a.toLowerCase() === b.toLowerCase();
@@ -57,7 +70,7 @@ function parseArgs(argv) {
       if (!argv[i + 1]) throw new Error(`${arg} needs a value`);
       args[arg === '--corpus-ref' ? 'corpusRef' : 'notesBase'] = argv[++i];
     } else if (arg.startsWith('--')) {
-      throw new Error(`unknown option ${arg}`);
+      throw new Error('unknown option');
     } else if (arg.trim()) {
       positional.push(arg.trim());
     }
@@ -80,11 +93,12 @@ function checkoutInfo(cwd) {
   if (!top.ok) return { root: null, repo: null, branch: null };
   const origin = tryRun('git', ['remote', 'get-url', 'origin'], top.out);
   const branch = tryRun('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], top.out);
-  return { root: top.out, repo: origin.ok ? repoFromUrl(origin.out) : null, branch: branch.ok ? branch.out : null };
+  const repo = origin.ok ? repoFromUrl(origin.out) : null;
+  return { root: top.out, repo: repo && SAFE_REPO.test(repo) ? repo : null, branch: branch.ok ? branch.out : null };
 }
 
 function openRcPrs(repo) {
-  const r = tryRun('gh', ['pr', 'list', '-R', repo, '--base', 'main', '--state', 'open', '--limit', '100', '--json', 'number,url,headRefName,headRefOid']);
+  const r = tryRun('gh', ['pr', 'list', '-R', repo, '--base', 'main', '--state', 'open', '--limit', '100', '--json', 'number,url,headRefName,headRefOid,isCrossRepository,headRepositoryOwner']);
   if (!r.ok) return { ok: false, why: r.why };
   let prs;
   try {
@@ -92,7 +106,11 @@ function openRcPrs(repo) {
   } catch {
     return { ok: false, why: 'gh pr list returned something that is not JSON' };
   }
-  return { ok: true, prs: prs.filter((pr) => /^rc\//.test(pr.headRefName)) };
+  // A fork can open a PR into main with any head name, so only the repo's own
+  // rc branches count, and only those with a safe name.
+  const own = prs.filter((pr) => !pr.isCrossRepository && /^rc\//.test(pr.headRefName));
+  const safe = own.filter((pr) => isSafeRef(pr.headRefName) && /^[0-9a-f]{40}$/.test(pr.headRefOid ?? ''));
+  return { ok: true, prs: safe, dropped: own.length - safe.length };
 }
 
 /** Why the notes step cannot run in this checkout, or null when it can. */
@@ -124,6 +142,17 @@ function preflight(argv, { cwd = process.cwd(), env = process.env } = {}) {
     say('ASK', 'which repo is being released? This checkout has no GitHub origin to default to');
     return lines;
   }
+  const invalid = [
+    !SAFE_REPO.test(args.repo) && 'the repo',
+    args.released && !isSafeReleased(args.released) && 'the branch or range',
+    !isSafeRef(args.corpusRef) && '--corpus-ref',
+    args.notesBase && !isSafeRef(args.notesBase) && '--notes-base',
+  ].filter(Boolean);
+  if (invalid.length) {
+    say('INVALID', `${invalid.join(', ')} is not a safe name (allowed: letters, digits and . _ / # -; a range is two such refs joined by ..)`);
+    return lines;
+  }
+  if (checkout.branch && !isSafeRef(checkout.branch)) checkout.branch = '(branch with an unsafe name)';
   say('REPO', args.repo);
   say('CHECKOUT', checkout.root ? `${checkout.repo ?? 'no GitHub origin'} · ${checkout.branch ?? 'detached HEAD'}` : 'not a git checkout');
 
@@ -137,6 +166,7 @@ function preflight(argv, { cwd = process.cwd(), env = process.env } = {}) {
     tip = to.ok ? { sha: to.out } : { sha: null, why: `the range end ${range[2]} is not in this checkout` };
   } else {
     const prs = openRcPrs(args.repo);
+    if (prs.ok && prs.dropped) say('DROPPED', `${prs.dropped} open rc PR(s) ignored for an unsafe branch name or tip`);
     if (!released) {
       if (!prs.ok) {
         say('ASK', `could not look up the open rc PR (${prs.why}); which rc branch or from..to range is being released?`);
@@ -156,7 +186,7 @@ function preflight(argv, { cwd = process.cwd(), env = process.env } = {}) {
       tip = { sha: pr.headRefOid };
     } else {
       const branch = tryRun('gh', ['api', `repos/${args.repo}/branches/${encodeURIComponent(released)}`, '--jq', '.commit.sha']);
-      tip = branch.ok && branch.out ? { sha: branch.out } : { sha: null, why: `could not find ${released} on ${args.repo}${branch.ok ? '' : ` (${branch.why})`}` };
+      tip = branch.ok && /^[0-9a-f]{40}$/.test(branch.out) ? { sha: branch.out } : { sha: null, why: `could not find ${released} on ${args.repo}${branch.ok ? '' : ` (${branch.why})`}` };
     }
   }
 

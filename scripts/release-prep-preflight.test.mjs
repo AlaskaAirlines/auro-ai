@@ -273,6 +273,47 @@ const tests = {
     });
   },
 
+  'a fork PR into main is never taken as the rc branch'() {
+    const { repo, rcTip } = checkout();
+    const fork = { ...rcPr(66, 'rc/1658589', rcTip), isCrossRepository: true, headRepositoryOwner: { login: 'someone' } };
+    const alone = run(repo, [], { prs: [fork] });
+    const name = 'a fork PR into main is never taken as the rc branch';
+    if (alone.lines.ASK === undefined || 'RELEASED' in alone.lines) return failCase(name, `fork only: ${alone.raw}`);
+    const both = run(repo, [], { prs: [fork, { ...rcPr(1626, 'rc/1658589', rcTip), isCrossRepository: false }] });
+    if (both.lines.RC_PR !== '#1626 https://github.com/AlaskaAirlines/auro-formkit/pull/1626') return failCase(name, `fork + own: ${both.raw}`);
+    pass(name);
+  },
+
+  'an rc PR with an unsafe branch name is dropped, and its name never printed'() {
+    const { repo, rcTip } = checkout();
+    const evil = rcPr(13, 'rc/x;curl$(id)`id`', rcTip);
+    const r = run(repo, [], { prs: [evil] });
+    expectLines('an rc PR with an unsafe branch name is dropped, and its name never printed', r, { DROPPED: /^1 open rc PR/, ASK: /no open rc/ }, {
+      absent: ['RELEASED', 'CAPTURE_ARGS', 'RC_CANDIDATES'],
+      check: (res) => (/curl|\$\(|`/.test(res.raw) ? `the unsafe name was printed: ${res.raw}` : null),
+    });
+  },
+
+  'unsafe arguments: INVALID, nothing planned, the value never printed'() {
+    const { repo, rcTip } = checkout();
+    const prs = [rcPr(1626, 'rc/1658589', rcTip)];
+    const name = 'unsafe arguments: INVALID, nothing planned, the value never printed';
+    const cases = [
+      [['rc/1;touch pwned'], /the branch or range/],
+      [['v1.0.0..v1$(id)'], /the branch or range/],
+      [['--corpus-ref', 'main`id`'], /--corpus-ref/],
+      [['--notes-base', '--upload-pack=x'], /--notes-base/],
+      [['Evil Owner/auro-formkit', 'rc/1'], /the repo/],
+    ];
+    for (const [args, which] of cases) {
+      const r = run(repo, args, { prs });
+      if (!which.test(r.lines.INVALID ?? '')) return failCase(name, `${JSON.stringify(args)}: expected INVALID ${which}, got ${r.raw}`);
+      if ('CAPTURE_ARGS' in r.lines || 'NOTES' in r.lines) return failCase(name, `${JSON.stringify(args)}: still planned`);
+      if (/touch|\$\(|`|upload-pack|Evil/.test(r.raw)) return failCase(name, `${JSON.stringify(args)}: value printed: ${r.raw}`);
+    }
+    pass(name);
+  },
+
   'ADO_PAT: says whether it is set, never prints it'() {
     const { repo, rcTip } = checkout();
     const r = run(repo, [], { prs: [rcPr(1626, 'rc/1658589', rcTip)], env: { ADO_PAT: 'secret-token-value' } });

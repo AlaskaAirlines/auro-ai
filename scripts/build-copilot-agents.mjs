@@ -33,8 +33,10 @@ const OUT_DIR = join(ROOT, 'copilot/agents');
 // path-scoped applyTo instruction files Phase 4 generates instead. Remove this
 // entry once that exists (Phase 4 step 4.6). `capture-standard` opens pull
 // requests in another repository; whether Copilot gets a copy of that is a
-// Phase 4 decision, not a side effect of copying its scripts.
-const EXCLUDED_SKILLS = new Set(['coding-standards', 'capture-standard']);
+// Phase 4 decision, not a side effect of copying its scripts. `release-prep`
+// only calls other skills (capture-standard among them), which Copilot cannot
+// do; Copilot users run those skills one by one (release-prep TRD #75 §2).
+const EXCLUDED_SKILLS = new Set(['coding-standards', 'capture-standard', 'release-prep']);
 
 // The Copilot CLI caps a custom agent's prompt (frontmatter + body) at 30,000
 // characters. Anything at or above this falls back to the bootstrap shape.

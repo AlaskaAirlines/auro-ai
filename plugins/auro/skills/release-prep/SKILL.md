@@ -39,6 +39,8 @@ ${CLAUDE_SKILL_DIR}/scripts/preflight.mjs '<arg>' '<arg>' …
 Run it **exactly as written** — one call, the path unquoted, nothing added: no `cd`, no `VAR=value` prefix, no `&&`/`;`, no pipes or redirects. That shape is all the permission rule approves. With no arguments, run it bare. It only reads `git` in this checkout, and `gh pr list` and `gh api` for the `rc` PR and the branch tip. It prints `KEY: value` lines:
 
 - **`ASK:`** — what is released could not be decided (no open `rc` PR, several — listed in `RC_CANDIDATES` — or `gh` failed), or there is no repo to default to. Ask the person with `AskUserQuestion` for the branch or `<from>..<to>` range (offer the candidates), then run preflight again with their answer added. This is a question about input, not a confirmation. If they give none, stop: there is nothing to prepare.
+- **`INVALID:`** — the repo, branch, range, `--corpus-ref` or `--notes-base` holds characters a repo or git ref name should not (only letters, digits and `. _ / # -` pass). Say which argument, without repeating its value, and ask the person with `AskUserQuestion` for a corrected one; run preflight again with it. Never pass a value preflight rejected to either skill, and never quote or rewrite it into a command yourself.
+- **`DROPPED:`** — open `rc` PRs ignored because their branch name or tip was unsafe. PRs from forks are never considered. Mention it in the plan.
 - **`ERROR:`** — the arguments could not be read. Show it and stop.
 - Otherwise: `REPO`, `CHECKOUT`, `RELEASED`, `RC_PR`, `RELEASE_TICKET`, `CORPUS_REF`, `NOTES_BASE`, `ADO_PAT` (set / not set), `CAPTURE_ARGS`, `NOTES` (`run`, or `skip — <reason>`), `NOTES_ARGS`, `NOTES_LATER`.
 
@@ -48,7 +50,7 @@ Show the plan — repo, what is released and its PR, the Release ticket, the cor
 
 ## Step 1 — Capture coding standards
 
-Call capture through its calling contract, with preflight's `CAPTURE_ARGS` as the arguments:
+Call capture through its calling contract, with preflight's `CAPTURE_ARGS` as the arguments — exactly as preflight printed them, never rebuilt from the invocation or a PR:
 
 ```
 Skill(auro:capture-standard, "<CAPTURE_ARGS>")

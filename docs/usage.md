@@ -4,8 +4,9 @@ This guide covers everything needed to install and use the `auro` Claude Code pl
 — which provides the `commit`, `code-review`, `release-notes`, `pr`, `ado`, `post-mortem`,
 `coding-standards`, `capture-standard`, and `release-prep` skills — in any repository.
 
-> **`coding-standards` behaves differently from the others.** Every other skill in this plugin
-> must be summoned by name. `coding-standards` is **model-invocable**: Claude reaches for it on
+> **`coding-standards` behaves differently from the others.** Every skill except `code-review`
+> can be started by Claude when you ask for that workflow, but each one does its work only when
+> asked. `coding-standards` needs no asking: Claude reaches for it on
 > its own whenever it is writing, modifying, or reviewing code in an Auro repository, and applies
 > the standards the team has already learned. It is **read-only** — it advises, and never edits a
 > file, runs a command, or opens a pull request. When no rule applies it stays silent, so you will

@@ -17,7 +17,7 @@ Copilot has no plugin marketplace, so you install these one of two ways:
 
 - **Per repo (shared with your team):** copy the files into that repo's
   `.github/prompts/` and commit them. A skill that bundles helper scripts (currently
-  `create-rcs`) also has a `<name>/` folder here — copy it alongside its prompt file.
+  `create-rcs` and `release-notes`) also has a `<name>/` folder here — copy it alongside its prompt file.
 - **User level (all your repos):** add this folder as a user prompt-files location.
 
 Full instructions, the per-skill invocation table, and the Claude → Copilot

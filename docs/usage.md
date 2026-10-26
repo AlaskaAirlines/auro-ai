@@ -2,7 +2,7 @@
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
 — which provides the `commit`, `code-review`, `release-notes`, `pr`, `ado`, `post-mortem`,
-`coding-standards`, and `capture-standard` skills — in any repository.
+`coding-standards`, `capture-standard`, and `release-prep` skills — in any repository.
 
 > **`coding-standards` behaves differently from the others.** Every other skill in this plugin
 > must be summoned by name. `coding-standards` is **model-invocable**: Claude reaches for it on
@@ -24,18 +24,19 @@ for skills. Use the marketplace flow below instead.
 | ----- | ---------- | ------------ |
 | `commit` | `/auro:commit <ADO # \| PR # \| prev \| skip \| amend>` | Guided Conventional Commits workflow: protected-branch guard, sync check, required ADO/PR reference (pass `skip`, or reply `skip` at the prompt, to waive it), staged-diff message generation, post-mortem linking, AI + human co-author accreditation. `amend` folds staged changes into the previous commit and rewrites its message |
 | `code-review` | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` | Adversarial multi-model review of a GitHub PR (previews findings, then posts them with `post`) or the current branch (chat output). Also runs the `doc-review` checks on any component documentation the change touches |
-| `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: derives the next semantic version from the Conventional Commits since the last documented release, generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself |
+| `release-notes` | `/auro:release-notes [base ref]` | Authors the next release-notes document for `auro-formkit`: decides the next semantic version with the repo's own semantic-release commit analyzer and release config (needs `npm ci` in the repo), generates a rich notes file from the repo's template, wires it into the accordion index, and **stages** the files. If a notes file for the current in-progress release already exists on this branch it **refreshes that file in place** instead of creating a duplicate. Never commits, pushes, tags, or performs the release itself. Ends with one `RELEASE_NOTES_RESULT:` line |
 | `pr` | `/auro:pr [base branch]` | Opens a GitHub PR for the current branch, **assigned to you** (`@me`). Prompts whether to target the repo default branch or a branch you name, and whether it's a draft or ready for review; on auro-formkit applies an `auro-<component>` label per component in the PR's commits; seeds the description from the `.github` PR template and adds, per post-mortem ticket in the PR, its Executive Summary plus a link to its "Post Mortems" Discussion. Never pushes |
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 | `close-dependabot` | `/auro:close-dependabot` | Finds every open Dependabot PR across the Auro repos (the `auro-team` GitHub team's repos), shows a numbered summary, asks which to leave open (by number/range, repo, or title phrase), and **closes only the approved PRs**. Never merges, comments, or deletes branches |
 | `doc-review` | `/auro:doc-review [write] [all \| base branch] [component …]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings only by default, changing no files; `write` applies the in-scope ones, rebuilds, and checks the generated docs, leaving the edits uncommitted. `all` reviews every doc source in the repo instead of only what the branch touches; a component name (e.g. `dropdown` in auro-formkit) limits either scope to that component. Never commits |
 | `capture-standard` | `/auro:capture-standard <repo> <branch \| from..to> [--corpus-ref <branch>]` | Run while preparing a release (normally by release prep, as an `rc` branch merges into `main`): reads the post-mortems the release carries, extracts their lessons, dedupes them against each other and the `coding-standards` corpus, and previews the proposed rules. On **one** confirmation it opens — or on a re-run, replaces — a single PR against `auro-ai`, a Committed review ticket, and a New check ticket for each machine-checkable rule (reusing an open one). Never blocks the release; ends with one `CAPTURE_RESULT:` line |
+| `release-prep` | `/auro:release-prep [<repo>] [<rc branch \| from..to>] [--corpus-ref <branch>] [--notes-base <ref>]` | Prepares a release in one pass as an `rc` branch is about to merge into `main`: a read-only preflight, then `capture-standard`, then `release-notes`, then one summary with each step's result line and the steps it does not run (commit and PR for the notes, `code-review`, closing the Release ticket's task). Writes nothing itself and asks no confirmation of its own; each called skill keeps its own. A failed step never stops the next one |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
-> `/auro:ado`, `/auro:post-mortem`, `/auro:close-dependabot`, `/auro:doc-review`, and
-> `/auro:capture-standard` — not the bare forms.
+> `/auro:ado`, `/auro:post-mortem`, `/auro:close-dependabot`, `/auro:doc-review`,
+> `/auro:capture-standard`, and `/auro:release-prep` — not the bare forms.
 
 ---
 
@@ -187,9 +188,13 @@ the release (that's owned by the GitHub Actions semantic-release workflow). It:
    - **Update mode** (an in-progress file already exists on the branch) — it will **refresh
      that existing file in place** rather than create a second one. If more than one
      in-progress file is found it asks you which to update.
-3. **Classifies the commits** in range by Conventional Commits and computes the next
-   version — `BREAKING CHANGE`/`!` → major, `feat` → minor, `fix`/`perf` → patch. If every
-   commit is a non-release type (docs/chore/ci/…), it **exits early** and explains why. In
+3. **Decides the bump and the next version** with the same tool the real release uses:
+   semantic-release's commit analyzer, loaded from the repo's own `node_modules`, with the
+   repo's own release config (`.releaserc` in `auro-formkit`), over the commits since the last
+   release tag. So the notes agree with the release — in `auro-formkit`, `refactor` and `style`
+   commits are patch releases too. If the checkout has no `node_modules` it **stops** and tells
+   you to run `npm ci`; it never falls back to guessing. If the release rules make none of the
+   commits a release, it **exits early** and explains why. In
    update mode it keeps the existing file's version as the target; if a newly landed commit
    would change that number (e.g. a `feat` bumps a patch to a minor) it still refreshes the
    existing file and **flags the mismatch** in its report so you can decide whether to
@@ -202,6 +207,10 @@ the release (that's owned by the GitHub Actions semantic-release workflow). It:
    block in update mode instead of adding a duplicate.
 5. **Stages** both files with `git add` — then hands back to you. Run `/auro:commit` to
    finalize.
+
+Every run ends with one line for a calling skill (such as `release-prep`) to read:
+`RELEASE_NOTES_RESULT: written <file> — <version> (<bump>), created|updated · staged, not committed`,
+`no release notes needed — <reason>`, `cancelled — nothing written`, or `failed — <reason>`.
 
 > **Scope guardrail:** this skill only writes the two release-notes files and stages them.
 > It never commits, pushes, opens a PR, creates or moves tags, edits `package.json`, or
@@ -445,6 +454,47 @@ It is normally run by the release-prep skill, and a failure never
 blocks the release. Needs the `gh` CLI signed in, and the
 [ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) for ticket dates, the
 review ticket, and the check tickets. `--corpus-ref` defaults to `main`.
+
+### `/auro:release-prep`
+
+```shell
+/auro:release-prep                                     # the open rc/* PR into main, from this checkout's repo
+/auro:release-prep auro-formkit rc/1658589              # name the repo and rc branch
+/auro:release-prep auro-formkit v6.2.1..v6.2.2 --notes-base v6.2.1   # replay a release (testing or recovery)
+```
+
+Runs the release preparation steps in one pass, as an `rc` branch is about to merge into
+`main`. Run it from your checkout of the releasing repo (`auro-formkit`), on the branch you
+will commit the release notes to — a branch off `dev`.
+
+1. **Preflight** (read-only, no prompt) — finds the open `rc/*` PR into `main` (and asks if
+   there are none or several), the Release ticket (`AB#<n>` from `rc/<n>`), and whether
+   `ADO_PAT` is set. It also decides whether the notes step can run here: the checkout must be
+   the releasing repo, have the release-notes paths, not be on an `rc/*` branch, and its `HEAD`
+   must contain the `rc` branch's tip as GitHub has it. Release notes reach the release through
+   the `rc` PR — they merge into `dev` and the `rc` workflow carries them over — so notes
+   written on a branch that lacks the `rc` tip would miss commits, and notes committed to the
+   `rc` branch itself are lost the next time `dev` is pushed. If a check fails, the notes step
+   is skipped with the reason and what to run later. Release prep never switches branches or
+   fetches for you.
+2. **`capture-standard`** on the `rc` branch (or range), with `--corpus-ref` passed through.
+   Its `CAPTURE_RESULT:` line is shown verbatim.
+3. **`release-notes`** in your checkout, with `--notes-base` passed through as its base ref.
+   Its `RELEASE_NOTES_RESULT:` line is shown verbatim.
+4. **Summary** — one line per step (its result, or `skipped — <reason>`), then the steps
+   release prep does not run: `/auro:commit` and `/auro:pr` for the staged notes (into `dev`),
+   `/auro:code-review <rc PR #>` (manual only), and closing the Release ticket's
+   *Generate Release Notes* task once the notes merge.
+
+Release prep writes and publishes nothing itself and adds no confirmation: capture asks before
+it opens its PR and tickets, and release-notes asks before it writes and stages. Declining at
+either is reported as a result. A failed step is reported and the next one still runs; if
+capture returns no result line, the summary says `CAPTURE_RESULT: failed — no result line (…)`,
+and capture can be re-run safely. In a repo without the release-notes templates (such as
+`auro-tabs`), capture runs and the notes step is skipped as "repo not set up for
+release-notes". Needs the `gh` CLI signed in; the
+[ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) is needed for capture's
+tickets. Not available in Copilot — run `release-notes` there on its own.
 
 ---
 

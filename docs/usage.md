@@ -495,7 +495,11 @@ and capture can be re-run safely. In a repo without the release-notes templates 
 `auro-tabs`), capture runs and the notes step is skipped as "repo not set up for
 release-notes". Needs the `gh` CLI signed in; the
 [ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) is needed for capture's
-tickets. Not available in Copilot — run `release-notes` there on its own.
+tickets. With Claude Code's sandbox on, `gh` cannot read its sign-in under `~/.config/gh`, so
+capture fails at its first step: allow that folder with `/sandbox`, or turn the sandbox off for
+the session. The `release-notes` step needs `npm ci` to have run in the checkout, because it
+decides the version with the repo's own release tooling. Not available in Copilot — run
+`release-notes` there on its own.
 
 ---
 

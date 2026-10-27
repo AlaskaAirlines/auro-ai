@@ -224,6 +224,23 @@ const tests = {
     );
   },
 
+  'a newer tag HEAD does not contain is not the last release'() {
+    // semantic-release counts only tags merged into the branch. A hotfix tagged
+    // on another branch, or a later release when replaying an old one, must not
+    // become the range start.
+    const repo = releasedRepo();
+    git(repo, 'checkout', '-q', '-b', 'hotfix');
+    commit(repo, 'fix: hotfix elsewhere');
+    tag(repo, 'v1.3.0');
+    git(repo, 'checkout', '-q', 'main');
+    commit(repo, 'fix: on this branch');
+    expectResult(
+      'a newer tag HEAD does not contain is not the last release',
+      run(repo),
+      { releaseType: 'patch', lastTag: 'v1.2.0', nextVersion: '1.2.1', range: 'v1.2.0..HEAD', commitCount: 2 },
+    );
+  },
+
   "the repo's releaseRules reach the analyzer (refactor is a patch)"() {
     const repo = releasedRepo();
     commit(repo, 'refactor(select): tidy');

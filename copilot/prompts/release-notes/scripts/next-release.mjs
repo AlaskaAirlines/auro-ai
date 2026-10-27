@@ -157,7 +157,10 @@ function analyzerConfig(options) {
 
 /**
  * The last release: the highest stable (non-prerelease) tag matching the
- * config's tagFormat. When the range start is itself such a tag (`--from
+ * config's tagFormat among the tags HEAD contains — semantic-release only counts
+ * tags merged into the branch, so a newer tag elsewhere (a hotfix on main not yet
+ * in dev, or a later release when replaying an old one) must not move the range.
+ * When the range start is itself such a tag (`--from
  * v6.2.1`, re-running an old release), that tag is the last release instead.
  */
 function lastReleaseTag(root, tagFormat = 'v${version}', from = null) {
@@ -167,7 +170,7 @@ function lastReleaseTag(root, tagFormat = 'v${version}', from = null) {
   if (from && version(from)) return { tag: from, version: version(from).join('.') };
   const newer = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
   let best = null;
-  for (const tag of git(root, ['tag', '-l']).split('\n').map((t) => t.trim())) {
+  for (const tag of git(root, ['tag', '--merged', 'HEAD']).split('\n').map((t) => t.trim())) {
     const v = version(tag);
     if (v && (!best || newer(v, best.v) > 0)) best = { tag, v };
   }

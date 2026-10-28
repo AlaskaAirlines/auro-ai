@@ -139,9 +139,9 @@ If no changed file is a doc source, say so, report the base you compared against
 - **Markdown partial or page:** the whole section, from the nearest heading above the line down to the next heading of the same or higher level.
 - **API example HTML:** the whole file, markup and visible text.
 
-These **touched items** are the scope. List them with `file:line-range`.
+These **touched items** are the scope. List them with `file:line-range`. Step 4f also uses them, as the **branch items**, to decide which open ledger entries still belong to this change. With SCOPE = all, every item is a branch item.
 
-**3b-since — Narrow to what changed (REVIEW = since).** The items from 3b are the **branch items**. Keep them; Step 4f re-checks open ledger findings across all of them. Then narrow what Step 4 reviews:
+**3b-since — Narrow to what changed (REVIEW = since).** The items from 3b are the **branch items**. Keep them for Step 4f. Then narrow what Step 4 reviews:
 1. **Changed items.** For each doc source in the since-changed list, run `git diff <SINCE> -U0 -- <file>` and map the lines to items, as in 3b. Keep only items that are also branch items, so documentation merged in from the base isn't reviewed as this branch's work. These are the **touched items** for Step 4.
 2. **Re-verify items.** For each code or style file in the since-changed list (code outside JSDoc in `src/**`, and `src/styles/**`), including changes merged in from the base, find the branch items whose claims depend on what changed, such as a default, a condition, or a value. Add them as **re-verify items**. Step 4 runs only 4c on them, because their wording hasn't changed.
 3. List both sets. If both are empty, say "No documentation or code it describes changed since `<short SINCE>`." and go straight to Step 4f.
@@ -185,7 +185,7 @@ A claim the code contradicts is an **Inaccurate claim**. If you can't confirm or
 - When several findings touch the same text, write one suggestion that fixes all of them, and cite each rule. Separate suggestions for the same text can undo each other.
 - If a suggestion fails, revise it and check it again. If you can't write one that passes, because rules conflict or the fix needs a fact the code doesn't settle, give the finding without a suggestion and say why in the finding itself ("No suggestion: …"). When LEDGER is `none` or `broken`, also add an **Open questions** entry that says why. With a ledger, don't: a separate question about the same gap becomes a second ledger entry, which stays open after the finding is deferred or fixed.
 
-**4f — Match against the ledger.** Skip this when LEDGER is `none` or `broken`. Otherwise, run **L3** from `ledger.md`. It gives each finding its ledger ID, drops findings already deferred, rejected, or waived, and re-checks every open ledger entry this run didn't reproduce. Entries that are still open go into the report even if this run's review missed them.
+**4f — Match against the ledger.** Skip this when LEDGER is `none` or `broken`. Otherwise, run **L3** from `ledger.md`. It gives each finding its ledger ID, drops findings already deferred, rejected, or waived, and re-checks every open ledger entry this run didn't reproduce. Entries that are still open go into the report even if this run's review missed them. An open entry on an item the branch no longer changes moves to **Outside this change**, so it no longer blocks **Converged**.
 
 ---
 
@@ -201,7 +201,7 @@ Bash output isn't reliably shown to the user, so put everything in your reply. U
 - Review: "Full" or "Since `<short SINCE>`", with the reason from Step 0.6 or 2.5. For a since review, add: "Run `/auro:doc-review full` for a complete review."
 - Components: the COMPONENTS list, when one was given
 - In scope: the touched items from 3b, one line each (for a since review, the touched and re-verify items from 3b-since). With SCOPE = all, list the files instead, one line each, with the number of items reviewed in each
-- Ledger (when there's a PR): the PR link, then the counts from 4f (new, still open, fixed, regressed, and suppressed because they were deferred, rejected, or waived), and any directives applied or ignored in L2, each with its reason
+- Ledger (when there's a PR): the PR link, then the counts from 4f (new, still open, fixed, regressed, moved to Outside this change, and suppressed because they were deferred, rejected, or waived), and any directives applied or ignored in L2, each with its reason
 - Status: "**Converged** ✅" when groups 1 and 2 are empty, otherwise "**Not converged: N open**"
 
 **Findings**, in this order. Leave out empty groups.

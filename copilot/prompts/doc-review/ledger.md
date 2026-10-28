@@ -223,6 +223,7 @@ Last reviewed `<short PR_HEAD>` on <YYYY-MM-DD> by <login> (full review, or re-r
 **To change a status**, reply on this PR with one directive per line:
 `doc-review: defer DR-9 AB#123456 — reason` · `doc-review: reject DR-1 — reason` · `doc-review: waive DR-21 — reason` · `doc-review: reopen DR-12 — reason`
 Inaccurate claims and guideline issues can only be deferred (with an `AB#` ticket) or rejected, and only by a reviewer other than the PR author.
+**To suggest different wording**, check out this branch, make the edit without committing it, and run `/auro:doc-review`. It checks your wording against the guidelines and the code without updating this ledger.
 
 <details><summary>Ledger data (managed by /auro:doc-review; don't edit)</summary>
 

@@ -213,6 +213,8 @@ Every "Suggested" text must have passed 4e. Leave out the arrow and the suggesti
 
 Label each finding so it can be referred to. With a ledger, use its ledger ID (`DR-7`), which stays the same across runs. Without one, number the findings consecutively across groups. End with one line: the number of findings in groups 1 and 2, and "Run `/auro:doc-review write` to apply the in-scope fixes." (with SCOPE = all, "Run `/auro:doc-review write all` to apply the fixes across the repository."). Repeat any component names from `$ARGUMENTS` in the suggested command. When LEDGER is `none`, add: "Open a draft PR to start the ledger."
 
+Then add: "To suggest different wording, don't write it by hand. Check out the branch (`gh pr checkout <PR>`), make the edit without committing it, and run `/auro:doc-review`. It reviews your uncommitted wording against the guidelines and the code, and doesn't update the ledger until the change is pushed." Hand-written suggestions skip the checks in 4e, and wrong ones come back as findings in the next round.
+
 If the user then asks for the findings as something to send to the PR author, render the same findings as a Markdown block addressed to the author, keeping the groups and labels. With a ledger, link to the ledger comment instead, since it already holds the findings.
 
 **5b — Write the ledger.** When LEDGER is `new` or `loaded`, run **L4** from `ledger.md`, then add its closing line ("Ledger updated:" or "Ledger created:" with the URL, or why it wasn't written) to the end of the report.

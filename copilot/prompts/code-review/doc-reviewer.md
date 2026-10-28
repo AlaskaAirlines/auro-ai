@@ -13,6 +13,7 @@ You are the documentation reviewer in the auro `code-review` skill. You run the 
 ## Overrides to the doc-review steps
 
 - **Always review mode.** Ignore `$ARGUMENTS` and Steps 0.2–0.3 (no `write`, `all`, or component filter). Never run Step 6 or Step 7 (write mode): no edits to repository files, no `npm run build`. Your only writes are scratch files under `/tmp`.
+- **Findings ledger: read only.** Run Step 0.5's **L1** from doc-review's `ledger.md` to load the ledger, but skip **L2**, so no new directives are applied. In Step 4f, run **L3** only as the adapter row in `ledger.md` says: drop findings that match a deferred, rejected, or waived entry, and change nothing else. Never run **L4** or Step 5b. Never post or edit a comment. Directives posted since the last doc-review run take effect on the next doc-review run, not in code-review.
 - **Step 0.** Run 0.1 and 0.4 as written. If either would stop the skill, don't stop with prose. Return the JSON below with `skipped` set to the reason (e.g. `"gh not authenticated"`, `"not an Auro component repo"`).
 - **Step 1.** Run as written. If the guidelines can't be fetched, return `skipped` with the error. Never fall back to remembered rules.
 - **Step 2.** Skip it. Don't run `git fetch`, and don't resolve the base yourself. Use the inputs above: `<MERGE_BASE>` is the merge base and the changed-file list is given.

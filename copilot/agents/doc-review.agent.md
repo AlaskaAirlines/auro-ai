@@ -1,12 +1,12 @@
 ---
 name: doc-review
-description: 'Review the component documentation on the current branch against the Auro "Content guidelines for component documentation" (WC-Generator discussion #660). Run when asked to review, check, or fix component documentation against the Auro content guidelines, or when another skill needs those checks run. Fetches the current guidelines and the shared auro-templates headings on every run, so it never works from memory. Scopes the review the way the guidelines'' "What to update" section does — every JSDoc block, README partial, and demo section the branch touches, in full — and checks each factual claim against the component''s code and styles, not just the wording. Its own suggested fixes and edits are held to the same guidelines and checked before they''re reported or kept. With `all`, it reviews every documentation source in the repository instead of only what the branch touches. In a monorepo such as auro-formkit, passing a component name (e.g. `dropdown`, `datepicker`) limits either scope to that component. Reports findings grouped as inaccurate claims, guideline issues, problems outside this change (report only), shared template content to fix in auro-templates, and open questions the guidelines don''t settle. When the branch has an open PR, it keeps a findings ledger in one sticky PR comment, so findings that were deferred, rejected, or waived aren''t raised again and open ones are re-checked on every run; people change a finding''s status by replying with a `doc-review:` directive. By default it only reports and changes no files. With `write`, it edits only the in-scope documentation sources, rebuilds, and verifies the generated custom-elements.json and docs/api.md, leaving the changes uncommitted. It never commits, pushes, edits generated files directly, or edits the guidelines discussion. Not for reviewing code changes, release notes, or editing the guidelines themselves.'
+description: 'Review the component documentation on the current branch against the Auro "Content guidelines for component documentation" (WC-Generator discussion #660). Run when asked to review, check, or fix component documentation against the Auro content guidelines, or when another skill needs those checks run. Fetches the current guidelines and the shared auro-templates headings on every run, so it never works from memory. Scopes the review the way the guidelines'' "What to update" section does — every JSDoc block, README partial, and demo section the branch touches, in full — and checks each factual claim against the component''s code and styles, not just the wording. Its own suggested fixes and edits are held to the same guidelines and checked before they''re reported or kept. With `all`, it reviews every documentation source in the repository instead of only what the branch touches. In a monorepo such as auro-formkit, passing a component name (e.g. `dropdown`, `datepicker`) limits either scope to that component. Reports findings grouped as inaccurate claims, guideline issues, problems outside this change (report only), shared template content to fix in auro-templates, and open questions the guidelines don''t settle. When the branch has an open PR, it keeps a findings ledger in one sticky PR comment, so findings that were deferred, rejected, or waived aren''t raised again and open ones are re-checked on every run; people change a finding''s status by replying with a `doc-review:` directive. Once the ledger has a run, later runs re-review only what changed since the last reviewed commit, unless `full` is passed; `since <commit>` sets that commit explicitly. By default it only reports and changes no files. With `write`, it edits only the in-scope documentation sources, rebuilds, and verifies the generated custom-elements.json and docs/api.md, leaving the changes uncommitted. It never commits, pushes, edits generated files directly, or edits the guidelines discussion. Not for reviewing code changes, release notes, or editing the guidelines themselves.'
 user-invocable: true
 ---
 
 <!-- Generated from plugins/auro/skills/doc-review/SKILL.md by scripts/build-copilot-agents.mjs. Do not edit by hand. -->
 
-> **Argument** (`${input}`): "[write] [all | base branch] [component …]" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
+> **Argument** (`${input}`): "[write] [all | base branch] [full | since <commit>] [component …]" — you receive it as the text of the prompt you were invoked with (the part after the agent name; empty if none). Where a step says to prompt the user, ask inline in chat.
 >
 > **Bundled files:** this workflow uses files from your local `auro-ai` checkout at `$AURO_AI_HOME/plugins/auro/skills/doc-review/`. Set `AURO_AI_HOME` to the checkout path before invoking it; if it is unset, ask the user for the path.
 
@@ -39,12 +39,21 @@ This skill runs in a **non-interactive, sandboxed shell** that rejects `$(...)` 
    - `write` (any case) → **MODE = write**.
    - `all` (any case) → **SCOPE = all**: review every documentation source in the repository, not just what the branch touches.
    - A token that matches a known component, ignoring case and an optional `auro-` prefix (so `dropdown`, `Dropdown`, and `auro-dropdown` all match `components/dropdown`) → add that component to **COMPONENTS**. More than one component may be given.
+   - `full` (any case) → **FULL = yes**: review everything in scope, even when the ledger has an earlier run.
+   - `since` (any case) followed by another token → **SINCE_ARG** = that token, a commit. The two tokens count as one argument.
    - Any other single token → **BASE_ARG**, a base branch.
    - **MODE = review** whenever `write` isn't among the tokens. **SCOPE = branch** whenever `all` isn't among the tokens. **COMPONENTS** empty means no component filter.
-   - **Stop** and output only "⚠️ Unrecognized arguments `${input}`. Expected `/auro:doc-review [write] [all | base branch] [component …]`." when there is more than one token other than `write`, `all`, and component names, or when `all` comes with a base branch (a whole-repository review has no base). When a component list exists and a token matched nothing, add: "Known components: `<list>`."
+   - **Stop** and output only "⚠️ Unrecognized arguments `${input}`. Expected `/auro:doc-review [write] [all | base branch] [full | since <commit>] [component …]`." when there is more than one token other than `write`, `all`, `full`, `since <commit>`, and component names; when `all` comes with a base branch (a whole-repository review has no base); when `since` has no commit after it; or when `since` comes with `full` or `all`. When a component list exists and a token matched nothing, add: "Known components: `<list>`."
    - **Component filter.** When COMPONENTS is non-empty, only paths under `components/<name>/` for those components are in scope, in every step below. Code and styles outside them can still be read as evidence in Step 4c.
 4. Confirm this is a component repo: `Glob` for `**/docs/partials/*.md` and `**/src/**/*.{js,mjs,ts}` (excluding `node_modules`). If neither matches, **stop** and say this skill reviews Auro component repos.
 5. **Load the findings ledger.** Read `$AURO_AI_HOME/plugins/auro/skills/doc-review/ledger.md` in full. Run its **L1** (find the PR and load the ledger), then its **L2** (apply status directives). In write mode, L2 runs in memory only. When L1 finds no open PR (**LEDGER = none**), the run works exactly as it did before the ledger existed, except for the closing line in Step 5.
+6. **Choose the review kind.**
+   - `SINCE_ARG` given → **REVIEW = since**, with **SINCE** = SINCE_ARG.
+   - FULL, or SCOPE = all → **REVIEW = full**.
+   - Otherwise, when LEDGER is `loaded` and has at least one run → **REVIEW = since**, with **SINCE** = the `head` of the ledger's last run.
+   - Otherwise → **REVIEW = full**.
+
+   Record why: "first review", "`full` was passed", "whole repository", "re-review since the last reviewed commit", or "`since` was passed". The report says which. A full review is the complete audit. A since review re-checks the open findings and reviews only what changed after SINCE, so findings stop shifting between runs.
 
 ---
 
@@ -93,6 +102,10 @@ Collect every Markdown heading in those three files (ignore `{{ … }}` placehol
    - **`BASE_ARG` given:** use `origin/<BASE_ARG>` if `git rev-parse --verify --quiet origin/<BASE_ARG>` succeeds, else `<BASE_ARG>` if it resolves as a ref. If neither resolves, **stop** and report: "⚠️ Base branch `<BASE_ARG>` not found." When there are known components, add: "It isn't a component either. Known components: `<list>`."
 3. Record `git merge-base <base> HEAD` as `MERGE_BASE`. Diffing against `MERGE_BASE` includes uncommitted work.
 4. `git diff <MERGE_BASE> --name-only` → the changed-file list.
+5. **REVIEW = since:** check SINCE. Run `git rev-parse --verify --quiet "<SINCE>^{commit}"`, then `git merge-base --is-ancestor <SINCE> HEAD`.
+   - Both succeed → record the full SHA as SINCE. Run `git diff <SINCE> --name-only` → the **since-changed list**. Like the branch diff, it includes uncommitted work.
+   - Either fails, and SINCE came from the ledger → the branch was rebased or force-pushed since the last review. Set **REVIEW = full**, and record the reason: "the last reviewed commit `<short sha>` is no longer in this branch's history".
+   - Either fails, and SINCE came from `SINCE_ARG` → **stop** and report: "⚠️ `<SINCE_ARG>` isn't a commit in this branch's history."
 
 ---
 
@@ -101,7 +114,7 @@ Collect every Markdown heading in those three files (ignore `{{ … }}` placehol
 Apply the guidelines' **What to update** section mechanically.
 
 **SCOPE = all.** Every doc source in the repository is in scope, not only the ones the branch touches:
-- Find them with `Glob` for the doc-source patterns in the 3a table (`**/src/**/*.{js,mjs,ts}`, `**/docs/partials/*.md`, `**/apiExamples/*.html`, `**/README.md`), excluding `node_modules`, `dist`, and the generated paths in the table. With COMPONENTS, glob only inside `components/<name>/` for each.
+- Find them with `Glob` for the doc-source patterns in the 3a table (`**/src/**/*.{js,mjs,ts}`, `**/docs/partials/*.md`, `**/docs/pages/*.md`, `**/apiExamples/*.html`, `**/README.md`), excluding `node_modules`, `dist`, and the generated paths in the table. With COMPONENTS, glob only inside `components/<name>/` for each.
 - In 3b, every JSDoc block, every partial section, and every API example file in them is a touched item. Skip the `git diff` mapping.
 - Skip 3c and 4d. Nothing is "outside this change", so that report group stays empty.
 - 3d still applies: shared template content is reported, never edited.
@@ -113,7 +126,7 @@ Apply the guidelines' **What to update** section mechanically.
 
 | Kind | Paths | Treatment |
 | --- | --- | --- |
-| **Doc source** | JSDoc in `**/src/**/*.{js,mjs,ts}`; `**/docs/partials/*.md`; markup and visible text in `**/apiExamples/*.html`; `README.md` text outside `AURO-GENERATED` markers | Review; edit in write mode |
+| **Doc source** | JSDoc in `**/src/**/*.{js,mjs,ts}`; `**/docs/partials/*.md`; `**/docs/pages/*.md`; markup and visible text in `**/apiExamples/*.html`; `README.md` text outside `AURO-GENERATED` markers | Review; edit in write mode |
 | **Generated** | `custom-elements.json`, `**/docs/api.md`, `**/demo/*.md`, `AURO-GENERATED` sections of `README.md`, `dist/`, `*.min.js` | Never review as a source and never edit. Use as verification evidence (Step 4c) |
 | **Out of scope** | Everything else, including `docs/post-mortem/**`, lockfiles, configs, styles, tests | Not reviewed. Styles and code are still read as evidence |
 
@@ -121,10 +134,15 @@ If no changed file is a doc source, say so, report the base you compared against
 
 **3b — Find the touched items.** For each doc source, run `git diff <MERGE_BASE> -U0 -- <file>` and map every added or changed line to the item that contains it:
 - **JSDoc:** the whole `/** … */` block that contains the line, or the block directly above the changed declaration. The whole block is in scope: description, every tag, and every example.
-- **Markdown partial:** the whole section, from the nearest heading above the line down to the next heading of the same or higher level.
+- **Markdown partial or page:** the whole section, from the nearest heading above the line down to the next heading of the same or higher level.
 - **API example HTML:** the whole file, markup and visible text.
 
 These **touched items** are the scope. List them with `file:line-range`.
+
+**3b-since — Narrow to what changed (REVIEW = since).** The items from 3b are the **branch items**. Keep them; Step 4f re-checks open ledger findings across all of them. Then narrow what Step 4 reviews:
+1. **Changed items.** For each doc source in the since-changed list, run `git diff <SINCE> -U0 -- <file>` and map the lines to items, as in 3b. Keep only items that are also branch items, so documentation merged in from the base isn't reviewed as this branch's work. These are the **touched items** for Step 4.
+2. **Re-verify items.** For each code or style file in the since-changed list (code outside JSDoc in `src/**`, and `src/styles/**`), including changes merged in from the base, find the branch items whose claims depend on what changed, such as a default, a condition, or a value. Add them as **re-verify items**. Step 4 runs only 4c on them, because their wording hasn't changed.
+3. List both sets. If both are empty, say "No documentation or code it describes changed since `<short SINCE>`." and go straight to Step 4f.
 
 **3c — Untouched remainder.** Everything else in the same doc-source files is **outside this change**. Problems there are reported, never fixed. Don't sweep files the branch didn't change.
 
@@ -138,7 +156,7 @@ Never fix these. Report them under **Shared template content** so they can be fi
 
 ## Step 4 — Review the touched items
 
-For each touched item, in file order:
+For each touched item, in file order. With REVIEW = since, that means the touched items from 3b-since, plus the re-verify items, which get only 4c (and 4e for any suggestion it produces):
 
 **4a — Identify the item type** using the guidelines' **Patterns by item type** headings: component description and summary, property or attribute (boolean, fixed set of values, or free text), slot, CSS part, CSS custom property, method or function (and its `@param`, `@returns`, and `@throws`), deprecation, security note, API example, or README and demo prose. README and demo prose has no subsection of its own, so the general sections in 4b apply to it.
 
@@ -157,7 +175,7 @@ For each touched item, in file order:
 
 A claim the code contradicts is an **Inaccurate claim**. If you can't confirm or refute a claim from the code, list it under **Open questions** with what you checked. Never guess.
 
-**4d — Note the untouched remainder.** While reading each file, note clear guideline problems in its untouched parts, per 3c. Keep these brief. They are report-only.
+**4d — Note the untouched remainder.** While reading each file, note clear guideline problems in its untouched parts, per 3c. Keep these brief. They are report-only. Skip this step when REVIEW = since: the full review already noted them, and they're in the ledger.
 
 **4e — Check every suggestion.** Each "Suggested" text is new documentation, so it must meet the same rules as the text it replaces. For every suggestion, in any group:
 - Review it as its own touched item: apply 4b (including the searches) and 4c. Any claim the new wording adds or changes, such as a default, a condition, or a value, must be confirmed in the code.
@@ -178,8 +196,9 @@ Bash output isn't reliably shown to the user, so put everything in your reply. U
 **Header:**
 - Guidelines: `<url>` (version `<date>`)
 - Compared against: `<base>` (default branch, or the `BASE_ARG` you were given), or "Entire repository" when SCOPE = all
+- Review: "Full" or "Since `<short SINCE>`", with the reason from Step 0.6 or 2.5. For a since review, add: "Run `/auro:doc-review full` for a complete review."
 - Components: the COMPONENTS list, when one was given
-- In scope: the touched items from 3b, one line each. With SCOPE = all, list the files instead, one line each, with the number of items reviewed in each
+- In scope: the touched items from 3b, one line each (for a since review, the touched and re-verify items from 3b-since). With SCOPE = all, list the files instead, one line each, with the number of items reviewed in each
 - Ledger (when there's a PR): the PR link, then the counts from 4f (new, still open, fixed, regressed, and suppressed because they were deferred, rejected, or waived), and any directives applied or ignored in L2, each with its reason
 - Status: "**Converged** ✅" when groups 1 and 2 are empty, otherwise "**Not converged: N open**"
 

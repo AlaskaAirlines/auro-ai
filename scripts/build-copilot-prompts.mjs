@@ -109,7 +109,7 @@ function mapTools(allowedTools) {
 // in the Copilot port. Keyed by skill name; omitted skills get only the base note.
 const CAVEATS = {
   'code-review':
-    "Claude runs this as an adversarial multi-model review via sub-agents; Copilot runs a single-model review, and skips the doc-review pass unless the doc-review skill is installed next to it (run `/doc-review` separately), and the coding-standards pass unless the auro plugin's coding-standards skill is available. Posting findings to the GitHub PR still works through `gh` in the terminal.",
+    "Claude runs this as an adversarial multi-model review via sub-agents; Copilot runs a single-model review, and skips the doc-review pass unless the doc-review skill is installed next to it (run `/doc-review` separately), and is not reliable at the coding-standards pass: in testing, a single-model Copilot review skipped it and reported the Standards cited line as none. Run `/auro:code-review` in Claude Code for rule citations. Posting findings to the GitHub PR still works through `gh` in the terminal.",
   ado: 'Requires the GitHub CLI (`gh`) and an Azure DevOps PAT in your environment; the terminal will ask to approve each command.',
   'post-mortem':
     'Requires the GitHub CLI (`gh`); Azure DevOps context needs an ADO PAT in your environment. The terminal will ask to approve each command.',

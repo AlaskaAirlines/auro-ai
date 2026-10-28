@@ -1,3 +1,10 @@
+## [1.28.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.28.0...v1.28.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **doc-review:** move stale open ledger entries to Outside this change ([1257fb2](https://github.com/AlaskaAirlines/auro-ai/commit/1257fb27fae821f8eaef085cb795735f3381cd94))
+
 # [1.28.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.27.1...v1.28.0) (2026-10-28)
 
 

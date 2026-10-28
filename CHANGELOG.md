@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.27.1...v1.28.0) (2026-10-28)
+
+
+### Features
+
+* **doc-review:** re-review only what changed since the last reviewed commit ([ebcb892](https://github.com/AlaskaAirlines/auro-ai/commit/ebcb89206c0417fee2c295a56acb7070db2b1f3a))
+
 ## [1.27.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.27.0...v1.27.1) (2026-10-28)
 
 

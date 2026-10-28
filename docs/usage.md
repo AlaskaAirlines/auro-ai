@@ -21,7 +21,7 @@ for skills. Use the marketplace flow below instead.
 | `ado` | `/auro:ado new` · `/auro:ado <ADO #>` | Drafts a new Azure DevOps work item — or refines an existing one — to Auro design-system standards: infers the component and reads its GitHub repo, classifies bug vs. user story, and writes the Title, Description, Acceptance Criteria, and (for bugs) Repro Steps, Actual/Expected Results, System Info, and the ADO classification picklists. After you approve, it **creates or updates the ticket in Azure DevOps and returns a link**. Requires a one-time [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) |
 | `post-mortem` | `/auro:post-mortem [ADO #]` | Authors a structured post-mortem for a ticket — gathering context from the current branch, the conversation, the ADO work item, and any linked TRD — then writes it to `docs/post-mortem/<ticket>.md` **and** publishes it as a GitHub Discussion in the repo's "Post Mortems" category (tagging a label per mentioned component on `auro-formkit`). Prompts for the ticket (offering to reuse the last one); re-running a ticket **updates** the existing file and discussion instead of duplicating them. ADO context uses the same [ADO PAT setup](#prerequisite--azure-devops-personal-access-token-pat) but is optional |
 | `close-dependabot` | `/auro:close-dependabot` | Finds every open Dependabot PR across the Auro repos (the `auro-team` GitHub team's repos), shows a numbered summary, asks which to leave open (by number/range, repo, or title phrase), and **closes only the approved PRs**. Never merges, comments, or deletes branches |
-| `doc-review` | `/auro:doc-review [write] [all \| base branch] [component …]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings only by default, changing no files; `write` applies the in-scope ones, rebuilds, and checks the generated docs, leaving the edits uncommitted. `all` reviews every doc source in the repo instead of only what the branch touches; a component name (e.g. `dropdown` in auro-formkit) limits either scope to that component. Never commits |
+| `doc-review` | `/auro:doc-review [write] [all \| base branch] [full \| since <commit>] [component …]` | Checks the documentation the current branch touches (JSDoc, README partials, demo copy) against the [content guidelines for component documentation](https://github.com/orgs/AlaskaAirlines/discussions/660), and verifies each claim against the code and styles. Reports findings only by default, changing no files; `write` applies the in-scope ones, rebuilds, and checks the generated docs, leaving the edits uncommitted. `all` reviews every doc source in the repo instead of only what the branch touches; a component name (e.g. `dropdown` in auro-formkit) limits either scope to that component. On a branch with an open PR, it keeps a [findings ledger](#the-findings-ledger) in one PR comment, and later runs re-review only what changed. Never commits |
 
 > **Namespacing:** plugin skills are always prefixed with the plugin name, so the
 > commands are `/auro:commit`, `/auro:code-review`, `/auro:release-notes`, `/auro:pr`,
@@ -375,6 +375,8 @@ repos (the `gh` CLI must be authenticated).
 /auro:doc-review write all       # apply fixes across the whole repository (uncommitted)
 /auro:doc-review dropdown        # auro-formkit: only the branch's changes in components/dropdown
 /auro:doc-review write all datepicker   # auro-formkit: fix every doc source in components/datepicker
+/auro:doc-review full            # full review, even when the PR's ledger has an earlier run
+/auro:doc-review since 1a2b3c4   # re-review only what changed after that commit
 ```
 
 Checks a component's documentation against the
@@ -404,6 +406,72 @@ settle. Without `write`, it only reports and changes no files. With `write`, it 
 only the in-scope documentation sources, never generated files, then runs the build (and
 `cem:check` when the repo has it) and confirms the changes in `custom-elements.json` and
 `docs/api.md`. It leaves the edits uncommitted for you to review.
+
+#### The findings ledger
+
+When the branch has an open pull request (a draft counts), each review-mode run keeps
+one comment on the PR up to date: the **ledger**. It lists every finding the skill has
+raised on the PR, with an ID that never changes (`DR-7`), its status, and who changed it
+and why.
+
+- The first run on a PR is a full review. After that, a plain `/auro:doc-review` is a
+  **re-review**: it re-checks the open findings and reviews only what changed since the
+  last reviewed commit, so findings don't shift from run to run. Use `full` to force a
+  complete review.
+- A finding closes only when a run confirms the problem is gone. One that was deferred,
+  rejected, or waived isn't raised again.
+- The ledger's status line says **Converged** when no inaccurate claim or guideline
+  issue is open.
+- The ledger is updated only when your local branch matches what's pushed, with no
+  uncommitted changes. Otherwise the run reports as usual and says to push first.
+- With no PR, the skill reports in chat only. Open a draft PR to start the ledger.
+
+#### Changing a finding's status
+
+Reply on the PR with one directive per line. The next `/auro:doc-review` run applies it:
+
+```text
+doc-review: defer DR-9 AB#123456 — needs design guidance
+doc-review: reject DR-4 — the code does do this; see firstUpdated
+doc-review: waive DR-12 — fine as is for an internal helper
+doc-review: reopen DR-2 — this came back
+```
+
+Who can use each one depends on the finding's group. A **reviewer** is anyone with write
+access other than the PR author:
+
+| Directive | Inaccurate claims and guideline issues | Open questions, outside this change, shared template |
+| --- | --- | --- |
+| `defer` | Reviewer only, with an `AB#` ticket | Author or reviewer |
+| `reject` (the finding is wrong) | Reviewer only, with a reason | Author or reviewer, with a reason |
+| `waive` (right, but accepted as is) | Not allowed: fix it or defer it | Author or reviewer, with a reason |
+| `reopen` | Author or reviewer | Author or reviewer |
+
+A directive that isn't allowed is listed under **Ignored directives** in the ledger, with
+the reason.
+
+#### Review workflow
+
+1. **Author:** run `npm run build`. It runs `auro cem-check --strict`, which (from
+   auro-cli 5.4.0) also catches mechanical issues in JSDoc, such as "e.g." or a spaced em
+   dash. Fix what it finds.
+2. **Author:** open a draft PR, then run `/auro:doc-review` and fix, push, and re-run
+   until the ledger says **Converged**. Settle open questions with a directive.
+3. **Author:** mark the PR ready and request review.
+4. **Reviewer:** run `/auro:doc-review` on the PR branch. It re-reviews what changed and
+   updates the same ledger, instead of starting a fresh audit. To suggest different
+   wording, don't write it by hand: check out the branch, make the edit without
+   committing, and run `/auro:doc-review`. It checks your wording against the guidelines
+   and the code before you post it.
+5. **Author:** fix, push, and re-run until it's **Converged** again.
+
+**Code bugs found while documenting.** When the docs and the code disagree because the
+code is wrong, describe what the code does today ("does not currently …"), file a ticket
+for the fix, and link it in the PR. Fix it in the same PR only if it's a one-line change
+with a test. Larger fixes in a docs PR add review rounds.
+
+**Upgrading auro-cli.** A new auro-cli version can add `cem-check` rules. Fix every new
+finding in the PR that upgrades it.
 
 ---
 

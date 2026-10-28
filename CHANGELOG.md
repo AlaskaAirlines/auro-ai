@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.26.0...v1.27.0) (2026-10-28)
+
+
+### Features
+
+* **doc-review:** track findings in a sticky PR comment ledger ([84f8539](https://github.com/AlaskaAirlines/auro-ai/commit/84f853975bbd77ace9352d16313a9e748fe97e53))
+
 # [1.26.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.25.0...v1.26.0) (2026-10-21)
 
 

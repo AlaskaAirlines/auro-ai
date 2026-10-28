@@ -1,19 +1,20 @@
 ---
 name: doc-review
-description: Review the component documentation on the current branch against the Auro "Content guidelines for component documentation" (WC-Generator discussion #660). Run when asked to review, check, or fix component documentation against the Auro content guidelines, or when another skill needs those checks run. Fetches the current guidelines and the shared auro-templates headings on every run, so it never works from memory. Scopes the review the way the guidelines' "What to update" section does — every JSDoc block, README partial, and demo section the branch touches, in full — and checks each factual claim against the component's code and styles, not just the wording. Its own suggested fixes and edits are held to the same guidelines and checked before they're reported or kept. With `all`, it reviews every documentation source in the repository instead of only what the branch touches. In a monorepo such as auro-formkit, passing a component name (e.g. `dropdown`, `datepicker`) limits either scope to that component. Reports findings grouped as inaccurate claims, guideline issues, problems outside this change (report only), shared template content to fix in auro-templates, and open questions the guidelines don't settle. By default it only reports and changes no files. With `write`, it edits only the in-scope documentation sources, rebuilds, and verifies the generated custom-elements.json and docs/api.md, leaving the changes uncommitted. It never commits, pushes, edits generated files directly, or edits the guidelines discussion. Not for reviewing code changes, release notes, or editing the guidelines themselves.
+description: Review the component documentation on the current branch against the Auro "Content guidelines for component documentation" (WC-Generator discussion #660). Run when asked to review, check, or fix component documentation against the Auro content guidelines, or when another skill needs those checks run. Fetches the current guidelines and the shared auro-templates headings on every run, so it never works from memory. Scopes the review the way the guidelines' "What to update" section does — every JSDoc block, README partial, and demo section the branch touches, in full — and checks each factual claim against the component's code and styles, not just the wording. Its own suggested fixes and edits are held to the same guidelines and checked before they're reported or kept. With `all`, it reviews every documentation source in the repository instead of only what the branch touches. In a monorepo such as auro-formkit, passing a component name (e.g. `dropdown`, `datepicker`) limits either scope to that component. Reports findings grouped as inaccurate claims, guideline issues, problems outside this change (report only), shared template content to fix in auro-templates, and open questions the guidelines don't settle. When the branch has an open PR, it keeps a findings ledger in one sticky PR comment, so findings that were deferred, rejected, or waived aren't raised again and open ones are re-checked on every run; people change a finding's status by replying with a `doc-review:` directive. By default it only reports and changes no files. With `write`, it edits only the in-scope documentation sources, rebuilds, and verifies the generated custom-elements.json and docs/api.md, leaving the changes uncommitted. It never commits, pushes, edits generated files directly, or edits the guidelines discussion. Not for reviewing code changes, release notes, or editing the guidelines themselves.
 argument-hint: "[write] [all | base branch] [component …]"
-allowed-tools: Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git remote set-head *), Bash(git fetch *), Bash(git merge-base *), Bash(git diff *), Bash(git log *), Bash(git status *), Bash(gh auth status *), Bash(gh repo view *), Bash(gh api *), Bash(npm run *), Read, Grep, Glob, Write, Edit
+allowed-tools: Bash(gh pr view *), Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git remote set-head *), Bash(git fetch *), Bash(git merge-base *), Bash(git diff *), Bash(git log *), Bash(git status *), Bash(gh auth status *), Bash(gh repo view *), Bash(gh api *), Bash(npm run *), Read, Grep, Glob, Write, Edit
 ---
 
 ## Task — start now
 
 You are executing the **doc-review** skill. The invocation itself is the request: **begin immediately** and run the steps below **in order**. Don't skip a step and don't reorder them.
 
-> **Scope guardrail.** In **review** mode (the default, whenever `write` isn't passed) this skill is read-only: it reports findings and changes no repository files. Its only writes are scratch files under `/tmp`, and it never runs the build. Only in **write** mode may it edit the documentation **sources** that are in scope (Step 3) and run the repo's build, and it leaves those edits uncommitted. In either mode it must **NOT**:
+> **Scope guardrail.** In **review** mode (the default, whenever `write` isn't passed) this skill is read-only: it reports findings and changes no repository files. Its only writes are scratch files under `/tmp` and, when the branch has an open PR, the findings ledger comment on that PR (`${CLAUDE_SKILL_DIR}/ledger.md`). It never runs the build. Only in **write** mode may it edit the documentation **sources** that are in scope (Step 3) and run the repo's build, and it leaves those edits uncommitted. In either mode it must **NOT**:
 > - edit generated files directly (`custom-elements.json`, `docs/api.md`, `demo/*.md`, or `AURO-GENERATED` sections of `README.md`); change their sources and rebuild instead;
 > - edit content outside the scope set in Step 3, including shared template content;
 > - change code behavior to match a doc claim; when the docs and the code disagree, fix the docs and report the disagreement;
-> - commit, push, stage, or edit the guidelines discussion.
+> - commit, push, stage, or edit the guidelines discussion;
+> - post, edit, or delete any GitHub comment other than this skill's ledger comment, and write the ledger only in review mode.
 
 **Why this skill exists.** Engineers asking an AI to "check the docs against the guidelines" were getting different results, because each run picked its own scope, its own rules, and whether to verify claims. This skill fixes all three. Follow it exactly. Where it says to report rather than decide, report.
 
@@ -38,6 +39,7 @@ This skill runs in a **non-interactive, sandboxed shell** that rejects `$(...)` 
    - **Stop** and output only "⚠️ Unrecognized arguments `$ARGUMENTS`. Expected `/auro:doc-review [write] [all | base branch] [component …]`." when there is more than one token other than `write`, `all`, and component names, or when `all` comes with a base branch (a whole-repository review has no base). When a component list exists and a token matched nothing, add: "Known components: `<list>`."
    - **Component filter.** When COMPONENTS is non-empty, only paths under `components/<name>/` for those components are in scope, in every step below. Code and styles outside them can still be read as evidence in Step 4c.
 4. Confirm this is a component repo: `Glob` for `**/docs/partials/*.md` and `**/src/**/*.{js,mjs,ts}` (excluding `node_modules`). If neither matches, **stop** and say this skill reviews Auro component repos.
+5. **Load the findings ledger.** Read `${CLAUDE_SKILL_DIR}/ledger.md` in full. Run its **L1** (find the PR and load the ledger), then its **L2** (apply status directives). In write mode, L2 runs in memory only. When L1 finds no open PR (**LEDGER = none**), the run works exactly as it did before the ledger existed, except for the closing line in Step 5.
 
 ---
 
@@ -158,6 +160,8 @@ A claim the code contradicts is an **Inaccurate claim**. If you can't confirm or
 - When several findings touch the same text, write one suggestion that fixes all of them, and cite each rule. Separate suggestions for the same text can undo each other.
 - If a suggestion fails, revise it and check it again. If you can't write one that passes, because rules conflict or the fix needs a fact the code doesn't settle, give the finding without a suggestion and add an **Open questions** entry that says why.
 
+**4f — Match against the ledger.** Skip this when LEDGER is `none` or `broken`. Otherwise, run **L3** from `ledger.md`. It gives each finding its ledger ID, drops findings already deferred, rejected, or waived, and re-checks every open ledger entry this run didn't reproduce. Entries that are still open go into the report even if this run's review missed them.
+
 ---
 
 ## Step 5 — Review mode: report
@@ -171,6 +175,8 @@ Bash output isn't reliably shown to the user, so put everything in your reply. U
 - Compared against: `<base>` (default branch, or the `BASE_ARG` you were given), or "Entire repository" when SCOPE = all
 - Components: the COMPONENTS list, when one was given
 - In scope: the touched items from 3b, one line each. With SCOPE = all, list the files instead, one line each, with the number of items reviewed in each
+- Ledger (when there's a PR): the PR link, then the counts from 4f (new, still open, fixed, regressed, and suppressed because they were deferred, rejected, or waived), and any directives applied or ignored in L2, each with its reason
+- Status: "**Converged** ✅" when groups 1 and 2 are empty, otherwise "**Not converged: N open**"
 
 **Findings**, in this order. Leave out empty groups.
 1. **Inaccurate claims:** the doc says something the code contradicts.
@@ -186,9 +192,11 @@ Format each finding as:
 
 Every "Suggested" text must have passed 4e. Leave out the arrow and the suggestion when 4e found none that passes.
 
-Number the findings consecutively across groups, so they can be referred to by number. End with one line: the number of findings in groups 1 and 2, and "Run `/auro:doc-review write` to apply the in-scope fixes." (with SCOPE = all, "Run `/auro:doc-review write all` to apply the fixes across the repository."). Repeat any component names from `$ARGUMENTS` in the suggested command.
+Label each finding so it can be referred to. With a ledger, use its ledger ID (`DR-7`), which stays the same across runs. Without one, number the findings consecutively across groups. End with one line: the number of findings in groups 1 and 2, and "Run `/auro:doc-review write` to apply the in-scope fixes." (with SCOPE = all, "Run `/auro:doc-review write all` to apply the fixes across the repository."). Repeat any component names from `$ARGUMENTS` in the suggested command. When LEDGER is `none`, add: "Open a draft PR to start the ledger."
 
-If the user then asks for the findings as something to send to the PR author, render the same findings as a Markdown block addressed to the author, keeping the groups and numbering.
+If the user then asks for the findings as something to send to the PR author, render the same findings as a Markdown block addressed to the author, keeping the groups and labels. With a ledger, link to the ledger comment instead, since it already holds the findings.
+
+**5b — Write the ledger.** When LEDGER is `new` or `loaded`, run **L4** from `ledger.md`, then add its closing line ("Ledger updated:" or "Ledger created:" with the URL, or why it wasn't written) to the end of the report.
 
 **Stop here in review mode.**
 
@@ -196,7 +204,7 @@ If the user then asks for the findings as something to send to the PR author, re
 
 ## Step 6 — Write mode: apply, rebuild, verify
 
-1. **Apply** every finding in groups 1 and 2 (Inaccurate claims and Guideline issues) by editing the doc source, never a generated file. Use the suggestion checked in 4e. Keep each edit to the touched item. Don't edit groups 3–5. For an inaccurate claim, change the doc to match the code. Never change the code. A finding with no passing suggestion from 4e isn't applied; report it under **Not fixed**.
+1. **Apply** every finding in groups 1 and 2 (Inaccurate claims and Guideline issues) by editing the doc source, never a generated file. Findings the ledger has as deferred, rejected, or waived were dropped in 4f, so they aren't applied. Use the suggestion checked in 4e. Keep each edit to the touched item. Don't edit groups 3–5. For an inaccurate claim, change the doc to match the code. Never change the code. A finding with no passing suggestion from 4e isn't applied; report it under **Not fixed**.
 2. **Re-review your edits.** Run `git diff -- <file>` on each doc source you edited. Treat every item the diff touches as a touched item, and run Step 4a–4c on it again as it now reads. Your edits are held to the same rules as the author's text. If the re-review finds a problem, fix it and re-review that item. Stop after two more passes. Report anything still failing under **Not fixed**, and say which edit caused it.
 3. **Rebuild.** Find the `package.json` nearest the changed sources that has a `build` script (in a monorepo, the component's package; with SCOPE = all, every package you edited, one at a time). Run `npm run build` there with a generous timeout. If that `package.json` has a `cem:check` script and `build` doesn't already run it, run `npm run cem:check` too. If the build or check fails, report the output and stop. Don't try to fix build problems the docs didn't cause.
 4. **Verify the generated output.** In the rebuilt `custom-elements.json` and `docs/api.md`, confirm each fix appears as intended. Read the first sentence of each changed description on its own and confirm it still makes sense (guidelines: **Structure › The first sentence stands alone**).
@@ -211,4 +219,5 @@ Tell the user:
 - **Fixed:** each finding applied, with `file:line` and the rule. Note any problem the re-review in 6.2 found in your own edits and fixed.
 - **Not fixed:** groups 3–5 from Step 5's structure, in full, with the same numbering, plus any finding from 6.1 or 6.2 that couldn't be fixed in a way that passes the guidelines. The user may want to send these to the PR author or to `auro-templates`.
 - **Build:** the result of the build and `cem:check`, plus any unrelated churn from 6.5.
+- With a ledger: how many findings were skipped because they're deferred, rejected, or waived, and that the ledger wasn't updated. The fixes are local, so a review-mode run after they're committed and pushed marks them fixed.
 - That nothing was committed. Hand control back to the user.

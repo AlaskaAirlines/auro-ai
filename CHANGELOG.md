@@ -1,3 +1,10 @@
+## [1.29.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.29.0...v1.29.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **doc-review:** isolate scratch files per run and narrow heading-only scope ([85e853e](https://github.com/AlaskaAirlines/auro-ai/commit/85e853ef3f21a7f8eb3d698b6158b2649053a70e))
+
 # [1.29.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.28.1...v1.29.0) (2026-10-28)
 
 

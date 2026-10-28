@@ -49,7 +49,7 @@ When the branch has no open PR, there's no ledger: skip L2–L4, and the report 
     { "source": "issueComment", "id": 4363000000, "by": "someone", "line": "doc-review: waive DR-1 — fine as is", "why": "waive isn't allowed for inaccurate claims; fix it or defer it with an AB# ticket" }
   ],
   "runs": [
-    { "head": "<full sha>", "at": "2026-10-23T18:29:00Z", "by": "jason-capsule42", "mode": "full",
+    { "head": "<full sha>", "at": "2026-10-23T18:29:00Z", "by": "jason-capsule42", "mode": "full", "since": null,
       "scope": "branch", "components": [], "base": "origin/dev",
       "counts": { "new": 21, "fixed": 0, "stillOpen": 0, "regressed": 0, "suppressed": 0 } }
   ],
@@ -152,7 +152,7 @@ Run this after Step 4, before reporting. Do it for each finding this run produce
 
 **One entry per problem.** A finding with no suggestion carries its reason in `summary` ("No suggestion: …"). Don't add a `question` entry for the same item and the same gap. A directive on the finding then settles the whole problem, with nothing left open behind it.
 
-**Check every open entry the run didn't match.** For each `open` entry whose `file` is in this run's scope (Step 3), and that no finding matched:
+**Check every open entry the run didn't match.** For each `open` entry whose `file` is in this run's scope (Step 3), and that no finding matched. In a since review, the scope is the branch items from 3b, not the narrowed touched items, so every open entry on the branch is re-checked:
 - Read the item (find it by `item.key`, not by line) and decide whether the problem in `summary` still holds. For an `inaccurate` entry, verify it against the code as in Step 4c.
 - Still holds → treat it as matched and report it.
 - Gone → set `status` to `fixed`, with a history entry giving the reason ("confirmed fixed", or "item removed" if the item no longer exists). Count it under `fixed`.
@@ -174,7 +174,7 @@ Run this after the Step 5 report, in review mode only.
 
 Otherwise, the findings describe local changes the PR doesn't have yet. Don't write. End the report with "Ledger not updated: commit and push your changes, then re-run." The directives L2 applied stay unsaved, so the next run applies them again.
 
-**2. Add a run entry** with PR_HEAD, RUN_AT, the current user, `mode: "full"`, the scope, the components, the base, and the counts. Set `guidelines` to this run's guidelines URL and version.
+**2. Add a run entry** with PR_HEAD, RUN_AT, the current user, `mode` (`"full"` or `"since"`, from REVIEW), `since` (the full SINCE SHA, or `null`), the scope, the components, the base, and the counts. Set `guidelines` to this run's guidelines URL and version.
 
 **3. Render the comment** with this layout:
 
@@ -183,7 +183,7 @@ Otherwise, the findings describe local changes the PR doesn't have yet. Don't wr
 ## 📋 Doc-review ledger
 
 <status line>
-Last reviewed `<short PR_HEAD>` on <YYYY-MM-DD> by <login> · Guidelines [#660](<url>), version <YYYY-MM-DD>
+Last reviewed `<short PR_HEAD>` on <YYYY-MM-DD> by <login> (full review, or re-review since `<short SINCE>`) · Guidelines [#660](<url>), version <YYYY-MM-DD>
 
 ### Inaccurate claims
 

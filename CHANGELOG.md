@@ -1,3 +1,10 @@
+## [1.27.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.27.0...v1.27.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **doc-review:** use real ledger timestamps and avoid duplicate open questions ([eb66955](https://github.com/AlaskaAirlines/auro-ai/commit/eb66955e0caf685f4eede710e35201a16cf40b40))
+
 # [1.27.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.26.0...v1.27.0) (2026-10-28)
 
 

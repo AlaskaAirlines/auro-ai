@@ -22,7 +22,7 @@ When the branch has no open PR, there's no ledger: skip L2–L4, and the report 
 ## L1 — Find the PR and load the ledger
 
 1. **Find the PR.** Run `gh pr view --json number,url,state,headRefOid,author`. If it fails, or `state` isn't `OPEN`, there's no PR: set **LEDGER = none** and return to `SKILL.md`. A draft PR counts as open.
-2. Get the repo with `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`, and the current user with `gh api user --jq .login`. Record the PR number, `headRefOid` as **PR_HEAD**, and the author's login as **PR_AUTHOR**.
+2. Get the repo with `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`, and the current user with `gh api user --jq .login`. Run `date -u +%Y-%m-%dT%H:%M:%SZ` and record the output as **RUN_AT**. Record the PR number, `headRefOid` as **PR_HEAD**, and the author's login as **PR_AUTHOR**.
 3. **Find the ledger comment.** List this skill's ledger comments, oldest first:
    ```
    gh api --paginate repos/<owner>/<repo>/issues/<PR>/comments --jq '.[] | select(.body | startswith("<!-- auro-doc-review:ledger")) | {id, updated_at}'
@@ -83,6 +83,7 @@ When the branch has no open PR, there's no ledger: skip L2–L4, and the report 
 - **`summary`**: one sentence. `current` and `suggested` are the same texts as the finding's "Current" and "Suggested", or `null`.
 - **`status`**: `open`, `fixed`, `deferred`, `rejected`, or `waived`.
 - **`history`**: append-only. Never edit or remove an entry.
+- **Times**: every `at` comes from a command's output. Never estimate or round one. A run's own entries use RUN_AT from L1. A directive's entry uses the `at` of the comment or review that holds it.
 - **`directiveCursor`**: the highest issue-comment ID and the highest review ID already processed. They're separate because GitHub numbers the two independently.
 - **`ignoredDirectives`**: keep the most recent 20.
 
@@ -149,6 +150,8 @@ Run this after Step 4, before reporting. Do it for each finding this run produce
    - `deferred`, `rejected`, or `waived` → **don't report it**, and don't change the entry. Count it under `suppressed`.
 3. **Not matched:** a new entry with the next ID, status `open`, `firstSeen` and `lastSeen` = PR_HEAD, and a history entry with `source: "run"`. Count it under `new`.
 
+**One entry per problem.** A finding with no suggestion carries its reason in `summary` ("No suggestion: …"). Don't add a `question` entry for the same item and the same gap. A directive on the finding then settles the whole problem, with nothing left open behind it.
+
 **Check every open entry the run didn't match.** For each `open` entry whose `file` is in this run's scope (Step 3), and that no finding matched:
 - Read the item (find it by `item.key`, not by line) and decide whether the problem in `summary` still holds. For an `inaccurate` entry, verify it against the code as in Step 4c.
 - Still holds → treat it as matched and report it.
@@ -171,7 +174,7 @@ Run this after the Step 5 report, in review mode only.
 
 Otherwise, the findings describe local changes the PR doesn't have yet. Don't write. End the report with "Ledger not updated: commit and push your changes, then re-run." The directives L2 applied stay unsaved, so the next run applies them again.
 
-**2. Add a run entry** with PR_HEAD, the time, the current user, `mode: "full"`, the scope, the components, the base, and the counts. Set `guidelines` to this run's guidelines URL and version.
+**2. Add a run entry** with PR_HEAD, RUN_AT, the current user, `mode: "full"`, the scope, the components, the base, and the counts. Set `guidelines` to this run's guidelines URL and version.
 
 **3. Render the comment** with this layout:
 

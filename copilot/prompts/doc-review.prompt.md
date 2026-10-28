@@ -29,13 +29,15 @@ You are executing the **doc-review** skill. The invocation itself is the request
 
 ### Shell constraints
 
-This skill runs in a **non-interactive, sandboxed shell** that rejects `$(...)` command substitution and `<<'EOF'` heredocs. Write multi-line bodies (GraphQL queries) to a file under `/tmp` with the Write tool and pass them by reference, for example `gh api graphql -F query=@/tmp/doc_review_guidelines.graphql`.
+This skill runs in a **non-interactive, sandboxed shell** that rejects `$(...)` command substitution and `<<'EOF'` heredocs. Write multi-line bodies (GraphQL queries) to a file under `/tmp` with the Write tool and pass them by reference, for example `gh api graphql -F query=@/tmp/doc_review_<RUN_TAG>_guidelines.graphql`.
+
+**Scratch files are per run.** Every `/tmp` file this skill writes has **RUN_TAG** (from Step 0.1) in its name, such as `/tmp/doc_review_<RUN_TAG>_guidelines.md`, so two runs at the same time never read or overwrite each other's files. Never drop the tag, and never reuse a file from another run.
 
 ---
 
 ## Step 0 — Preconditions and arguments
 
-1. Resolve the repo root with `git rev-parse --show-toplevel`. Run `gh auth status`. If it fails, **stop** and tell the user: "GitHub CLI isn't authenticated. Run `gh auth login`, then re-run `/auro:doc-review`." The guidelines can't be loaded without it.
+1. Resolve the repo root with `git rev-parse --show-toplevel`. Set **RUN_TAG**: take the repo folder name and the branch from `git rev-parse --abbrev-ref HEAD`, and the time from `date -u +%Y%m%dT%H%M%SZ`. Join them with `-`, then replace every character other than letters, digits, `.`, `_`, and `-` with `-`, for example `auro-button-jbaker-fix-size-20261028T204012Z`. Run `gh auth status`. If it fails, **stop** and tell the user: "GitHub CLI isn't authenticated. Run `gh auth login`, then re-run `/auro:doc-review`." The guidelines can't be loaded without it.
 2. **List the components.** If the repo has a top-level `components/` folder (the auro-formkit layout, `components/<name>/src`, `docs/partials`, `apiExamples`), `Glob` for `components/*/package.json` and record each `<name>` as a **known component**. Otherwise there are no known components.
 3. Parse `${input:args}` into tokens:
    - `write` (any case) → **MODE = write**.
@@ -61,7 +63,7 @@ This skill runs in a **non-interactive, sandboxed shell** that rejects `$(...)` 
 
 ## Step 1 — Load the rules (every run, never from memory)
 
-**1a — The guidelines.** Write this query to `/tmp/doc_review_guidelines.graphql`:
+**1a — The guidelines.** Write this query to `/tmp/doc_review_<RUN_TAG>_guidelines.graphql`:
 
 ```graphql
 query {
@@ -74,18 +76,18 @@ query {
 Then run:
 
 ```bash
-gh api graphql -F query=@/tmp/doc_review_guidelines.graphql --jq '.data.repository.discussion.body' > /tmp/doc_review_guidelines.md
-gh api graphql -F query=@/tmp/doc_review_guidelines.graphql --jq '.data.repository.discussion | {url, lastEditedAt, createdAt}'
+gh api graphql -F query=@/tmp/doc_review_<RUN_TAG>_guidelines.graphql --jq '.data.repository.discussion.body' > /tmp/doc_review_<RUN_TAG>_guidelines.md
+gh api graphql -F query=@/tmp/doc_review_<RUN_TAG>_guidelines.graphql --jq '.data.repository.discussion | {url, lastEditedAt, createdAt}'
 ```
 
-Record the URL and the version date (`lastEditedAt`, or `createdAt` if it was never edited). **Read `/tmp/doc_review_guidelines.md` in full.** If the fetch fails or the body is empty, **stop** and report the error. Do not fall back to what you remember of the guidelines or of the style guides they cite. A partial or remembered rule set is the main cause of inconsistent results.
+Record the URL and the version date (`lastEditedAt`, or `createdAt` if it was never edited). **Read `/tmp/doc_review_<RUN_TAG>_guidelines.md` in full.** If the fetch fails or the body is empty, **stop** and report the error. Do not fall back to what you remember of the guidelines or of the style guides they cite. A partial or remembered rule set is the main cause of inconsistent results.
 
 **1b — Shared template headings.** Fetch the files that define headings shared by every component:
 
 ```bash
-gh api -H "Accept: application/vnd.github.raw" repos/AlaskaAirlines/auro-templates/contents/templates/default/api.md > /tmp/doc_review_template_api.md
-gh api -H "Accept: application/vnd.github.raw" repos/AlaskaAirlines/auro-templates/contents/templates/default/index.md > /tmp/doc_review_template_index.md
-gh api -H "Accept: application/vnd.github.raw" repos/AlaskaAirlines/auro-templates/contents/templates/default/README.md > /tmp/doc_review_template_readme.md
+gh api -H "Accept: application/vnd.github.raw" repos/AlaskaAirlines/auro-templates/contents/templates/default/api.md > /tmp/doc_review_<RUN_TAG>_template_api.md
+gh api -H "Accept: application/vnd.github.raw" repos/AlaskaAirlines/auro-templates/contents/templates/default/index.md > /tmp/doc_review_<RUN_TAG>_template_index.md
+gh api -H "Accept: application/vnd.github.raw" repos/AlaskaAirlines/auro-templates/contents/templates/default/README.md > /tmp/doc_review_<RUN_TAG>_template_readme.md
 ```
 
 Collect every Markdown heading in those three files (ignore `{{ … }}` placeholders) as the **shared heading set**. If a fetch fails, warn once and treat only `REMOTE` sections as shared template content.
@@ -134,9 +136,9 @@ Apply the guidelines' **What to update** section mechanically.
 
 If no changed file is a doc source, say so, report the base you compared against, and **stop**. With COMPONENTS, say the branch changed no documentation in those components, and suggest adding `all` (e.g. `/auro:doc-review all dropdown`) to review the whole component. (With SCOPE = all, stop only if no doc sources were found.)
 
-**3b — Find the touched items.** For each doc source, run `git diff <MERGE_BASE> -U0 -- <file>` and map every added or changed line to the item that contains it:
+**3b — Find the touched items.** For each doc source, run `git diff <MERGE_BASE> -U0 -- <file>` and map every added, changed, or deleted line to the item that contains it. For a deletion, that's the item the removed lines were in, at the position the hunk header gives for the new file (`+<line>,0`):
 - **JSDoc:** the whole `/** … */` block that contains the line, or the block directly above the changed declaration. The whole block is in scope: description, every tag, and every example.
-- **Markdown partial or page:** the whole section, from the nearest heading above the line down to the next heading of the same or higher level.
+- **Markdown partial or page:** the whole section, from the nearest heading above the line down to the next heading of the same or higher level. When the changed line is the heading itself, the touched item is only the heading text, not the section under it. Otherwise, retitling a page would put the whole page in scope.
 - **API example HTML:** the whole file, markup and visible text.
 
 These **touched items** are the scope. List them with `file:line-range`. Step 4f also uses them, as the **branch items**, to decide which open ledger entries still belong to this change. With SCOPE = all, every item is a branch item.
@@ -220,7 +222,9 @@ Every "Suggested" text must have passed 4e. Leave out the arrow and the suggesti
 
 Label each finding so it can be referred to. With a ledger, use its ledger ID (`DR-7`), which stays the same across runs. Without one, number the findings consecutively across groups. End with one line: the number of findings in groups 1 and 2, and "Run `/auro:doc-review write` to apply the in-scope fixes." (with SCOPE = all, "Run `/auro:doc-review write all` to apply the fixes across the repository."). Repeat any component names from `${input:args}` in the suggested command. When LEDGER is `none`, add: "Open a draft PR to start the ledger."
 
-Then add: "To suggest different wording, don't write it by hand. Check out the branch (`gh pr checkout <PR>`), make the edit without committing it, and run `/auro:doc-review`. It reviews your uncommitted wording against the guidelines and the code, and doesn't update the ledger until the change is pushed." Hand-written suggestions skip the checks in 4e, and wrong ones come back as findings in the next round.
+Then add the line that matches the ledger. Hand-written suggestions skip the checks in 4e, and wrong ones come back as findings in the next round.
+- **With a PR:** "To suggest different wording, don't write it by hand. Check out the branch (`gh pr checkout <PR number>`), make the edit without committing it, and run `/auro:doc-review`. It reviews your uncommitted wording against the guidelines and the code, and doesn't update the ledger until the change is pushed."
+- **LEDGER = none:** "To try different wording, make the edit without committing it and run `/auro:doc-review` again. It reviews uncommitted changes too."
 
 If the user then asks for the findings as something to send to the PR author, render the same findings as a Markdown block addressed to the author, keeping the groups and labels. With a ledger, link to the ledger comment instead, since it already holds the findings.
 

@@ -31,7 +31,7 @@ When the branch has no open PR, there's no ledger: skip L2–L4, and the report 
    - One or more → **LEDGER = loaded**. Use the **oldest**, and note any others so the report can list them as duplicates to delete by hand. Record its `id` as **LEDGER_COMMENT** and its `updated_at` as **LEDGER_UPDATED**.
 4. **Load the data.** Save the comment body to a file and read it:
    ```
-   gh api repos/<owner>/<repo>/issues/comments/<LEDGER_COMMENT> --jq '.body' > /tmp/doc_review_ledger_body.md
+   gh api repos/<owner>/<repo>/issues/comments/<LEDGER_COMMENT> --jq '.body' > /tmp/doc_review_<RUN_TAG>_ledger_body.md
    ```
    The data is the JSON inside the ` ````json ` fence in the collapsed "Ledger data" section. If the fence is missing, or the JSON doesn't parse or has the wrong `version`, **don't overwrite it**. Set **LEDGER = broken**, skip L2–L4, and say in the report that the ledger comment can't be read and needs fixing or deleting.
 
@@ -244,14 +244,14 @@ Rendering rules:
 
 **4. Keep it under GitHub's limit.** If the body is over 65,000 characters, first set `current` and `suggested` to `null` on closed entries, then shorten each closed entry's `history` to its last entry. Never drop an entry. If it's still too long, don't write. Say so in the report.
 
-**5. Write it.** Save the body with the Write tool to `/tmp/doc_review_ledger_new.md`.
+**5. Write it.** Save the body with the Write tool to `/tmp/doc_review_<RUN_TAG>_ledger_new.md`.
 - **LEDGER = new:**
   ```
-  gh api repos/<owner>/<repo>/issues/<PR>/comments -F body=@/tmp/doc_review_ledger_new.md --jq .html_url
+  gh api repos/<owner>/<repo>/issues/<PR>/comments -F body=@/tmp/doc_review_<RUN_TAG>_ledger_new.md --jq .html_url
   ```
 - **Otherwise,** first re-fetch `updated_at` for LEDGER_COMMENT. If it no longer equals LEDGER_UPDATED, someone else updated the ledger during this run. Go back to L1, re-apply L2 and L3 to the new data, and try once more. If it changed again, stop and report the conflict without writing. Then:
   ```
-  gh api --method PATCH repos/<owner>/<repo>/issues/comments/<LEDGER_COMMENT> -F body=@/tmp/doc_review_ledger_new.md --jq .html_url
+  gh api --method PATCH repos/<owner>/<repo>/issues/comments/<LEDGER_COMMENT> -F body=@/tmp/doc_review_<RUN_TAG>_ledger_new.md --jq .html_url
   ```
 
 **6. Say so in the report.** Editing a comment doesn't notify anyone, so the chat report always ends with "Ledger updated:" (or "Ledger created:") and the comment URL. It also lists any duplicate ledger comments found in L1.

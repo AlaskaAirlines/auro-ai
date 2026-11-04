@@ -103,7 +103,19 @@ function bashWriteTargets(command) {
   // because a target cannot start with `&`.
   for (const m of unquoted.matchAll(/(?:^|[^>])>>?\|?\s*([^\s;&|<>()]+)/g)) targets.push(m[1]);
 
-  for (const segment of text.split(/&&|\|\||[;|\n]/)) {
+  // Split into commands on a same-length copy with `;|&` and newlines masked
+  // inside quotes, so `git commit -m "a; cp b c"` stays one command. Each
+  // segment is then sliced from the original text to keep its quoting.
+  const masked = text.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, (q) => q.replace(/[;|&\n]/g, '_'));
+  const segments = [];
+  let start = 0;
+  for (const m of masked.matchAll(/&&|\|\||[;|\n]/g)) {
+    segments.push(text.slice(start, m.index));
+    start = m.index + m[0].length;
+  }
+  segments.push(text.slice(start));
+
+  for (const segment of segments) {
     const words = (segment.match(/'[^']*'|"(?:\\.|[^"\\])*"|\S+/g) ?? [])
       .map((w) => w.replace(/^(['"])(.*)\1$/, '$2'));
     const cmdAt = words.findIndex((w) => !/^\w+=/.test(w) && w !== 'sudo');

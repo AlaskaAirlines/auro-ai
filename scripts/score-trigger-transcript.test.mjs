@@ -139,6 +139,14 @@ const tests = {
     ], 'fired; no edits made');
   },
 
+  async 'command separators inside quotes do not start a new command'() {
+    await expectOrdering('command separators inside quotes do not start a new command', [
+      bash('git commit -m "fix: build; cp the dist folder to out"'),
+      bash("echo 'a | tee notes.md && mv x y'"),
+      skill(),
+    ], 'fired; no edits made');
+  },
+
   // --- finding 5: skill name forms and the --skill flag -------------------------
   async '--skill without the namespace matches the namespaced record'() {
     await expectOrdering('--skill without the namespace matches the namespaced record', [

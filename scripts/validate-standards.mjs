@@ -9,15 +9,15 @@
 // check-copilot-prompts.yml — it must never write to the working tree, or
 // those gates would see its output as drift.
 //
-// ZERO RULES IS A VALID, PASSING STATE. Phase 1 PR-1 ships ten empty
-// reference files, so there is deliberately no minimum-count check here and
-// adding one would break that phase (Phase 1 TRD §4.2).
+// ZERO RULES IS A VALID, PASSING STATE. An empty category file and an empty
+// corpus both pass; there is deliberately no minimum-count check (Phase 1 TRD
+// §4.2).
 //
 // There is no per-repo scoping to validate. Auro standards apply to all Auro
 // code in every Auro repository (parent TRD §3.4), so reference files carry no
-// scope header and no rule is limited to the project it was learned in. Phase 4
-// introduces an optional `<!-- scope: paths=... -->` header for Copilot
-// applyTo globs, which narrow by file path only.
+// scope header and no rule is limited to the project it was learned in.
+// Copilot reads the same files through the plugin install, so there is no
+// Copilot-specific header either.
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -654,7 +654,7 @@ async function main() {
     const source = await readIfPresent(join(REFS_DIR, `${name}.md`));
 
     if (source === null) {
-      fail(file, 'missing — all ten category files must exist, even when empty');
+      fail(file, `missing — all ${CATEGORIES.length} category files must exist, even when empty`);
       continue;
     }
     if (!referenced.has(name)) {
@@ -684,7 +684,7 @@ async function main() {
     console.log(`validate-standards:   ${entry.file.padEnd(22)} ${entry.active.length} rule(s)${suffix}`);
     for (const rule of entry.active) {
       const scoped = rule.appliesTo ? ' scoped' : '';
-      console.log(`validate-standards:     ${rule.id}  sources=${rule.sources.length}  since=${rule.since || 'unknown'}  cited=n/a (Phase 5)${scoped}`);
+      console.log(`validate-standards:     ${rule.id}  sources=${rule.sources.length}  since=${rule.since || 'unknown'}  cited: not counted yet (Phase 3b)${scoped}`);
     }
   }
   console.log(`validate-standards:   total ${total} rule(s) across ${CATEGORIES.length} categories`);

@@ -104,7 +104,7 @@ const failCase = (name, detail) => {
 /**
  * Run the linter against a throwaway corpus. `files` maps a category name to
  * the contents of its reference file; every unlisted category gets an empty
- * placeholder so the "all ten must exist" check is satisfied.
+ * placeholder so the "every category file must exist" check is satisfied.
  *
  * The real SKILL.md is copied in rather than stubbed, so a change to the
  * routing table cannot silently invalidate these fixtures.
@@ -339,9 +339,9 @@ const tests = {
     await expectPass('a fenced HTML comment is example text, not a comment', {
       api: [
         '# CS-API', '', '## Rules', '',
-        '### CS-API-001 — A rule documenting the Phase 4 scope header', '',
+        '### CS-API-001 — A rule documenting a comment template', '',
         '- **Sources:** AB#1636704', '',
-        '```markdown', '<!-- scope: paths=src/**', '```', '',
+        '```markdown', '<!-- template: fill in before merging', '```', '',
         '### CS-API-002 — Active, and properly sourced', '',
         '- **Sources:** AB#1344690', '', 'Body text.', '',
       ].join('\n'),

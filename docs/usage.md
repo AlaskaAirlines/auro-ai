@@ -1,7 +1,15 @@
 # Using the `auro` plugin in another repository
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
-— which provides the `commit`, `code-review`, `release-notes`, `pr`, `ado`, and `post-mortem` skills — in any repository.
+— which provides the `commit`, `code-review`, `release-notes`, `pr`, `ado`, `post-mortem`, and
+`coding-standards` skills — in any repository.
+
+> **`coding-standards` behaves differently from the others.** Every other skill in this plugin
+> must be summoned by name. `coding-standards` is **model-invocable**: Claude reaches for it on
+> its own whenever it is writing, modifying, or reviewing code in an Auro repository, and applies
+> the standards the team has already learned. It is **read-only** — it advises, and never edits a
+> file, runs a command, or opens a pull request. When no rule applies it stays silent, so you will
+> usually only notice it when it cites a rule ID such as `CS-A11Y-003` for a decision it changed.
 
 The plugin is distributed through the **`auro-ai` marketplace**, hosted in this repo
 (`AlaskaAirlines/auro-ai`). Claude Code plugins are **not** npm packages: installing

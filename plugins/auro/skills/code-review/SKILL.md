@@ -192,7 +192,7 @@ Context documents: <repo paths of post-mortem/context docs read in the pre-revie
 **Degradation.** Never let a reviewer failure end the run, and never surface the raw agent error as the result.
 - **Model unavailable** (e.g. `The model claude-sonnet-… is not available on your foundry deployment`): this is a deployment entitlement issue, not a review failure. If the error names a reachable alternative model ID **in the same family**, retry that reviewer **once** with the same `subagent_type` and that ID as the `model` override, and record the build used. Never cross families (no Opus build for the Sonnet reviewer), and never guess an ID the error didn't name.
 - **Any other failure, or `{"error": …}`, or output that isn't a JSON array:** drop that reviewer and continue with the one that succeeded. Record which family didn't run and why.
-- **No reviewer ran:** if the `Agent` tool is unavailable (subagent nesting disabled via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, or not running in Claude Code) or both reviewers failed, read `${CLAUDE_SKILL_DIR}/reviewer.md` and run the review yourself as a single reviewer. Label the review "single-model (reviewer agents unavailable: <reason>)". If the `Agent` tool is unavailable and the documentation reviewer was gated in, also run it yourself afterward: read its two instruction files (see "Documentation guidelines review") and follow them. Likewise, run the standards pass yourself: a single-model review is never a reason to skip it. Do steps 1 and 2 of "Coding standards review" (find the standards, route), and if any category routed, read `${CLAUDE_SKILL_DIR}/standards-reviewer.md` and the routed rule files and follow it with the same inputs, then verify its findings as in step 4.
+- **No reviewer ran:** if the `Agent` tool is unavailable (subagent nesting disabled via `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, or not running in Claude Code) or both reviewers failed, read `${CLAUDE_SKILL_DIR}/reviewer.md` and run the review yourself as a single reviewer. Label the review "single-model (reviewer agents unavailable: <reason>)". If the `Agent` tool is unavailable and the documentation reviewer was gated in, also run it yourself afterward: read its two instruction files (see "Documentation guidelines review") and follow them. If the `Agent` tool is unavailable, also run the standards pass yourself (a single-model review is never a reason to skip it); when the standards agent ran, keep its result as in step 4 of "Coding standards review". To run it yourself, do steps 1 and 2 of "Coding standards review" (find the standards, route), and if any category routed, read `${CLAUDE_SKILL_DIR}/standards-reviewer.md` and the routed rule files and follow it with the same inputs, then verify its findings as in step 4.
 
 **Reconcile (corroboration gate).** Merge the findings into one list, deduping by **finding identity** (same file and same underlying issue, not exact line equality):
 - **🔴 findings** → include if **either** reviewer raised it. A real bug caught by one model is still a real bug.
@@ -237,7 +237,7 @@ The **coding-standards** skill holds the rules the team learned from its post-mo
 **1. Find the standards.** Read `${CLAUDE_SKILL_DIR}/../coding-standards/SKILL.md`. In the Copilot CLI agent this is `$AURO_AI_HOME/plugins/auro/skills/coding-standards/SKILL.md`, which is in the checkout: read that path directly with your shell or read tool rather than searching for it. If the file can't be read (e.g. a Copilot prompt-file install, which ships without it), use the auro plugin's `coding-standards` skill if it is loaded in this session, with the `references/` folder next to its `SKILL.md`. If neither is available, skip the pass with no agent call and note "ℹ️ coding-standards not found — standards review skipped. Install the auro plugin."
 
 **2. Route, with that file's own table.** Read only its "Routing" table; its other sections are for writing code. Evaluate **every row** against what the diff you gathered changes (the hunks, not only the file names), as the table itself says: one diff often matches several rows. Two review-specific limits:
-- Open `tool.md` only when its row matches the hunks (a skill, agent, command or hook; sandboxed shell commands; a document that cites another artifact). Its "also opened for every commit or pull request" clause doesn't apply here, because the commit check below owns commit messages.
+- Open `tool.md` only when its row matches the hunks. Ignore its "also opened for every commit or pull request" clause.
 - Drop a matched file that has no active rule (nothing under `## Rules` but `_No rules yet._`, or only rules under `## Retired`).
 
 The categories are the file names without `.md`. If none remain, skip the pass with no agent call and note "ℹ️ No coding-standards category matched — standards review skipped".
@@ -270,8 +270,6 @@ Rule files: <the path of each routed references/<category>.md>
 - `**Standards cited:** CS-A11Y-001, CS-A11Y-003 (categories checked: a11y, form, test)`: the rule IDs of the kept findings. When nothing was kept, `**Standards cited:** none (categories checked: …)`. When the pass was skipped, `**Standards cited:** none` followed by its ℹ️ note.
 - One line per kept interaction: "Rule interaction: CS-A11Y-001 × CS-A11Y-003 — <note>".
 
-**Overlaps.** The standards reviewer never judges the version bump, whether commits declare a BREAKING CHANGE, or the wording of documentation: the `auro api-diff` CI check (WC-Generator #661), the commit check below and doc-review own those. Rules about commit messages stay with "Validate commit messages".
-
 Then run the "Post-code-review validation" checks and hand the reconciled findings, the validation results, and this summary to **Output mode** (local) or **Output mode** → **Save the findings (PR mode)** (PR mode).
 
 ## Post-code-review validation
@@ -282,7 +280,7 @@ Then run the "Post-code-review validation" checks and hand the reconciled findin
 
 When validating commit messages looking at the local git history, do not go to the github website to scrape the content.
 
-This check owns commit messages, including the coding-standards rules about them; the standards reviewer reads only the hunks.
+Commit messages are checked by the rules below, not by the standards reviewer, which reads only the hunks.
 
 Any commit that does not contain an `AB#` reference should be flagged as a 🟡 **Nit** in the final summary — commits should be traceable to a work item. In PR mode only, a commit missing an `AB#` reference is acceptable if it instead references the PR itself (`#<PR>` in its message); do not apply this PR-link exception in local mode (there is no PR to reference).
 

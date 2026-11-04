@@ -2,7 +2,8 @@
 
 This guide covers everything needed to install and use the `auro` Claude Code plugin
 — which provides the `commit`, `code-review`, `release-notes`, `pr`, `ado`, `post-mortem`,
-`coding-standards`, `capture-standard`, and `release-prep` skills — in any repository.
+`close-dependabot`, `doc-review`, `create-rcs`, `sprint-report`, `coding-standards`,
+`capture-standard`, and `release-prep` skills — in any repository.
 
 > **`coding-standards` behaves differently from the others.** Every skill except `code-review`
 > can be started by Claude when you ask for that workflow, but each one does its work only when
@@ -167,7 +168,7 @@ the rule ID (for example `CS-A11Y-001`) and links the tickets or pull requests t
 came from. The skill checks each one (the rule exists and isn't retired, the line is in
 the diff) before reporting it, and the summary ends the findings with a
 `Standards cited` line, `none` when no rule was broken. Like every finding, these are
-comments, not merge gates. Commit-message rules stay with the skill's own commit check.
+comments, not merge gates. The standards reviewer doesn't check commit messages; the skill's own commit check does.
 These agents are internal to the skill, so don't invoke them directly. A PR
 review never writes to GitHub on its own: it saves its findings to
 `/tmp/code-review-<PR>-<head-sha>.json`, and a separate `post` run publishes that file.

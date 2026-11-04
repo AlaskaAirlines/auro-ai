@@ -556,7 +556,9 @@ will commit the release notes to — a branch off `dev`.
    Its `RELEASE_NOTES_RESULT:` line is shown verbatim.
 4. **Summary** — one line per step (its result, or `skipped — <reason>`), then the steps
    release prep does not run: `/auro:commit` and `/auro:pr` for the staged notes (into `dev`),
-   `/auro:code-review <rc PR #>` (manual only), and closing the Release ticket's
+   `/auro:code-review <rc PR #>` (manual only — run it from a checkout of the `rc` branch,
+   `gh pr checkout <n>`, because code review stops unless the PR's head is checked out; it
+   saves a preview, and `/auro:code-review <n> post` publishes it), and closing the Release ticket's
    *Generate Release Notes* task once the notes merge.
 
 Release prep writes and publishes nothing itself and adds no confirmation: capture asks before
@@ -568,10 +570,12 @@ and capture can be re-run safely. In a repo without the release-notes templates 
 release-notes". Needs the `gh` CLI signed in; the
 [ADO PAT](#prerequisite--azure-devops-personal-access-token-pat) is needed for capture's
 tickets. With Claude Code's sandbox on, `gh` cannot read its sign-in under `~/.config/gh`, so
-capture fails at its first step: allow that folder with `/sandbox`, or turn the sandbox off for
-the session. The `release-notes` step needs `npm ci` to have run in the checkout, because it
-decides the version with the repo's own release tooling. Not available in Copilot — run
-`release-notes` there on its own.
+capture fails at its first step, and capture cannot save its state under `/tmp/capture_*`. Allow
+reads of `~/.config/gh` and writes to `/tmp` with `/sandbox`, or turn the sandbox off for the
+session. The `release-notes` step needs `npm ci` to have run in the checkout, because it
+decides the version with the repo's own release tooling. No Copilot prompt file or agent is
+generated for it. Installing the `auro` plugin in the Copilot CLI loads `release-prep` and
+`capture-standard` as skills, but neither has been verified there.
 
 ---
 

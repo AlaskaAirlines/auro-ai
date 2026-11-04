@@ -86,7 +86,7 @@ Release ticket: AB#<n>            (or: none)
 
 Not run by release prep — run these yourself:
 - /auro:commit, then /auro:pr — commit the staged notes and open their PR into dev
-- /auro:code-review <rc PR #> — manual only (expensive, posts to GitHub)
+- /auro:code-review <rc PR #> — manual only, from a checkout of the rc branch (gh pr checkout <n>); it saves a preview, then /auro:code-review <n> post publishes
 - Close the Release ticket's "Generate Release Notes" task once the notes merge
 ```
 

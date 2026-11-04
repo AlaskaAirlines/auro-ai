@@ -445,6 +445,15 @@ changed_files(){
   done
 }
 
+# A rule's lines, from its heading to the next heading: from the proposal if this run changed its file,
+# else from the corpus. Empty when the rule is in neither.
+rule_block(){ # $1=rule ID
+  for D in /tmp/capture_out /tmp/capture_corpus; do
+    B=$(cat "$D"/*.md 2>/dev/null | awk -v id="$1" '$1=="###" && $2==id { on=1; print; next } on && /^#/ { exit } on')
+    [ -n "$B" ] && { printf '%s\n' "$B"; return; }
+  done
+}
+
 # The machine-checkable judgments (Step 5a). Required even when empty, so "nothing is machine-checkable"
 # is a recorded decision rather than a skipped step. Each line names a rule this run proposes or touches.
 validate_checks(){
@@ -461,8 +470,19 @@ validate_checks(){
     seen[$1]++                             { print where $1 " is listed twice" }' /tmp/capture_checks.tsv)
   [ -z "$BAD" ] || die "CHECKS_INVALID — $BAD"
   for ID in $(awk -F'\t' 'NF==5{print $1}' /tmp/capture_checks.tsv); do
-    cat /tmp/capture_out/*.md /tmp/capture_corpus/*.md 2>/dev/null | grep -qE "^###[[:space:]]+$ID[[:space:]]" \
-      || die "CHECKS_INVALID — $ID is flagged machine-checkable but is in neither the proposal nor the corpus."
+    BLOCK=$(rule_block "$ID")
+    [ -n "$BLOCK" ] || die "CHECKS_INVALID — $ID is flagged machine-checkable but is in neither the proposal nor the corpus."
+    # A rule whose check is recorded, or whose ticket shipped, was declined or is unsettled, must not get a
+    # second ticket: the reuse lookup finds only open tickets, so publish would file a duplicate.
+    printf '%s\n' "$BLOCK" | grep -qE '^-[[:space:]]+\*\*Enforced by:\*\*' \
+      && die "CHECKS_INVALID — $ID already has Enforced by (or this run records it); drop its line from capture_checks.tsv."
+    T=$(awk -F'\t' -v id="$ID" '$6==id && ($2=="shipped" || $2=="no-check" || $2=="unclear") { print $2 " " $1; exit }' \
+      /tmp/capture_check_tickets.tsv 2>/dev/null)
+    case "${T%% *}" in
+      shipped)  die "CHECKS_INVALID — $ID's check shipped (AB#${T#* }); record Enforced by on it instead of raising a ticket." ;;
+      no-check) die "CHECKS_INVALID — the team declined a check for $ID (AB#${T#* }); list it under Check tickets to settle instead of raising a ticket." ;;
+      unclear)  die "CHECKS_INVALID — $ID's check ticket AB#${T#* } is unclear; list it under Check tickets to settle instead of raising a ticket." ;;
+    esac
   done
   echo "check tickets to raise: $(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv | grep -c .) (an open ticket for the same rule is reused)"
 }

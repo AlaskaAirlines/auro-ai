@@ -52,6 +52,29 @@ expect "unknown rule refused"            'CS-BUILD-009 is flagged machine-checka
 printf 'CS-BUILD-001\tbuild\tauro-formkit\tpackage.json\twhy\n' > /tmp/capture_checks.tsv
 expect "existing corpus rule accepted"   "check tickets to raise: 1" "$(run validate_checks)"
 
+echo "validate_checks refuses a second ticket"
+# CS-LINT-003 has no Enforced by; the rule after it (CS-LINT-001) has one, which must not leak into 003.
+printf '# CS-LINT\n\n## Rules\n\n### CS-LINT-003 — Plain rule\n\nBody.\n\n- **Sources:** AB#1636704\n\n### CS-LINT-001 — Checked rule\n\nBody.\n\n- **Sources:** AB#1636704\n- **Enforced by:** lint — auro-formkit `eslint.config.mjs` (AB#1670001)\n' > /tmp/capture_corpus/lint.md
+printf 'CS-LINT-001\tlint\tauro-formkit\tx.js\twhy\n' > /tmp/capture_checks.tsv
+expect "corpus Enforced by refused"      "CS-LINT-001 already has Enforced by" "$(run validate_checks)"
+printf 'CS-LINT-003\tlint\tauro-formkit\tx.js\twhy\n' > /tmp/capture_checks.tsv
+expect "next rule's Enforced by ignored" "check tickets to raise: 1" "$(run validate_checks)"
+# This run records Enforced by on CS-LINT-003 in its proposal; the corpus copy still has none.
+awk '{ print } /CS-LINT-003/ { f=1 } f && /^- \*\*Sources:/ { print "- **Enforced by:** test — auro-formkit `x.test.js` (AB#1670003)"; f=0 }' \
+  /tmp/capture_corpus/lint.md > /tmp/capture_out/lint.md
+expect "Enforced by recorded this run refused" "CS-LINT-003 already has Enforced by" "$(run validate_checks)"
+rm -f /tmp/capture_out/lint.md /tmp/capture_corpus/lint.md
+printf '1670001\tshipped\tClosed\tAcceptance tests pass\t2026-11-02\tCS-BUILD-004\tlint — auro-formkit `x.js`\n1670002\tno-check\tClosed\tOut of scope\t2026-11-02\tCS-BUILD-001\t-\n' > /tmp/capture_check_tickets.tsv
+printf 'CS-BUILD-004\tlint\tauro-formkit\tx.js\twhy\n' > /tmp/capture_checks.tsv
+expect "shipped ticket refused"          "CS-BUILD-004's check shipped (AB#1670001)" "$(run validate_checks)"
+printf 'CS-BUILD-001\tlint\tauro-formkit\tx.js\twhy\n' > /tmp/capture_checks.tsv
+expect "no-check ticket refused"         "declined a check for CS-BUILD-001 (AB#1670002)" "$(run validate_checks)"
+printf '1670002\tunclear\tClosed\tMoved to the backlog\t2026-11-02\tCS-BUILD-001\t-\n' > /tmp/capture_check_tickets.tsv
+expect "unclear ticket refused"          "CS-BUILD-001's check ticket AB#1670002 is unclear" "$(run validate_checks)"
+printf '1670002\topen\tActive\tImplementation started\t\tCS-BUILD-001\t-\n' > /tmp/capture_check_tickets.tsv
+expect "open ticket accepted (reused)"   "check tickets to raise: 1" "$(run validate_checks)"
+rm -f /tmp/capture_check_tickets.tsv
+
 echo "rule_title"
 expect "title from the proposal"         "Keep <slot> exports in the manifest" "$(rule_title CS-BUILD-004)"
 expect "title from the corpus"           "Pin the bundler target" "$(rule_title CS-BUILD-001)"

@@ -125,6 +125,20 @@ expect "count includes the unterminated line"     "check tickets to raise: 2" "$
 OUT=$(ADO_PAT=offline raise_check_tickets 1668644 https://example.test/pr/1)
 expect "the unterminated last line is raised"     "AB#1670102 CS-BUILD-001 (new)" "$OUT"
 expect "every counted line is raised"             "2" "$(grep -c . /tmp/capture_check_result.tsv)"
+
+echo "check-ticket result with no review ticket or no token"
+# With no ADO_PAT, publish has no review ticket; nothing flagged must still read as nothing flagged.
+: > /tmp/capture_checks.tsv
+OUT=$(ADO_PAT= raise_check_tickets "" https://example.test/pr/1)
+expect "no review ticket, nothing flagged"        "check tickets: none flagged" "$OUT"
+expect "…and the body says none, not pending"     "none — no rule in this capture is machine-checkable" "$(check_tickets_body "$OUT")"
+printf 'CS-BUILD-004\tlint\tauro-formkit\tx.js\twhy\n' > /tmp/capture_checks.tsv
+OUT=$(ADO_PAT= raise_check_tickets "" https://example.test/pr/1)
+expect "no review ticket, one flagged"            "check tickets: not raised (no review ticket to link them to)" "$OUT"
+expect "…and the body says pending"               "_pending — raised when this PR is published_" "$(check_tickets_body "$OUT")"
+OUT=$(ADO_PAT= raise_check_tickets 1668644 https://example.test/pr/1)
+expect "review ticket but no token"               "check tickets: 1 not raised (ADO_PAT_MISSING)" "$OUT"
+expect "nothing raised without a token"           "0" "$(grep -c . /tmp/capture_check_result.tsv)"
 rm -f /tmp/capture_checks.log /tmp/capture_check_query.json /tmp/capture_check_found.json
 echo
 echo "offline: $ok passed, $bad failed"

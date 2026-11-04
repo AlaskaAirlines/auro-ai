@@ -682,10 +682,12 @@ Move it to Active when work starts. When the check ships, close it with reason *
 
 # Raise every flagged rule's check ticket. Fills /tmp/capture_check_result.tsv (rule, id, new|existing)
 # and prints the summary that goes into CAPTURE_RESULT.
-raise_check_tickets(){ # $1=review ticket id  $2=PR url
+raise_check_tickets(){ # $1=review ticket id (empty when none could be created)  $2=PR url
   : > /tmp/capture_check_result.tsv; : > /tmp/capture_checks.log
   N=$(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv | grep -c .)
+  # Nothing flagged is the answer whether or not there is a review ticket: there is nothing to retry.
   if [ "$N" = "0" ]; then echo "check tickets: none flagged"; return; fi
+  if [ -z "$1" ]; then echo "check tickets: not raised (no review ticket to link them to) — re-run publish to retry"; return; fi
   if [ -z "$ADO_PAT" ]; then echo "check tickets: $N not raised (ADO_PAT_MISSING) — re-run publish to retry"; return; fi
   # The loop reads the same awk filter as the count, so it sees exactly those N lines; awk also ends an
   # unterminated last line, which a bare `read` would drop.
@@ -706,6 +708,18 @@ check_tickets_md(){
   awk -F'\t' -v base="$ADO_ORG/E_Retain_Content/_workitems/edit/" \
     '{ printf "%s`%s` → [AB#%s](%s%s)%s", (NR>1 ? " · " : ""), $1, $2, base, $2, ($3=="existing" ? " (existing)" : "") }' \
     /tmp/capture_check_result.tsv
+}
+
+# What {{CHECK_TICKETS}} becomes, given raise_check_tickets' summary. The body must not read "none raised"
+# when tickets were flagged but not (all) raised — that would say nothing was machine-checkable.
+PENDING_CHECKS="_pending — raised when this PR is published_"
+check_tickets_body(){ # $1=raise_check_tickets summary
+  case "$1" in
+    "check tickets: none flagged") printf '%s' "none — no rule in this capture is machine-checkable" ;;
+    *"not raised"*)                printf '%s' "$PENDING_CHECKS" ;;
+    *FAILED*)                      printf '%s · %s' "$(check_tickets_md "none raised")" "_some could not be raised — re-run publish to retry_" ;;
+    *)                             check_tickets_md "none raised" ;;
+  esac
 }
 
 # The PR body with both placeholders filled in.
@@ -769,7 +783,6 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
     TID=$(jq -r .body /tmp/capture_pr.json | ticket_in_body)
   fi
   if [ -n "$TID" ]; then REPL="AB#$TID"; else REPL="_pending — created when this PR is published_"; fi
-  PENDING_CHECKS="_pending — raised when this PR is published_"
   render_body "$REPL" "$PENDING_CHECKS"
   if [ -n "$NUM" ]; then
     # A re-run against a different corpus ref has just reset the branch onto that ref, so the PR must
@@ -809,21 +822,8 @@ See the pull request body for each candidate's outcome and reason." --arg t "$TR
 
   # 5. Check tickets (Phase 5a) — one per flagged rule, each linked to the review ticket, so they wait for
   # it. A failure here never undoes the PR either; a re-run reuses what was raised and retries the rest.
-  : > /tmp/capture_check_result.tsv
-  if [ -n "$RID" ]; then
-    CHECKS=$(raise_check_tickets "$RID" "$URL")
-    CHECKS_MD=$(check_tickets_md "none raised")
-  else
-    CHECKS="check tickets: not raised (no review ticket to link them to) — re-run publish to retry"
-    CHECKS_MD="$PENDING_CHECKS"
-  fi
-  # The body must not read "none raised" when tickets were flagged but not (all) raised — that would say
-  # nothing was machine-checkable.
-  case "$CHECKS" in
-    "check tickets: none flagged") CHECKS_MD="none — no rule in this capture is machine-checkable" ;;
-    *"not raised"*)                CHECKS_MD="$PENDING_CHECKS" ;;
-    *FAILED*)                      CHECKS_MD="$CHECKS_MD · _some could not be raised — re-run publish to retry_" ;;
-  esac
+  CHECKS=$(raise_check_tickets "$RID" "$URL")
+  CHECKS_MD=$(check_tickets_body "$CHECKS")
   RESULT="$RESULT · $CHECKS"
 
   # 6. One final body with both placeholders resolved.

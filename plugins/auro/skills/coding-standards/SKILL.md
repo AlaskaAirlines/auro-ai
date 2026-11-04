@@ -62,7 +62,7 @@ Paths are relative to this file.
 - Ignore everything under a `## Retired` heading. Those rules are withdrawn: do not apply them and do not cite their IDs.
 - If a rule conflicts with an explicit instruction from the engineer, follow the engineer and note in one line which rule you set aside and why.
 
-Each rule is one block: `### CS-<CAT>-<NNN> — <imperative title>`, a one-to-four-sentence body, then its fields. Every field is a list item in the exact form `- **Name:** value` — the leading `- `, the bold, and the colon *inside* the bold are all required, and `Sources: AB#123` or `- **Sources**: AB#123` will be read as body text rather than as a field.
+Each rule is one block: `### CS-<CAT>-<NNN> — <imperative title>`, a one-to-four-sentence body, then its fields. Every field is a list item in the exact form `- **Name:** value` — the leading `- `, the bold, and the colon *inside* the bold are all required. The validator rejects a near-miss such as `- **Sources**: AB#123`, a wrong-case or unknown field name, or an indented field; a plain line such as `Sources: AB#123` is just body text.
 
 ```markdown
 - **Sources:** AB#1636704, AB#1344690

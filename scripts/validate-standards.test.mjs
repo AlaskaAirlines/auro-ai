@@ -834,7 +834,7 @@ const tests = {
   },
 
   async 'a retired rule\'s "Enforced by" is still validated'() {
-    // A rule is retired once its check ships, so the retired section is where
+    // A rule can be retired only after its check ships, so the retired section is where
     // this field matters most — the retired exemption must not cover it.
     await expectFail('a retired rule\'s "Enforced by" is still validated', {
       build: enforcedRule('Retired', 'the linter'),

@@ -135,10 +135,46 @@ expect "unreadable history fails the step"        "1" "$RC"
 echo "create_check_ticket reuse"
 # Stub ADO: the lookup finds ticket 1670009. The query must treat as open what classify_checks calls
 # open, so a Resolved ticket is reused rather than filed a second time.
-ado_curl(){ while [ $# -gt 0 ]; do [ "$1" = "-o" ] && printf '{"workItems":[{"id":1670009}]}' > "$2"; shift; done; printf 200; }
-OUT=$(create_check_ticket CS-BUILD-004 lint auro-formkit x.js why 1668644 https://example.test/pr/1)
+# Reading the found ticket returns $STUB_ITEM; each PATCH body is appended to a log, answered $STUB_PATCH.
+ado_curl(){
+  local out="" data="" method=GET url=""
+  while [ $# -gt 0 ]; do
+    case "$1" in -o) out="$2"; shift ;; -X) method="$2"; shift ;; --data-binary) data="$2"; shift ;; -H|-w) shift ;; -*) ;; *) url="$1" ;; esac
+    shift
+  done
+  case "$method $url" in
+    "POST "*wiql*)      printf '{"workItems":[{"id":1670009}]}' > "$out"; printf 200 ;;
+    "GET "*/1670009\?*) printf '%s' "$STUB_ITEM" > "$out"; printf 200 ;;
+    "PATCH "*/1670009\?*) { cat "${data#@}"; echo; } >> /tmp/capture_t5a_patches; printf '%s' "${STUB_PATCH:-200}" ;;
+    *) printf 599 ;;
+  esac
+}
+PR1=https://example.test/pr/1
+reuse(){ rm -f /tmp/capture_t5a_patches; : > /tmp/capture_checks_notes.log
+  OUT=$(create_check_ticket CS-BUILD-004 lint auro-formkit x.js why 1668644 "$PR1"); }
+STUB_ITEM='{"id":1670009,"relations":[{"rel":"System.LinkTypes.Related","url":"https://itsals.visualstudio.com/0f1e/_apis/wit/workItems/1660001"},{"rel":"Hyperlink","url":"https://example.test/pr/0"}]}'
+reuse
 expect "a found ticket is reused"                 "$(printf '1670009\texisting')" "$OUT"
 expect "the lookup excludes only closed states"   "NOT IN ('Closed', 'Removed', 'Rejected')" "$(cat /tmp/capture_check_query.json)"
+P=$(cat /tmp/capture_t5a_patches 2>/dev/null)
+expect "reuse links the new review ticket"        '"rel":"System.LinkTypes.Related","url":"https://itsals.visualstudio.com/_apis/wit/workItems/1668644"' "$P"
+expect "reuse links the new PR"                   '"rel":"Hyperlink","url":"https://example.test/pr/1"' "$P"
+expect "both links go in one PATCH"               "1" "$(grep -c . /tmp/capture_t5a_patches 2>/dev/null)"
+STUB_ITEM='{"id":1670009,"relations":[{"rel":"System.LinkTypes.Related","url":"https://itsals.visualstudio.com/0f1e/_apis/wit/workItems/1668644"}]}'
+reuse
+P=$(cat /tmp/capture_t5a_patches 2>/dev/null)
+expect "an existing review link is not repeated"  "0" "$(printf '%s' "$P" | grep -c 'LinkTypes.Related')"
+expect "…but the missing PR link is added"        '"rel":"Hyperlink","url":"https://example.test/pr/1"' "$P"
+STUB_ITEM='{"id":1670009,"relations":[{"rel":"System.LinkTypes.Related","url":"https://itsals.visualstudio.com/0f1e/_apis/wit/workItems/1668644"},{"rel":"Hyperlink","url":"https://example.test/pr/1"}]}'
+reuse
+expect "fully linked → nothing is patched"        "0" "$(cat /tmp/capture_t5a_patches 2>/dev/null | grep -c .)"
+STUB_ITEM='{"id":1670009}'; STUB_PATCH=400
+printf 'CS-BUILD-004\tlint\tauro-formkit\tx.js\twhy\n' > /tmp/capture_checks.tsv
+OUT=$(ADO_PAT=offline raise_check_tickets 1668644 "$PR1")
+expect "a failed link keeps the reused ticket"    "check tickets: AB#1670009 CS-BUILD-004 (existing)" "$OUT"
+expect "…and is noted on the result line"         "reused check ticket links missing: AB#1670009: linking it to AB#1668644 and this PR returned HTTP 400" "$OUT"
+expect "…without marking it FAILED"               "0" "$(printf '%s' "$OUT" | grep -c FAILED)"
+unset STUB_ITEM STUB_PATCH; rm -f /tmp/capture_t5a_patches
 
 echo "raise_check_tickets"
 # Stub the per-rule call; the file's last line has no trailing newline, as the Write tool may leave it.

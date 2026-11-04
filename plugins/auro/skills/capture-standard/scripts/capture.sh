@@ -643,6 +643,28 @@ rule_title(){ # $1=rule ID
     | awk -v id="$1" '$1=="###" && $2==id { sub(/^###[[:space:]]+[^[:space:]]+[[:space:]]+—[[:space:]]+/, ""); print; exit }'
 }
 
+# A reused check ticket was raised by an earlier capture, so it links only that capture's review ticket and
+# PR. Add this run's, so the review ticket's "close the check tickets of rejected rules" can be worked from
+# its own links. Each link is added only if missing; a failure keeps the ticket and is only noted, in
+# /tmp/capture_checks_notes.log.
+link_reused_check(){ # $1=check ticket id  $2=review ticket id  $3=PR url
+  CODE=$(ado_curl -sS -o /tmp/capture_check_reused.json -w "%{http_code}" "$ADO/workitems/$1?\$expand=relations&api-version=7.1")
+  if [ "$CODE" != "200" ]; then
+    echo "AB#$1: could not read it to link this review ticket and PR (HTTP $CODE)" >> /tmp/capture_checks_notes.log; return
+  fi
+  jq -c --arg rid "$2" --arg review "$ADO_ORG/_apis/wit/workItems/$2" --arg url "$3" '
+      (.relations // []) as $r
+    | [ if any($r[]; .rel == "System.LinkTypes.Related" and (.url | ascii_downcase | endswith("/workitems/" + $rid))) then empty
+        else {op:"add",path:"/relations/-",value:{rel:"System.LinkTypes.Related",url:$review,attributes:{comment:"coding-standards capture review"}}} end,
+        if any($r[]; .rel == "Hyperlink" and .url == $url) then empty
+        else {op:"add",path:"/relations/-",value:{rel:"Hyperlink",url:$url,attributes:{comment:"coding-standards capture PR"}}} end ]' \
+    /tmp/capture_check_reused.json > /tmp/capture_check_link.json
+  [ "$(jq length /tmp/capture_check_link.json)" = "0" ] && return
+  CODE=$(ado_curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json-patch+json" \
+    --data-binary @/tmp/capture_check_link.json "$ADO/workitems/$1?api-version=7.1")
+  [ "$CODE" = "200" ] || echo "AB#$1: linking it to AB#$2 and this PR returned HTTP $CODE" >> /tmp/capture_checks_notes.log
+}
+
 # Raise (or reuse) the check ticket for one flagged rule. Prints `<id>\t<new|existing>`; prints nothing on
 # failure, with the reason appended to /tmp/capture_checks.log. State New, no sprint: the team decides in
 # refinement whether and when the check is built.
@@ -659,7 +681,7 @@ create_check_ticket(){ # $1=rule $2=kind $3=repo $4=path $5=reason $6=review tic
     --data-binary @/tmp/capture_check_query.json "$ADO/wiql?api-version=7.0")
   if [ "$CODE" != "200" ]; then echo "$1: lookup returned HTTP $CODE" >> /tmp/capture_checks.log; return; fi
   FOUND=$(jq -r '.workItems[0].id // empty' /tmp/capture_check_found.json)
-  if [ -n "$FOUND" ]; then printf '%s\texisting\n' "$FOUND"; return; fi
+  if [ -n "$FOUND" ]; then link_reused_check "$FOUND" "$6" "$7"; printf '%s\texisting\n' "$FOUND"; return; fi
 
   # No angle brackets anywhere: ADO strips anything shaped like an HTML tag from Markdown fields.
   RTITLE=$(rule_title "$1" | tr -d '<>')
@@ -703,7 +725,7 @@ Move it to Active when work starts. When the check ships, close it with reason *
 # Raise every flagged rule's check ticket. Fills /tmp/capture_check_result.tsv (rule, id, new|existing)
 # and prints the summary that goes into CAPTURE_RESULT.
 raise_check_tickets(){ # $1=review ticket id (empty when none could be created)  $2=PR url
-  : > /tmp/capture_check_result.tsv; : > /tmp/capture_checks.log
+  : > /tmp/capture_check_result.tsv; : > /tmp/capture_checks.log; : > /tmp/capture_checks_notes.log
   N=$(awk -F'\t' 'NF==5' /tmp/capture_checks.tsv | grep -c .)
   # Nothing flagged is the answer whether or not there is a review ticket: there is nothing to retry.
   if [ "$N" = "0" ]; then echo "check tickets: none flagged"; return; fi
@@ -719,6 +741,7 @@ raise_check_tickets(){ # $1=review ticket id (empty when none could be created) 
   FAILED=$(grep -c . /tmp/capture_checks.log)
   SUMMARY="check tickets: ${LIST:-none raised}"
   [ "$FAILED" -gt 0 ] && SUMMARY="$SUMMARY · $FAILED check ticket(s) FAILED: $(tr '\n' ';' < /tmp/capture_checks.log) — re-run publish to retry"
+  [ -s /tmp/capture_checks_notes.log ] && SUMMARY="$SUMMARY · reused check ticket links missing: $(tr '\n' ';' < /tmp/capture_checks_notes.log) — re-run publish to retry"
   echo "$SUMMARY"
 }
 

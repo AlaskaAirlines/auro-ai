@@ -106,11 +106,18 @@ function scriptsBanner(name, body) {
   return `> **Bundled files:** this workflow uses files from your local \`auro-ai\` checkout at \`${checkoutSkillDir(name)}/\`. Set \`AURO_AI_HOME\` to the checkout path before invoking it; if it is unset, ask the user for the path.`;
 }
 
-/** Inline shape: the whole workflow embedded, with `$ARGUMENTS` → `${input}` and
- *  `${CLAUDE_SKILL_DIR}` → the skill's folder in the checkout. */
+/** The plugin skills' note telling Copilot to resolve the unexpanded skill-directory
+ *  variable itself: that one paragraph, plus the blank line after it. The agents
+ *  rewrite the variable, so the note does not apply to them. */
+const COPILOT_SKILL_DIR_NOTE = /^\*\*In Copilot,\*\* the skill-directory variable [^\n]*\n(?:\n|$)/gm;
+
+/** Inline shape: the whole workflow embedded, with `$ARGUMENTS` → `${input}`,
+ *  `${CLAUDE_SKILL_DIR}` → the skill's folder in the checkout, and the
+ *  "In Copilot," skill-directory note dropped. */
 function renderInlineBody(name, fields, body) {
   const transformed = body
     .replace(/\$ARGUMENTS/g, '${input}')
+    .replace(COPILOT_SKILL_DIR_NOTE, '')
     .replace(/\$\{CLAUDE_SKILL_DIR\}/g, checkoutSkillDir(name))
     .replace(/^\n+/, '');
   const banners = [argumentBanner(fields), scriptsBanner(name, body)].filter(Boolean);
@@ -132,6 +139,11 @@ function renderBootstrapBody(name, fields, body) {
     `2. Read \`"$AURO_AI_HOME/plugins/auro/skills/${name}/SKILL.md"\` in full (e.g. \`cat\` it via your shell tool, or open it with your read tool).`,
     `3. Execute that workflow exactly, in order. Treat every \`$ARGUMENTS\` reference in it as \`\${input}\` — the argument you were invoked with${
       body.includes('${CLAUDE_SKILL_DIR}') ? ` — and every \`\${CLAUDE_SKILL_DIR}\` as \`${checkoutSkillDir(name)}\`` : ''
+    }${
+      // The agent reads the SKILL.md at runtime, so the note can't be dropped; say to skip it.
+      body.search(COPILOT_SKILL_DIR_NOTE) !== -1
+        ? '. Skip its "In Copilot," note about the skill-directory variable; this step already resolves it'
+        : ''
     }. Where a step says to prompt the user, ask inline in chat.`,
     '',
     'Do not summarize, reorder, or skip steps — follow the file as written.',

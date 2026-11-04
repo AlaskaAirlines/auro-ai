@@ -2,7 +2,7 @@
 name: capture-standard
 description: Capture coding standards from the post-mortems a release carries, while preparing that release. Run when asked to capture coding standards or lessons from a release, an rc branch, or a commit range into the Auro coding-standards corpus — usually by the release-prep skill as an rc branch is merged into main. Proposes new rules and source-appends, previews them, and on one confirmation opens a pull request against auro-ai plus a review ticket. Not for writing or reviewing code, writing post-mortems, or release notes.
 argument-hint: "<repo> <branch | from..to> [--corpus-ref <branch>]"
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh), Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *), Read, Write(//tmp/**), AskUserQuestion
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh), Bash(${CLAUDE_SKILL_DIR}/scripts/capture.sh *), Read, Edit(//tmp/capture_out/**), Edit(//tmp/capture_pr_body.md), AskUserQuestion
 ---
 
 ## Task — start now
@@ -51,7 +51,7 @@ ${CLAUDE_SKILL_DIR}/scripts/capture.sh tickets
 ${CLAUDE_SKILL_DIR}/scripts/capture.sh postmortems
 ```
 
-`tickets` finds every `AB#` in the range's commit messages and every merged PR number, with each ticket's ADO state and **closed date**. `postmortems` fetches `docs/post-mortem/<id>.md` from the head of the range for each one — by ticket, or by PR number for post-mortems named that way. Over-inclusion is harmless: a post-mortem whose lessons are already in the corpus produces no change. `NO_POSTMORTEMS` → result `nothing extractable — no post-mortems in this release`. `WARNING_INCOMPLETE` goes into the PR body.
+`tickets` finds every `AB#` in the range's commit messages and every merged PR number, with each ticket's ADO state and **closed date**. `postmortems` fetches `docs/post-mortem/<id>.md` from the head of the range for each one — by ticket, or by PR number for post-mortems named that way. Over-inclusion is harmless: a post-mortem whose lessons are already in the corpus produces no change. `NO_POSTMORTEMS` → result `nothing extractable — no post-mortems in this release`. `GITHUB_FAILED` (the post-mortem list or a post-mortem could not be read; only a missing `docs/post-mortem/` counts as none) → result `failed`, never "nothing extractable". `WARNING_INCOMPLETE` goes into the PR body.
 
 ## Step 3 — Locate the lessons
 
@@ -114,7 +114,7 @@ Equivalence is about the **lesson**, not the wording. When unsure between *new* 
 
 ### 5c. Write the proposal
 
-For each category that changes, **Read** `/tmp/capture_corpus/<cat>.md` and **Write** the full new file to `/tmp/capture_out/<cat>.md` — the corpus text with new rules appended under `## Rules` and source-appends edited in place. Only changed categories; nothing else in the file moves. Each rule block:
+For each category that changes, **Read** `/tmp/capture_corpus/<cat>.md` and **Write** the full new file to `/tmp/capture_out/<cat>.md` — the corpus text with new rules appended under `## Rules` and source-appends edited in place. Only changed categories; nothing else in the file moves. Use the **Write** tool, never a shell `mkdir`/`cp` (Write creates `/tmp/capture_out/`; the frontmatter's `Edit(//tmp/capture_out/**)` is the grant that covers it — Claude Code matches file permissions only through `Edit(path)` rules). Each rule block:
 
 ```markdown
 ### CS-<CAT>-<NNN> — <imperative title>
@@ -177,4 +177,4 @@ Options: **Publish** · **Don't publish**. Anything but **Publish** → nothing 
 ${CLAUDE_SKILL_DIR}/scripts/capture.sh publish
 ```
 
-It re-runs `check`, writes one commit on the corpus ref's tip and points `capture/<repo>-<label>` at it — **resetting** the branch on a re-run, never appending — opens the PR or replaces its body, and, if the PR has no review ticket yet, creates a **Committed** User Story in the current sprint (area `auro-ai`, tag `coding-standards-capture`) and writes its `AB#` into the body. Its last line is always a `CAPTURE_RESULT:` line — published, or `failed — <reason>` for any failure along the way — and a ticket reused from an earlier partial run is named as such. **Print it verbatim as your final line.**
+It re-runs `check`, writes one commit on the corpus ref's tip and points `capture/<repo>-<label>` at it — **resetting** the branch on a re-run, never appending — opens the PR or replaces its body, and, if the PR has no review ticket yet, creates a **Committed** User Story in the current sprint (area `auro-ai`, tag `coding-standards-capture`) and writes its `AB#` into the body. Its last line is always a `CAPTURE_RESULT:` line — published, or `failed — <reason>` for any failure along the way — and a ticket reused from an earlier partial run is named as such (only an open one is reused: a Closed or Resolved story with the same title gets a new ticket; a reused one is linked to this PR and moved to Committed if it was left New). **Print it verbatim as your final line.**

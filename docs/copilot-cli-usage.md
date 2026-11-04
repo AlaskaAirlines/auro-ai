@@ -68,7 +68,7 @@ same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents`
 | ----- | ------------- | ----- |
 | `commit` | `/agent commit` · `copilot --agent commit` | inline |
 | `pr` | `/agent pr` · `copilot --agent pr` | inline |
-| `release-notes` | `/agent release-notes` | inline |
+| `release-notes` | `/agent release-notes` | inline, runs a bundled script (needs `AURO_AI_HOME`) |
 | `post-mortem` | `/agent post-mortem` | inline |
 | `ado` | `/agent ado` | bootstrap (needs `AURO_AI_HOME`) |
 | `code-review` | `/agent code-review` | bootstrap (needs `AURO_AI_HOME`) |
@@ -80,9 +80,9 @@ same steps, substituting `~/.copilot/agents` for `%USERPROFILE%\.copilot\agents`
 **Inline** agents embed the full workflow and are self-contained. **Bootstrap**
 agents (whose inlined workflow would exceed the CLI's 30,000-character agent-prompt
 cap) read their `SKILL.md` from your local `auro-ai` checkout at runtime — so those
-three require the `AURO_AI_HOME` step below. `create-rcs` is inline but runs its
-helper script from the checkout (`$AURO_AI_HOME/plugins/auro/skills/create-rcs/scripts/`),
-so it needs `AURO_AI_HOME` too.
+three require the `AURO_AI_HOME` step below. `create-rcs` and `release-notes` are inline but run
+their helper script from the checkout (`$AURO_AI_HOME/plugins/auro/skills/<name>/scripts/`),
+so they need `AURO_AI_HOME` too.
 
 > **Copilot CLI vs. Claude Code.** These are mechanical ports of the same skills, so
 > Claude-only features degrade: `code-review` runs single-model (no adversarial
@@ -226,7 +226,7 @@ update, re-copy the files into your agent location (step 2) and restart `copilot
 | Symptom | Fix |
 | ------- | --- |
 | Auro agents don't appear in `/agent` | Confirm the files are in `%USERPROFILE%\.copilot\agents\` (Option A) or the repo's `.github\agents\` (Option B), then restart `copilot`. |
-| `ado` / `code-review` / `sprint-report` / `create-rcs` can't find their workflow or script | Set `AURO_AI_HOME` to your `auro-ai` checkout (step 3) and restart, or give the path when the agent asks. |
+| `ado` / `code-review` / `sprint-report` / `create-rcs` / `release-notes` can't find their workflow or script | Set `AURO_AI_HOME` to your `auro-ai` checkout (step 3) and restart, or give the path when the agent asks. |
 | `ado` / `sprint-report` / `create-rcs` say "No Azure DevOps token found" | `setx ADO_PAT …` didn't reach the CLI — confirm it ran and **fully restart** `copilot`. |
 | Azure DevOps returns sign-in HTML | PAT missing/expired/wrong scope — recreate with Work Items → Read & Write and re-run `setx ADO_PAT`. |
 | `pr` / `code-review` / `post-mortem` fail | Install and authenticate `gh` (`gh auth login`). |

@@ -24,6 +24,10 @@ jobs:
         run: node scripts/capture-sections.test.mjs
       - name: Test capture.sh check-ticket functions
         run: bash scripts/capture-checks.test.sh
+      - name: Test the release-notes version helper
+        run: node scripts/release-notes-next.test.mjs
+      - name: Test the release-prep preflight
+        run: node scripts/release-prep-preflight.test.mjs
       - name: Regenerate Copilot prompt files
         run: node scripts/build-copilot-prompts.mjs
       - name: Fail if copilot/prompts is out of date

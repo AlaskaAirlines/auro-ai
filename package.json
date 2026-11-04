@@ -16,6 +16,8 @@
     "test:standards": "node scripts/validate-standards.test.mjs",
     "test:capture": "node scripts/capture-sections.test.mjs",
     "test:capture-checks": "bash scripts/capture-checks.test.sh",
+    "test:release-notes": "node scripts/release-notes-next.test.mjs",
+    "test:release-prep": "node scripts/release-prep-preflight.test.mjs",
     "score:trigger": "node scripts/score-trigger-transcript.mjs",
     "test:trigger": "node scripts/score-trigger-transcript.test.mjs"
   },

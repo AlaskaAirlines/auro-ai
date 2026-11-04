@@ -57,6 +57,11 @@ die(){
 }
 # `gh auth token` is local; `gh auth status` makes a network call per account and fails intermittently.
 need_gh(){ gh auth token >/dev/null 2>&1 || die "GH_AUTH_MISSING — run \`gh auth login\`."; }
+# Each step reads the state an earlier step wrote, so a failed state write must stop the run there,
+# not show up a step later as a misleading NO_RANGE or NO_CORPUS.
+state_unwritable(){
+  die "STATE_NOT_WRITABLE — capture keeps its state in /tmp/capture_*; allow writes there (the Claude Code sandbox blocks /tmp by default) and re-run."
+}
 need_run(){
   [ -s /tmp/capture_run.tsv ] || die "NO_RANGE — run \`capture.sh range\` first."
   IFS=$'\t' read -r REPO LABEL BASE HEAD BRANCH BASE_SHA HEAD_SHA < /tmp/capture_run.tsv
@@ -102,6 +107,7 @@ cmd_range(){
   need_gh
   # A new run starts clean, so nothing from an earlier release can leak into this one.
   rm -rf /tmp/capture_*
+  { : > /tmp/capture_run.tsv; } 2>/dev/null || state_unwritable
 
   case "$1" in */*) R="$1" ;; *) R="$OWNER/$1" ;; esac
   REPO_FULL=$(gh api "repos/$R" --jq .full_name 2>/dev/null) || die "REPO_NOT_FOUND — $R"
@@ -116,7 +122,8 @@ cmd_range(){
 
   NAME="${REPO_FULL#*/}"
   BRANCH="capture/$NAME-$LABEL"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$REPO_FULL" "$LABEL" "$BASE" "$HEAD" "$BRANCH" "$BASE_SHA" "$HEAD_SHA" > /tmp/capture_run.tsv
+  { printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$REPO_FULL" "$LABEL" "$BASE" "$HEAD" "$BRANCH" "$BASE_SHA" "$HEAD_SHA" \
+      > /tmp/capture_run.tsv; } 2>/dev/null || state_unwritable
 
   AHEAD=$(ahead_by "$REPO_FULL") || die "GITHUB_FAILED — could not compare $BASE...$HEAD; re-run \`capture.sh range\`."
   echo "repo: $REPO_FULL"
@@ -254,7 +261,7 @@ cmd_corpus(){
     gh api -H "Accept: application/vnd.github.raw" "repos/$AI_REPO/contents/$REFS/$NAME?ref=$SHA" \
       > "/tmp/capture_corpus/$NAME" || die "FETCH_FAILED — $NAME at $REF"
   done < /tmp/capture_corpus_names.txt
-  printf '%s\t%s\n' "$REF" "$SHA" > /tmp/capture_corpus_ref.tsv
+  { printf '%s\t%s\n' "$REF" "$SHA" > /tmp/capture_corpus_ref.tsv; } 2>/dev/null || state_unwritable
 
   echo "corpus: $AI_REPO @ $REF ($(printf '%s' "$SHA" | cut -c1-7)) — $(grep -c . /tmp/capture_corpus_names.txt) category files"
   echo "--- rules (id / section / title / sources / since) ---"

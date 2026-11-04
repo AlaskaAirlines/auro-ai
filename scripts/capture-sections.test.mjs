@@ -19,6 +19,9 @@
 // When adding a case, break the behaviour it is named for and confirm this
 // file reports that case failing. A case that cannot fail is cited as
 // coverage it does not provide.
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -55,6 +58,64 @@ function expectSections(name, source, expected, { contains = {}, excludes = {} }
 }
 
 const doc = (...lines) => lines.join('\n');
+
+// --- capture.sh, offline -----------------------------------------------------------
+// The script keeps its state in fixed /tmp/capture_* paths. A case runs a copy with
+// those paths moved into a scratch state directory (so a real run's state is never
+// touched) and with a stub `gh` first on PATH, so nothing reaches GitHub.
+const CAPTURE_SH = join(ROOT, 'plugins/auro/skills/capture-standard/scripts/capture.sh');
+
+const GH_STUB = `#!/usr/bin/env bash
+# Answers the range and corpus calls, logging each URL. Once a URL matches $RO_AT,
+# the state directory and its files turn read-only, as under the Claude Code sandbox.
+[ "$1" = auth ] && exit 0
+for a; do case "$a" in repos/*) url="$a" ;; esac; done
+echo "$url" >> "$GH_LOG"
+if [ -n "$RO_AT" ] && [[ "$url" == *"$RO_AT"* ]]; then
+  find "$STATE" -maxdepth 1 -type f -exec chmod 444 {} +; chmod 555 "$STATE"
+fi
+case "$url" in
+  */compare/*)  echo 3 ;;
+  */commits/*)  echo 0123456789abcdef ;;
+  */branches/*) echo main ;;
+  *.md\\?ref=*) printf '# Cat\\n' ;;
+  */contents/*) echo cat.md ;;
+  *)            echo AlaskaAirlines/auro-x ;;
+esac
+`;
+
+/** Run `capture.sh <args>` with its state in a scratch dir; `readOnly` locks that dir up front. */
+function runCapture(args, { readOnly = false, roAt = '' } = {}) {
+  const scratch = mkdtempSync(join(tmpdir(), 'capture-sh-'));
+  const state = join(scratch, 'state');
+  try {
+    const bin = join(scratch, 'bin');
+    mkdirSync(bin);
+    mkdirSync(state);
+    writeFileSync(join(bin, 'gh'), GH_STUB, { mode: 0o755 });
+    const script = readFileSync(CAPTURE_SH, 'utf8').replaceAll('/tmp/capture_', `${state}/capture_`);
+    writeFileSync(join(scratch, 'capture.sh'), script, { mode: 0o755 });
+    const ghLog = join(scratch, 'gh.log');
+    writeFileSync(ghLog, '');
+    if (readOnly) chmodSync(state, 0o555);
+    const r = spawnSync('bash', [join(scratch, 'capture.sh'), ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_LOG: ghLog, STATE: state, RO_AT: roAt },
+    });
+    return { status: r.status, out: r.stdout + r.stderr, gh: existsSync(ghLog) ? readFileSync(ghLog, 'utf8') : '' };
+  } finally {
+    chmodSync(state, 0o755);
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+/** Assert a run stopped on STATE_NOT_WRITABLE without printing `notPrinted`. */
+function expectUnwritable(name, r, notPrinted) {
+  if (r.status !== 1 || !r.out.includes('STATE_NOT_WRITABLE') || r.out.includes(notPrinted)) {
+    return failCase(name, `expected STATE_NOT_WRITABLE and no ${notPrinted}, got status ${r.status}: ${r.out.trim()}`);
+  }
+  return true;
+}
 
 const tests = {
   // --- one case per heading variant in the #57 §2.1 census ----------------------
@@ -262,6 +323,22 @@ const tests = {
       [['learnings', '## Learnings']]);
   },
 
+  'a comment block inside a section is not handed on as lessons'() {
+    // A withdrawn lesson hidden in a comment is not a lesson. A comment inside a
+    // fence is example text, so it stays.
+    expectSections('a comment block inside a section is not handed on as lessons',
+      doc('# X', '## Learnings', '<!--', '- withdrawn lesson', '-->', '- kept',
+        '```html', '<!-- example -->', '```'),
+      [['learnings', '## Learnings']],
+      { contains: { 0: '<!-- example -->' }, excludes: { 0: 'withdrawn' } });
+  },
+
+  'an inline comment inside a section is not handed on as lessons'() {
+    expectSections('an inline comment inside a section is not handed on as lessons',
+      doc('# X', '## Learnings', '- kept <!-- withdrawn aside --> lesson'),
+      [['learnings', '## Learnings']], { contains: { 0: 'kept' }, excludes: { 0: 'withdrawn' } });
+  },
+
   'non-lessons headings are not located'() {
     expectSections('non-lessons headings are not located',
       doc('# X', '## Root Cause', '## What the Plan Missed', '## Summary', '## Fix', '## Check'),
@@ -279,6 +356,29 @@ const tests = {
     expectSections('CRLF line endings',
       '# X\r\n## Learnings\r\n- a\r\n## Files\r\n',
       [['learnings', '## Learnings']], { excludes: { 0: 'Files' } });
+  },
+
+  // --- capture.sh: state it cannot write is a failure, not RANGE_OK ------------------
+  // Review of #60 (finding 1): under the Claude Code sandbox /tmp is read-only, and
+  // `range` still printed RANGE_OK; the next step then failed with a misleading NO_RANGE.
+  'range: an unwritable state dir fails before any GitHub call'() {
+    const name = 'range: an unwritable state dir fails before any GitHub call';
+    const r = runCapture(['range', 'auro-x', 'rc'], { readOnly: true });
+    if (!expectUnwritable(name, r, 'RANGE_OK')) return;
+    if (r.gh.trim()) return failCase(name, `expected no GitHub call, got ${JSON.stringify(r.gh)}`);
+    pass(name);
+  },
+
+  'range: a failed run-state write fails instead of reporting RANGE_OK'() {
+    const name = 'range: a failed run-state write fails instead of reporting RANGE_OK';
+    const r = runCapture(['range', 'auro-x', 'rc'], { roAt: '/commits/' });
+    if (expectUnwritable(name, r, 'RANGE_OK')) pass(name);
+  },
+
+  'corpus: a failed corpus-ref write fails instead of printing the corpus'() {
+    const name = 'corpus: a failed corpus-ref write fails instead of printing the corpus';
+    const r = runCapture(['corpus', 'main'], { roAt: '.md?ref=' });
+    if (expectUnwritable(name, r, 'corpus: ')) pass(name);
   },
 };
 

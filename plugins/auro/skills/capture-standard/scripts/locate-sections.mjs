@@ -75,36 +75,55 @@ const COMMENT_BLOCK_RE = /^ {0,3}<!--/;
 const INLINE_COMMENT_RE = /<!--[\s\S]*?-->/g;
 
 /**
- * Split markdown into heading records, ignoring anything inside a fence or an
- * HTML comment block. A commented-out `## Learnings` is a draft someone hid,
- * not a section. Fences are evaluated first, so a `<!--` inside a fenced
- * example is example text rather than a comment opener.
+ * What each line is: `fence` (a fence marker or fenced content), `comment`
+ * (part of an HTML comment block) or `text`. A commented-out `## Learnings` is
+ * a draft someone hid, not a section, and a commented-out lesson inside a
+ * section is not a lesson. Fences are evaluated first, so a `<!--` inside a
+ * fenced example is example text rather than a comment opener.
  */
-function headings(lines) {
-  const found = [];
+function lineKinds(lines) {
   let fence = null;
   let inComment = false;
-  lines.forEach((line, index) => {
+  return lines.map((line) => {
     if (inComment) {
       if (line.includes('-->')) inComment = false;
-      return;
+      return 'comment';
     }
     const f = line.match(FENCE_RE);
     if (f) {
       const marker = { char: f[1][0], len: f[1].length };
       if (!fence) fence = marker;
       else if (marker.char === fence.char && marker.len >= fence.len && !line.slice(f[0].length).trim()) fence = null;
-      return;
+      return 'fence';
     }
-    if (fence) return;
+    if (fence) return 'fence';
     if (COMMENT_BLOCK_RE.test(line)) {
       inComment = !line.slice(line.indexOf('<!--') + 4).includes('-->');
-      return;
+      return 'comment';
     }
+    return 'text';
+  });
+}
+
+/** Heading records, skipping anything inside a fence or an HTML comment block. */
+function headings(lines, kinds) {
+  const found = [];
+  lines.forEach((line, index) => {
+    if (kinds[index] !== 'text') return;
     const h = line.replace(INLINE_COMMENT_RE, '').match(HEADING_RE);
     if (h) found.push({ level: h[1].length, text: (h[2] || '').trim(), index });
   });
   return found;
+}
+
+/** A section's text as a reader sees it: comments dropped, fenced content untouched. */
+function visibleText(lines, kinds, from, to) {
+  const out = [];
+  for (let i = from; i < to; i += 1) {
+    if (kinds[i] === 'comment') continue;
+    out.push(kinds[i] === 'text' ? lines[i].replace(INLINE_COMMENT_RE, '') : lines[i]);
+  }
+  return out.join('\n').trim();
 }
 
 /**
@@ -117,7 +136,8 @@ function headings(lines) {
  */
 export function locateSections(source) {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
-  const all = headings(lines);
+  const kinds = lineKinds(lines);
+  const all = headings(lines, kinds);
   const sections = [];
 
   for (let i = 0; i < all.length; i += 1) {
@@ -132,7 +152,7 @@ export function locateSections(source) {
       heading: `${'#'.repeat(h.level)} ${h.text}`,
       level: h.level,
       line: h.index + 1,
-      text: lines.slice(h.index + 1, stop).join('\n').trim(),
+      text: visibleText(lines, kinds, h.index + 1, stop),
     });
 
     // Skip the headings this section swallowed.

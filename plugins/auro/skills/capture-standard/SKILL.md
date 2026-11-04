@@ -42,7 +42,7 @@ A ticket failure after the PR opened is still a published result; the line says 
 ${CLAUDE_SKILL_DIR}/scripts/capture.sh range '<repo>' '<branch or from..to>'
 ```
 
-It pins both ends to commits, names the capture branch (`capture/<repo>-<label>`), and prints the **run date**. `EMPTY_RANGE` → result `nothing extractable — nothing is being released`. `REPO_NOT_FOUND` / `REF_NOT_FOUND` / `GH_AUTH_MISSING` → result `failed`.
+It pins both ends to commits, names the capture branch (`capture/<repo>-<label>`), and prints the **run date**. `EMPTY_RANGE` → result `nothing extractable — nothing is being released`. `REPO_NOT_FOUND` / `REF_NOT_FOUND` / `GH_AUTH_MISSING` → result `failed`. `STATE_NOT_WRITABLE` → result `failed — capture cannot write its state to /tmp/capture_*`; tell the user to allow writes to `/tmp` (the Claude Code sandbox blocks them by default) and re-run.
 
 ## Step 2 — Tickets and post-mortems
 

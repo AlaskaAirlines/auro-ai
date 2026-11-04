@@ -28,14 +28,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SKILLS_DIR = join(ROOT, 'plugins/auro/skills');
 const OUT_DIR = join(ROOT, 'copilot/agents');
 
-// Skills with no Copilot equivalent. `coding-standards` is a routing table that
-// loads reference files on demand — Copilot cannot do that, so it gets the
-// path-scoped applyTo instruction files Phase 4 generates instead. Remove this
-// entry once that exists (Phase 4 step 4.6). `capture-standard` opens pull
-// requests in another repository; whether Copilot gets a copy of that is a
-// Phase 4 decision, not a side effect of copying its scripts. `release-prep`
-// only calls other skills (capture-standard among them), which Copilot cannot
-// do; Copilot users run those skills one by one (release-prep TRD #75 §2).
+// Skills that reach Copilot only through the `auro` plugin install
+// (docs/copilot-usage.md, docs/copilot-cli-usage.md), with no generated copy.
+// `coding-standards` loads its reference files on demand, which only a skill
+// can do. `capture-standard` and `release-prep` are release-time workflows that
+// call other skills and open pull requests in another repository, so no
+// generated port of them is maintained.
 const EXCLUDED_SKILLS = new Set(['coding-standards', 'capture-standard', 'release-prep']);
 
 // The Copilot CLI caps a custom agent's prompt (frontmatter + body) at 30,000

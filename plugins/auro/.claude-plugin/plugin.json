@@ -1,6 +1,6 @@
 {
   "name": "auro",
-  "description": "Commit, code-review, release-notes, pr, ado, and post-mortem skills for the Auro design system / auro-formkit.",
+  "description": "Commit, code-review, release-notes, pr, ado, post-mortem, doc-review, close-dependabot, create-rcs, sprint-report, coding-standards, capture-standard, and release-prep skills for Auro repositories.",
   "version": "1.29.1",
   "author": {
     "name": "Alaska Airlines — Auro Design System"

@@ -26,14 +26,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SKILLS_DIR = join(ROOT, 'plugins/auro/skills');
 const OUT_DIR = join(ROOT, 'copilot/prompts');
 
-// Skills with no Copilot equivalent. `coding-standards` is a routing table that
-// loads reference files on demand — Copilot cannot do that, so it gets the
-// path-scoped applyTo instruction files Phase 4 generates instead. Remove this
-// entry once that exists (Phase 4 step 4.6). `capture-standard` opens pull
-// requests in another repository; whether Copilot gets a copy of that is a
-// Phase 4 decision, not a side effect of copying its scripts. `release-prep`
-// only calls other skills (capture-standard among them), which Copilot cannot
-// do; Copilot users run those skills one by one (release-prep TRD #75 §2).
+// Skills that reach Copilot only through the `auro` plugin install
+// (docs/copilot-usage.md, docs/copilot-cli-usage.md), with no generated copy.
+// `coding-standards` loads its reference files on demand, which only a skill
+// can do. `capture-standard` and `release-prep` are release-time workflows that
+// call other skills and open pull requests in another repository, so no
+// generated port of them is maintained.
 const EXCLUDED_SKILLS = new Set(['coding-standards', 'capture-standard', 'release-prep']);
 
 // --- frontmatter parsing -----------------------------------------------------
@@ -109,7 +107,7 @@ function mapTools(allowedTools) {
 // in the Copilot port. Keyed by skill name; omitted skills get only the base note.
 const CAVEATS = {
   'code-review':
-    "Claude runs this as an adversarial multi-model review via sub-agents; Copilot runs a single-model review, and skips the doc-review pass unless the doc-review skill is installed next to it (run `/doc-review` separately). Posting findings to the GitHub PR still works through `gh` in the terminal.",
+    "Claude runs this as an adversarial multi-model review via sub-agents; Copilot runs a single-model review, and skips the doc-review pass unless the doc-review skill is installed next to it (run `/doc-review` separately), and is not reliable at the coding-standards pass: in testing, a single-model Copilot review skipped it and reported the Standards cited line as none. Run `/auro:code-review` in Claude Code for rule citations. Posting findings to the GitHub PR still works through `gh` in the terminal.",
   ado: 'Requires the GitHub CLI (`gh`) and an Azure DevOps PAT in your environment; the terminal will ask to approve each command.',
   'post-mortem':
     'Requires the GitHub CLI (`gh`); Azure DevOps context needs an ADO PAT in your environment. The terminal will ask to approve each command.',

@@ -87,7 +87,7 @@ Review the diff gathered above for:
 - 🟡 **Nit:** worth noting but not blocking
 - 📄 **Documentation:** non-blocking documentation accuracy issue (outdated API docs, demos, or README; JSDoc gaps are 🟡 **Nit**)
 
-Commit-message, post-mortem, ticket-completeness, PR-scope, and dependency-gate checks are the orchestrator's job. Don't run them.
+Commit-message, post-mortem, ticket-completeness, PR-scope, and dependency-gate checks are the orchestrator's job. Don't run them. Citing the coding standards is the standards reviewer's job: don't cite `CS-…` rule IDs.
 
 ## Return format
 

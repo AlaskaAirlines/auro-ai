@@ -93,8 +93,8 @@ commit them so everyone on the repo gets the commands:
 mkdir -p .github/prompts
 # from a checkout of AlaskaAirlines/auro-ai:
 cp /path/to/auro-ai/copilot/prompts/*.prompt.md .github/prompts/
-# skills that bundle helper scripts (currently create-rcs and release-notes) need their folder too:
-cp -R /path/to/auro-ai/copilot/prompts/create-rcs /path/to/auro-ai/copilot/prompts/release-notes .github/prompts/
+# skills that bundle helper scripts or instruction files need their folder too:
+cp -R /path/to/auro-ai/copilot/prompts/*/ .github/prompts/
 git add .github/prompts && git commit -m "chore: add Auro Copilot prompt files"
 ```
 

@@ -6,4 +6,9 @@ Rules in this file are numbered `CS-FORM-001` upward, assigned in order, never r
 
 ## Rules
 
-_No rules yet._
+### CS-FORM-001 — Keep the hidden native control in sync on every path
+
+Any DOM node retained under `name` submits with the form — `aria-hidden` and `tabindex="-1"` block users, not user agents. Autofill, password managers, and bfcache restore write to it directly, without consulting its option list. `auro-select`'s multiSelect branch was right to decline to *apply* an autofilled scalar but returned bare, leaving the native mirror holding a value the form then POSTed instead of the component's own. Every early return on a native-control change event needs a snap-back call, not a bare `return`.
+
+- **Sources:** auro-formkit#1532
+- **Since:** 2026-09-16

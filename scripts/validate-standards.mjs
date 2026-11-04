@@ -49,7 +49,14 @@ const HEADING_RE = /^###\s+(\S+)\s+—\s+(.+?)\s*$/;
 // check anyway.
 const TOMBSTONE_RE = /^merged into (CS-[A-Z0-9]+-\d{3})\.?$/i;
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;
-const FIELD_RE = /^-\s+\*\*([^:*]+):\*\*\s*(.*)$/;
+// A field is exactly `- **Name:** value` at column 0, with a known name in its
+// documented case. capture-standard's corpus index matches only that form, so
+// a looser spelling passed here while capture read the rule as having no such
+// field. FIELD_LIKE_RE catches the near-misses (wrong case, extra spaces, a `*`
+// bullet, the colon outside the bold, an unknown name) so they fail instead.
+const FIELD_NAMES = ['Sources', 'Applies to', 'Learned', 'Since', 'Enforced by'];
+const FIELD_RE = new RegExp(`^- \\*\\*(${FIELD_NAMES.join('|')}):\\*\\*(?: (.*))?$`);
+const FIELD_LIKE_RE = /^[-*+]\s*\*\*\s*([^*:]+?)\s*(?::\s*\*\*|\*\*\s*:)/;
 // A rule's provenance is either an Azure DevOps work item or a repository
 // reference. Not every lesson comes from a ticket: several pilot rules were
 // learned from AI code review on an auro-formkit pull request, where the
@@ -298,6 +305,13 @@ function parseRules(source, file) {
     const above = previous;
     previous = { index, line };
 
+    // Indented by one to three spaces, a heading still renders as one, but
+    // capture's parser only reads column 0 and would not see it. Reported,
+    // then parsed as written so the rest of the file still lines up.
+    if (indent && /^#{1,6}\s/.test(line)) {
+      fail(`${file}:${index + 1}`, `"${line}" is indented — start headings in a reference file at column 0`);
+    }
+
     // Only a `###` heading opens a rule block, so a rule written as `####`,
     // `##`, a setext heading or a `> ###` blockquote was never parsed at all —
     // it rendered and was served to the model with no source, ID or category
@@ -321,9 +335,10 @@ function parseRules(source, file) {
     const h2 = line.match(/^##\s+(.*)$/);
     if (h2) {
       flush();
-      const name = h2[1].trim().toLowerCase();
-      if (name === 'rules') section = 'rules';
-      else if (name === 'retired') section = 'retired';
+      // Case-sensitive, as capture reads them: a `## rules` is not the section.
+      const name = h2[1].trim();
+      if (name === 'Rules') section = 'rules';
+      else if (name === 'Retired') section = 'retired';
       // Any other `##` heading ends the rule section. Without this, a `###`
       // under a later prose heading would still be validated as a rule and
       // fail with a misleading "malformed rule heading".
@@ -333,16 +348,25 @@ function parseRules(source, file) {
 
     if (!current) return;
 
-    const field = line.match(FIELD_RE);
+    const field = visible.match(FIELD_RE);
     if (field) {
       // A repeated field used to overwrite the first, so a second `Sources`
       // line silently discarded the rule's original provenance while the
       // replacement still satisfied the source check.
-      const name = field[1].trim().toLowerCase();
+      const name = field[1].toLowerCase();
       if (name in current.fields) {
-        fail(`${file}:${index + 1}`, `"${current.text}" repeats the "${field[1].trim()}" field — give every value on the one line, or the second replaces the first`);
+        fail(`${file}:${index + 1}`, `"${current.text}" repeats the "${field[1]}" field — give every value on the one line, or the second replaces the first`);
       }
-      current.fields[name] = field[2].trim();
+      current.fields[name] = (field[2] ?? '').trim();
+      return;
+    }
+
+    const fieldLike = line.match(FIELD_LIKE_RE);
+    if (fieldLike) {
+      const known = FIELD_NAMES.find((n) => n.toLowerCase() === fieldLike[1].toLowerCase());
+      fail(`${file}:${index + 1}`, known
+        ? `"${line}" is not a canonical field — write it exactly as "- **${known}:** value" at column 0`
+        : `"${line}" has unknown field "${fieldLike[1]}" — fields are ${FIELD_NAMES.join(', ')}`);
       return;
     }
     current.body.push(line.trim());

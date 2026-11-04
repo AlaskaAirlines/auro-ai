@@ -698,6 +698,81 @@ const tests = {
     }, 'is not a "###" heading');
   },
 
+  // --- only the canonical field and heading form counts -----------------------
+  // capture-standard's corpus index reads only `- **Name:** value` at column 0
+  // and `### CS-…` at column 0. Each fixture below is otherwise a valid rule, so
+  // only the strictness guard can fail it.
+  async 'a field name in the wrong case is rejected'() {
+    await expectFail('a field name in the wrong case is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Wrong-case field', '',
+        '- **Sources:** AB#1636704', '- **SINCE:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'write it exactly as "- **Since:** value"');
+  },
+
+  async 'a field with an extra space after the dash is rejected'() {
+    await expectFail('a field with an extra space after the dash is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Extra space in a field', '',
+        '- **Sources:** AB#1636704', '-  **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'write it exactly as "- **Since:** value"');
+  },
+
+  async 'an indented field is rejected'() {
+    await expectFail('an indented field is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Indented field', '',
+        '- **Sources:** AB#1636704', '  - **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'write it exactly as "- **Since:** value" at column 0');
+  },
+
+  async 'an unknown or misspelled field is rejected'() {
+    await expectFail('an unknown or misspelled field is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — Misspelled precondition', '',
+        '- **Sources:** AB#1636704', '- **Aplies to:** only Safari', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'unknown field "Aplies to"');
+  },
+
+  async 'an indented rule heading is rejected'() {
+    await expectFail('an indented rule heading is rejected', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        ' ### CS-API-001 — Indented heading', '',
+        '- **Sources:** AB#1636704', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'is indented');
+  },
+
+  async 'a lowercase "## rules" section is not the Rules section'() {
+    await expectFail('a lowercase "## rules" section is not the Rules section', {
+      api: [
+        '# CS-API', '', '## rules', '',
+        '### CS-API-001 — Under a lowercase section', '',
+        '- **Sources:** AB#1636704', '', 'Body text.', '',
+      ].join('\n'),
+    }, 'is not under a "## Rules" or "## Retired" heading');
+  },
+
+  async 'every documented field in canonical form passes'() {
+    await expectPass('every documented field in canonical form passes', {
+      api: [
+        '# CS-API', '', '## Rules', '',
+        '### CS-API-001 — All fields', '',
+        '- **Sources:** AB#1636704, auro-formkit#1511', '- **Applies to:** form controls',
+        '- **Learned:** ×2', '- **Since:** 2026-09-16', '', 'Body text.', '',
+      ].join('\n'),
+    });
+  },
+
   // --- the phase-1 invariant ----------------------------------------------------
   async 'an empty corpus passes'() {
     await expectPass('an empty corpus passes', {});

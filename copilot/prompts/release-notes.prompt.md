@@ -20,12 +20,12 @@ You are executing the **release-notes** skill. The invocation itself is the requ
 > - commit, push, or open a PR;
 > - create, move, or delete git tags (the `git tag -l` allowance is read-only listing — never `git tag <name>`);
 > - edit `package.json` / version fields, lockfiles, or any changelog other than the release-notes files named in this skill;
-> - run `npm version`/`npm publish`/`semantic-release`, create GitHub Releases, or trigger/dispatch any CI or release workflow (Step 3's helper only loads semantic-release's commit analyzer to read the version; it never runs a release);
+> - run `npm version`/`npm publish`/`semantic-release`, create GitHub Releases, or trigger/dispatch any CI or release workflow (Step 2's helper only loads semantic-release's commit analyzer to read the version; it never runs a release);
 > - touch build config, `.github/`, or anything outside `docs/releases/` and `docs/templates/RELEASE_NOTES.md`.
 >
 > Everything above is handled by the release workflow. If any step seems to call for one of these actions, stop and hand control back to the user instead.
 
-**The invocation takes one optional argument** — available as `${input:args}` (the text after `/release-notes`, trimmed; empty if none): an explicit **base ref** (tag, branch, or commit) to use as the start of the commit range, overriding the automatic boundary detection in Step 2. Leave it empty for the normal flow.
+**The invocation takes one optional argument** — available as `${input:args}` (the text after `/release-notes`, trimmed; empty if none): an explicit **base ref** (tag, branch, or commit) to use as the start of the commit range, overriding the last release tag the helper in Step 2 would otherwise start from. Leave it empty for the normal flow.
 
 **Every run ends with exactly one result line** — see *Calling contract*.
 
@@ -37,7 +37,7 @@ Release prep (or a person) calls this skill with the optional base ref above, fr
 - `RELEASE_NOTES_RESULT: written docs/releases/<padded>.md — <semver> (<bump>), updated · staged, not committed` — the branch's in-progress file refreshed in place. If the commits now call for a different version (Step 3), add ` · version mismatch: the commits now give <semver>`;
 - `RELEASE_NOTES_RESULT: no release notes needed — <reason>` — nothing release-worthy since the last release, or no commits at all. This is a result, not a failure;
 - `RELEASE_NOTES_RESULT: cancelled — nothing written` — the user chose **Cancel** in Step 3;
-- `RELEASE_NOTES_RESULT: failed — <step and reason>` — anything else, including a Step 0 stop (`failed — repo not set up for release-notes (missing <paths>)`) and Step 3's `npm ci` stop.
+- `RELEASE_NOTES_RESULT: failed — <step and reason>` — anything else, including a Step 0 stop (`failed — repo not set up for release-notes (missing <paths>)`) and Step 2's `npm ci` stop.
 
 Print it after any other output, on its own line, even when you stop early. The segments after the first ` · ` may grow; a caller that needs only the file and version should read up to it.
 
@@ -89,47 +89,34 @@ Ignore `Release_Guide_TEMPLATE.md`. Call the result the **in-progress set** (nor
 
 ---
 
-## Step 2 — Determine the commit range to assess
+## Step 2 — Run the version helper and take its commit range
 
-You need every commit that has landed **since the base release was cut**, up to `HEAD`.
-
-**If `${input:args}` is non-empty**, treat it as an explicit base ref and use the range `<${input:args}>..HEAD` (verify it resolves with `git rev-parse --verify <ref>`; if it doesn't, tell the user the ref is invalid and stop with `RELEASE_NOTES_RESULT: failed — base ref <ref> does not resolve`). Skip the automatic detection below.
-
-**Otherwise**, detect the boundary automatically, in this order:
-
-1. **The commit that added the latest release file** (preferred — robust even when tags lag):
-   ```
-   git log --diff-filter=A --format=%H -- docs/releases/<base padded>.md
-   ```
-   Take the **last** line (the original add). The range is `<that commit>..HEAD`.
-2. **Matching version tag** — if step 1 finds nothing, try `git rev-parse --verify v<base semver>` (e.g. `v6.0.2`). If it resolves, use `v<base semver>..HEAD`.
-3. **Prompt once** — if neither resolves, ask the user with `AskUserQuestion` for a base ref (tag/branch/commit) to compare against, then use `<ref>..HEAD`.
-
-List the commits in the range for classification — **subjects only** (do not pull bodies yet; they're only needed in Step 4, and only for the commits that make it into the notes):
-```
-git log --format=%H%x1f%s <range>
-```
-(`\x1f` separates hash from subject; one commit per line.) Then, in a single targeted call, get the hashes of any commits whose **body** carries a breaking-change footer — so you don't load every body just to find the rare breaking one:
-```
-git log -E --grep='^BREAKING[ -]CHANGE:' --format=%H <range>
-```
-Call this the **breaking-change set**. If the classification range is **empty** (no commits), stop and report: "No commits since the base release (`<base semver>`) — nothing to release." and end with `RELEASE_NOTES_RESULT: no release notes needed — no commits since <base semver>`.
-
----
-
-## Step 3 — Decide the bump and the new version
-
-The version comes from the **same tool the real release uses**: semantic-release's commit analyzer, loaded from the repo's own `node_modules`, with the repo's own release config (`.releaserc`, `release.config.*`, or `package.json` `"release"`), over the commits since the last release tag. That way the notes and the release cannot disagree — `auro-formkit`'s `.releaserc`, for example, makes `refactor`, `style` and `docs(README)` patch releases. Do **not** classify the commits yourself. Run the bundled helper from the repo — with no arguments, or, when `${input:args}` gave a base ref, with that ref:
+The commit range and the version both come from one bundled helper, so the notes describe exactly the commits the version is computed from. The helper uses the **same tool the real release uses**: semantic-release's commit analyzer, loaded from the repo's own `node_modules`, with the repo's own release config (`.releaserc`, `release.config.*`, or `package.json` `"release"`). Its range runs from the last release tag this branch contains to `HEAD`. That way the notes and the release cannot disagree — `auro-formkit`'s `.releaserc`, for example, makes `refactor`, `style` and `docs(README)` patch releases. Run it from the repo — with no arguments, or, when `${input:args}` gave a base ref, with that ref as the start of the range:
 ```
 .github/prompts/release-notes/scripts/next-release.mjs
 .github/prompts/release-notes/scripts/next-release.mjs --from '<${input:args}>'
 ```
 Run it **exactly as written** — one call, the path unquoted, nothing added (no `cd`, no `&&`, no pipes or redirects); that is the shape the skill's permission rule approves. It only reads git, the release config and the installed analyzer. It prints one JSON object: `releaseType` (`major`/`minor`/`patch`/`none`), `lastTag` and `lastVersion` (the highest stable release tag, or the `--from` ref when that is a release tag), `nextVersion`, the `range` it analyzed, `commitCount`, `triggers` (each release-worthy commit's short hash, subject and type), and the `config` file it read.
 
-**If it prints an `error`, stop** — never fall back to classifying the commits yourself, because that is the disagreement this step exists to prevent. Tell the user its `message` plainly, and end with `RELEASE_NOTES_RESULT: failed — <message>`:
+**If it prints an `error`, stop** — never work out a range or classify the commits yourself, because that is the disagreement this step exists to prevent. Tell the user its `message` plainly, and end with `RELEASE_NOTES_RESULT: failed — <message>`:
 - **`NOT_INSTALLED`** — the checkout has no `node_modules` (or no semantic-release in it). Tell the user to run `npm ci` in the repo root and re-run.
 - **`NO_RELEASE_TAG`** — no release tag is in this checkout. Tell the user to run `git fetch --tags`, or to re-run with an explicit base ref.
-- **`NO_ANALYZER`**, **`BAD_REF`**, **`ANALYZER_FAILED`**, or anything else — report the message as-is.
+- **`BAD_REF`** — the base ref doesn't resolve. Tell the user the ref is invalid.
+- **`NO_ANALYZER`**, **`ANALYZER_FAILED`**, or anything else — report the message as-is.
+
+**The helper's `range` is `<range>` for the rest of this skill** — the commit list below, the sections and component grouping in Step 4, and every other `<range>` use. Never compute a range any other way.
+
+List the commits in the range — **subjects only** (do not pull bodies yet; they're only needed in Step 4, and only for the commits that make it into the notes):
+```
+git log --format=%H%x1f%s <range>
+```
+(`\x1f` separates hash from subject; one commit per line.) If `commitCount` is **0** (no commits), stop and report: "No commits in `<range>` — nothing to release." and end with `RELEASE_NOTES_RESULT: no release notes needed — no commits in <range>`.
+
+---
+
+## Step 3 — Decide the bump and the new version
+
+The version is the helper's, from Step 2. Do **not** classify the commits yourself.
 
 **No-op exit.** If `releaseType` is **`none`**, **stop and report why** — do not create a release notes document. Message shape:
 

@@ -169,7 +169,7 @@ for code that is no longer on the PR.
 ### `/auro:release-notes`
 
 ```shell
-/auro:release-notes            # detect the range since the last documented release automatically
+/auro:release-notes            # the range since the last release tag this branch contains
 /auro:release-notes v6.0.2     # override: use an explicit base ref (tag/branch/commit) as the range start
 ```
 
@@ -189,13 +189,17 @@ the release (that's owned by the GitHub Actions semantic-release workflow). It:
    - **Update mode** (an in-progress file already exists on the branch) — it will **refresh
      that existing file in place** rather than create a second one. If more than one
      in-progress file is found it asks you which to update.
-3. **Decides the bump and the next version** with the same tool the real release uses:
-   semantic-release's commit analyzer, loaded from the repo's own `node_modules`, with the
-   repo's own release config (`.releaserc` in `auro-formkit`), over the commits since the last
-   release tag. So the notes agree with the release — in `auro-formkit`, `refactor` and `style`
+3. **Decides the commit range, the bump and the next version** with the same tool the real
+   release uses: semantic-release's commit analyzer, loaded from the repo's own `node_modules`,
+   with the repo's own release config (`.releaserc` in `auro-formkit`). The range runs from the
+   last release tag this branch contains (or the base ref you give) to `HEAD`, and the notes
+   are written from that same range, so they cover exactly the commits the version comes from.
+   The version matches the release's too — in `auro-formkit`, `refactor` and `style`
    commits are patch releases too. If the checkout has no `node_modules` it **stops** and tells
-   you to run `npm ci`; it never falls back to guessing. If the release rules make none of the
-   commits a release, it **exits early** and explains why. In
+   you to run `npm ci`; if it has no release tag it stops and tells you to run
+   `git fetch --tags` or pass a base ref. It never falls back to guessing. If there are no
+   commits, or the release rules make none of them a release, it **exits early** and explains
+   why. In
    update mode it keeps the existing file's version as the target; if a newly landed commit
    would change that number (e.g. a `feat` bumps a patch to a minor) it still refreshes the
    existing file and **flags the mismatch** in its report so you can decide whether to

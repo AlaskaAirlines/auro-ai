@@ -226,7 +226,7 @@ update, re-copy the files into your agent location (step 2) and restart `copilot
 | Symptom | Fix |
 | ------- | --- |
 | Auro agents don't appear in `/agent` | Confirm the files are in `%USERPROFILE%\.copilot\agents\` (Option A) or the repo's `.github\agents\` (Option B), then restart `copilot`. |
-| `ado` / `code-review` / `sprint-report` / `create-rcs` can't find their workflow or script | Set `AURO_AI_HOME` to your `auro-ai` checkout (step 3) and restart, or give the path when the agent asks. |
+| `ado` / `code-review` / `sprint-report` / `create-rcs` / `release-notes` can't find their workflow or script | Set `AURO_AI_HOME` to your `auro-ai` checkout (step 3) and restart, or give the path when the agent asks. |
 | `ado` / `sprint-report` / `create-rcs` say "No Azure DevOps token found" | `setx ADO_PAT …` didn't reach the CLI — confirm it ran and **fully restart** `copilot`. |
 | Azure DevOps returns sign-in HTML | PAT missing/expired/wrong scope — recreate with Work Items → Read & Write and re-run `setx ADO_PAT`. |
 | `pr` / `code-review` / `post-mortem` fail | Install and authenticate `gh` (`gh auth login`). |

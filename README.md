@@ -9,12 +9,15 @@ repository, with versioning and change history tracked in git.
 | Plugin | Skill | Invocation |
 | ------ | ----- | ---------- |
 | `auro` | `commit` — guided Conventional Commits workflow (protected-branch/sync guards, ADO/PR reference, `amend` mode, post-mortem linking, AI + human co-author accreditation) | `/auro:commit <ADO # \| PR # \| prev \| skip \| amend>` |
-| `auro` | `code-review` — adversarial multi-model PR / local-branch review, plus a doc-review pass on changed component docs | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` |
+| `auro` | `code-review` — adversarial multi-model PR / local-branch review, plus a doc-review pass on changed component docs and a pass that checks the diff against the coding standards it touches, citing each broken rule by ID | `/auro:code-review <PR #> [effort]` · `/auro:code-review <PR #> post` · `/auro:code-review local [base] [effort]` |
 | `auro` | `release-notes` — derive the next version with the repo's own semantic-release commit analyzer and author (or refresh) the release-notes doc | `/auro:release-notes [base ref]` |
 | `auro` | `pr` — open a PR for the current branch, assigned to you; prompts for base branch + draft/ready, applies component labels (auro-formkit), and adds each post-mortem ticket's Executive Summary + Discussion link | `/auro:pr [base branch]` |
 | `auro` | `ado` — draft a new Azure DevOps work item or refine an existing one (infers component, classifies bug vs. story, drafts title/description/acceptance criteria, then writes to ADO) | `/auro:ado <new \| ADO # >` |
 | `auro` | `close-dependabot` — list open Dependabot PRs across all Auro repos, pick which to keep, close the rest | `/auro:close-dependabot` |
 | `auro` | `doc-review` — check the branch's component docs (JSDoc, README partials, demo copy) against the Auro content guidelines, verifying each claim against the code; reports only by default; `write` applies the fixes, uncommitted; `all` covers the whole repo instead of the branch; a component name (formkit) limits it to that component; on a PR, keeps a findings ledger comment and re-reviews only what changed | `/auro:doc-review [write] [all \| base branch] [full \| since <commit>] [component …]` |
+| `auro` | `coding-standards` — read-only Auro coding standards Claude applies on its own during code work; cites rules by ID | loads automatically (no command) |
+| `auro` | `capture-standard` — at release time, turn the lessons in the release's post-mortems into proposed coding-standards rules; on one confirmation, opens a PR against auro-ai plus a review ticket | `/auro:capture-standard <repo> <branch \| from..to> [--corpus-ref <branch>]` |
+| `auro` | `release-prep` — prepare a release as an `rc` branch merges into `main`: a read-only preflight, then `capture-standard`, then `release-notes`, then one summary | `/auro:release-prep [<repo>] [<rc branch \| from..to>] [--corpus-ref <branch>] [--notes-base <ref>]` |
 
 > Plugin skills are **namespaced** by the plugin name, so `/commit` becomes
 > `/auro:commit`. Namespacing prevents collisions with other plugins.
@@ -52,13 +55,20 @@ auro-ai/
 │       └── skills/               # SKILL.md sources — the single source of truth
 │           ├── commit/SKILL.md
 │           ├── code-review/      # SKILL.md + reviewer.md (reviewer criteria) + doc-reviewer.md (doc-review adapter) + standards-reviewer.md (coding-standards check) + posting.md (post mode)
-│           ├── release-notes/SKILL.md
+│           ├── release-notes/    # SKILL.md + scripts/next-release.mjs (next-version helper)
 │           ├── pr/SKILL.md
 │           ├── ado/SKILL.md
+│           ├── post-mortem/SKILL.md
 │           ├── close-dependabot/SKILL.md
-│           └── doc-review/SKILL.md
+│           ├── doc-review/       # SKILL.md + ledger.md (PR findings ledger)
+│           ├── create-rcs/       # SKILL.md + scripts/rcs.sh
+│           ├── sprint-report/SKILL.md
+│           ├── coding-standards/ # SKILL.md (routing table) + references/<category>.md (the rules)
+│           ├── capture-standard/ # SKILL.md + scripts/ (capture.sh, locate-sections.mjs)
+│           └── release-prep/     # SKILL.md + scripts/preflight.mjs
 ├── copilot/
 │   ├── prompts/                  # generated .prompt.md files for GitHub Copilot
+│   ├── agents/                   # generated .agent.md files for the Copilot CLI
 │   └── README.md
 ├── docs/
 │   ├── usage.md                  # detailed install / usage guide (Claude Code)
@@ -67,7 +77,11 @@ auro-ai/
 │   └── post-mortem/              # engineering post-mortems
 ├── scripts/
 │   ├── bump-version.mjs          # keeps plugin.json + marketplace.json versions in lockstep
-│   └── build-copilot-prompts.mjs # generates copilot/prompts/ from the SKILL.md sources
+│   ├── build-copilot-prompts.mjs # generates copilot/prompts/ from the SKILL.md sources
+│   ├── build-copilot-agents.mjs  # generates copilot/agents/ from the SKILL.md sources
+│   ├── validate-standards.mjs    # checks the coding-standards rule files
+│   ├── score-trigger-transcript.mjs # scores whether coding-standards loaded before the first edit in a transcript
+│   └── *.test.mjs, *.test.sh     # tests for the scripts above and the skills' helper scripts
 ├── .releaserc                    # semantic-release config
 ├── CHANGELOG.md                  # generated by semantic-release
 └── .github/workflows/            # CI: release, commit/PR checks, tag sync

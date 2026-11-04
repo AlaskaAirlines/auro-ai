@@ -1,12 +1,12 @@
 # Using the Auro skills in the GitHub Copilot CLI (Windows)
 
-The Auro workflows are packaged three ways, one per product:
+The Auro workflows reach each product this way:
 
 | Product | Package | Where |
 | ------- | ------- | ----- |
 | Claude Code | plugin / skills | [`../plugins/auro/skills/`](../plugins/auro/skills/) — see [`usage.md`](./usage.md) |
 | Copilot in VS Code / Visual Studio / JetBrains | prompt files (`.prompt.md`) | [`../copilot/prompts/`](../copilot/prompts/) — see [`copilot-usage.md`](./copilot-usage.md) |
-| **Copilot CLI** | **custom agents (`.agent.md`)** | [`../copilot/agents/`](../copilot/agents/) — **this guide** |
+| **Copilot CLI** | **custom agents (`.agent.md`)**, plus the `auro` plugin for the skills that aren't generated | [`../copilot/agents/`](../copilot/agents/) — **this guide**; the plugin: [below](#coding-standards-install-the-auro-plugin) |
 
 > **Why the CLI needs its own package.** The Copilot **CLI** does not load VS Code
 > prompt files (`.github/prompts/*.prompt.md`) as slash commands — that's an
@@ -15,13 +15,17 @@ The Auro workflows are packaged three ways, one per product:
 > `/agent` or `copilot --agent <name>`), so the skills are generated into that format
 > in [`../copilot/agents/`](../copilot/agents/).
 
+`coding-standards`, `capture-standard` and `release-prep` have no generated agent or
+prompt file. The CLI gets them only by installing the `auro` plugin, as below.
+
 ## Coding standards: install the `auro` plugin
 
 The Auro **coding standards** (`coding-standards`) are not an agent. They load
 automatically when you write or change code, and that only works as a skill. The
 Copilot CLI installs Claude-format plugins, so it reads the standards straight from
 the same `auro` plugin Claude Code uses. There is one copy of every rule, and nothing
-is generated.
+is generated. The plugin also brings `capture-standard` and `release-prep`, which
+load like any other skill but have not been verified in Copilot.
 
 ```shell
 copilot plugin marketplace add AlaskaAirlines/auro-ai

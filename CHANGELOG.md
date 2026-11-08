@@ -1,3 +1,10 @@
+## [1.30.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.30.0...v1.30.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **doc-review:** rebuild monorepos via the root build script and run npm with --prefix ([98e0869](https://github.com/AlaskaAirlines/auro-ai/commit/98e08699d7b2c8e7c096a30c26ff23158d38ac42))
+
 # [1.30.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.29.2...v1.30.0) (2026-11-08)
 
 

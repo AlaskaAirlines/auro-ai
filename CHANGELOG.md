@@ -1,3 +1,10 @@
+## [1.29.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.29.1...v1.29.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **doc-review:** support monorepo doc layouts, compiled READMEs, and shared manifest rebuilds ([82f933e](https://github.com/AlaskaAirlines/auro-ai/commit/82f933ef731794bcb8365056f360b2607afd3eb6))
+
 ## [1.29.1](https://github.com/AlaskaAirlines/auro-ai/compare/v1.29.0...v1.29.1) (2026-10-28)
 
 

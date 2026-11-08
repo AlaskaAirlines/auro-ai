@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/AlaskaAirlines/auro-ai/compare/v1.29.2...v1.30.0) (2026-11-08)
+
+
+### Features
+
+* **doc-review:** fan out monorepo all reviews to per-component subagents ([7d323a9](https://github.com/AlaskaAirlines/auro-ai/commit/7d323a970289418de083a620814ae949dfafe3f9))
+
 ## [1.29.2](https://github.com/AlaskaAirlines/auro-ai/compare/v1.29.1...v1.29.2) (2026-11-08)
 
 

@@ -93,7 +93,10 @@ Claude-only capabilities degrade:
 
 - **No sub-agents / multi-model.** `code-review` runs an adversarial *multi-model*
   review under Claude; under Copilot it is a single-model review. GitHub comment
-  posting still works via the `gh` CLI in the terminal.
+  posting still works via the `gh` CLI in the terminal. `doc-review all` in
+  auro-formkit splits the components across sub-agents under Claude; under Copilot
+  it reviews only the root docs and lists one `/doc-review all <component>` run per
+  component.
 - **Terminal approvals.** Claude's fine-grained `Bash(...)` allowlists become
   Copilot's `runCommands` tool — Copilot asks you to approve each terminal command
   rather than silently allowing a pre-approved set.

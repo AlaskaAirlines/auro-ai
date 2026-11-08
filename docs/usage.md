@@ -387,11 +387,27 @@ Every run gives the same scope, rules, and checks, no matter who runs it:
   every run. It never works from memory, and every finding cites the guideline section
   it comes from.
 - **Scope:** follows the guidelines' "What to update" section. Every JSDoc block, README
-  partial section, and demo example the branch touches is reviewed in full. Problems in
-  untouched content and shared template content are reported, not fixed. With `all`, every
-  JSDoc block, partial section, and API example in the repository is in scope instead
-  (shared template content is still only reported). In a monorepo it works one component
-  at a time.
+  partial section, and demo example the branch touches is reviewed in full, including
+  partials, pages, and API examples in subfolders (such as `docs/partials/getting-started/`
+  or `apiExamples/snowflake/`). Problems in untouched content and shared template content
+  are reported, not fixed. With `all`, every JSDoc block, partial and page section, and API
+  example in the repository is in scope instead (shared template content is still only
+  reported). It lists the files with `git ls-files`, so build output such as
+  `src/styles/*-css.js` is never reviewed.
+- **Compiled READMEs:** a `README.md` whose opening comment says it's a compiled document
+  (every Auro component README) is treated as generated and never edited. Problems in its
+  text are reported against the template it's built from: the `auro-templates` README, or a
+  template in the repository such as auro-formkit's `docs/templates/componentReadmeTemplate.md`.
+- **Whole monorepo (`all` in auro-formkit):** covers `components/`, the root `docs/partials/`,
+  and the README templates. `apps/`, `packages/`, and `quarantine/` aren't reviewed, but
+  are still read to check claims. One session can't review every component reliably, so
+  the skill splits them into **work units** (one component, half of a large one, or a few
+  small ones together) and runs an `auro:doc-review-component` subagent on each, five at a
+  time. It reviews the root docs itself, then merges everything into one report and one
+  ledger update. A unit that fails twice is listed as **Not reviewed**, and the run can't
+  converge until it's reviewed. A full run on auro-formkit starts about 13 Opus subagents,
+  so use `all <component>` when you only need one component. The subagent is internal to
+  the skill; don't invoke it directly.
 - **Components:** in a monorepo with a `components/` folder (auro-formkit), add one or more
   component names (`dropdown`, `datepicker`, or `auro-dropdown`) to limit the review, or
   `write`, to those components. With `all` it covers the whole component; without `all`,
@@ -401,11 +417,14 @@ Every run gives the same scope, rules, and checks, no matter who runs it:
   the component's source and styles, and reports claims the code contradicts.
 
 Findings are grouped as inaccurate claims, guideline issues, outside this change, shared
-template content (to fix in `auro-templates`), and open questions the guidelines don't
-settle. Without `write`, it only reports and changes no files. With `write`, it edits
-only the in-scope documentation sources, never generated files, then runs the build (and
-`cem:check` when the repo has it) and confirms the changes in `custom-elements.json` and
-`docs/api.md`. It leaves the edits uncommitted for you to review.
+template content (to fix in `auro-templates` or the repository's README template), and open
+questions the guidelines don't settle. Without `write`, it only reports and changes no
+files. With `write`, it edits only the in-scope documentation sources, never generated
+files, then rebuilds and confirms the changes in `custom-elements.json` and `docs/api.md`.
+In a monorepo it runs the root `npm run build` once, after every edit, because the
+components share one manifest; elsewhere it runs the package's build (and `cem:check` when
+the repo has it). It reports any generated file that changed for reasons other than its
+edits, and leaves the edits uncommitted for you to review.
 
 #### The findings ledger
 

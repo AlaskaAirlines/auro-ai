@@ -161,6 +161,8 @@ Run this after Step 4, before reporting. Do it for each finding this run produce
 
 An entry closes only when a run confirms the problem is gone, never because a run didn't mention it.
 
+**Work units (`fanout.md`):** when a monorepo run is split into work units, each worker re-checks the open entries in its own files and returns the result. Use those results instead of re-checking those entries yourself, as `fanout.md` F4 describes, and leave the entries of a unit that wasn't reviewed as they are.
+
 **code-review adapter:** only suppress findings that match a `deferred`, `rejected`, or `waived` entry. Don't add entries, check open entries, or assign IDs.
 
 ---

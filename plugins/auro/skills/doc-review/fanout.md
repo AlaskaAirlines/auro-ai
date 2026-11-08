@@ -70,4 +70,4 @@ Repository root: <path>
   - **Not reviewed:** each unit that failed twice, with the reason. Leave the line out when every unit ran.
   - **Status:** when a unit wasn't reviewed, the run can't converge. Say "**Not converged: N open, M units not reviewed**", even when groups 1 and 2 are empty.
   - **Findings:** within each group, order them by component path, so each component's findings stay together.
-- **Write mode:** go to Step 6.3. Step 6.1 and 6.2 are done. Rebuild once, after every unit has finished. In Step 6.4, use each `fixed` entry's `newFirstSentence` to find it in the rebuilt output. In Step 7, add every unit that wasn't reviewed under **Not fixed**, with the files it changed before failing.
+- **Write mode:** go to Step 6.3. Step 6.1 and 6.2 are done. Rebuild once, after every unit has finished, as Step 6.3 describes for known components; never while a batch is still running, because the workers' edits all feed the one root manifest. In Step 6.4, use each `fixed` entry's `newFirstSentence` to find it in the rebuilt output. In Step 7, add every unit that wasn't reviewed under **Not fixed**, with the files it changed before failing.

@@ -204,7 +204,7 @@ Context documents: <repo paths of post-mortem/context docs read in the pre-revie
 
 The **doc-review** skill checks the component documentation a change touches (JSDoc, README partials, demo copy) against the Auro content guidelines and verifies each claim against the code. Every code review runs it on the same diff, in review mode only. It never edits files here; `/auro:doc-review write` remains the way to apply its fixes.
 
-**1. Gate.** Spawn it only when the changed-file list (plus untracked files in local mode) contains a possible doc source: a `.js`, `.mjs`, or `.ts` file under a `src/` folder, a `docs/partials/*.md` file, an `apiExamples/*.html` file, or a `README.md`. Otherwise skip it, with no agent call, and note "ℹ️ No component documentation changed — doc-review skipped" in the output.
+**1. Gate.** Spawn it only when the changed-file list (plus untracked files in local mode) contains a possible doc source: a `.js`, `.mjs`, or `.ts` file under a `src/` folder, a `.md` file anywhere under a `docs/partials/` or `docs/pages/` folder (including subfolders such as `docs/partials/getting-started/`), an `.html` file anywhere under an `apiExamples/` folder, or a `README.md`. Otherwise skip it, with no agent call, and note "ℹ️ No component documentation changed — doc-review skipped" in the output.
 
 **2. Find its instructions.** The doc-review skill ships next to this one, at `${CLAUDE_SKILL_DIR}/../doc-review/SKILL.md`. If that file can't be read (e.g. a Copilot install without it), skip the documentation review and note "ℹ️ doc-review skill not found — documentation guidelines review skipped. Run `/auro:doc-review` separately."
 
